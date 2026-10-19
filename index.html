@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="James Eby: business intelligence leader and data scientist in Miami. Résumé, projects and links.">
+<meta name="theme-color" content="#050507">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://jeby.us/">
+<meta property="og:title" content="James Eby · BI, Data Science, Analytics Leadership">
+<meta property="og:description" content="Six-plus years turning business questions into data infrastructure, models and dashboards. Résumé, projects and links.">
+<meta property="og:image" content="https://jeby.us/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://jeby.us/">
+<title>jeby.us · James Eby</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one black stage, sticky tab rail, each tab is a full section; the resume tab swaps between a lit career timeline and a classic sheet. */
+:root{
+  --void:#050507;        /* page */
+  --plate:#0d0d11;       /* raised surfaces */
+  --seam:#22212a;        /* hairlines */
+  --chalk:#eeecf2;       /* primary text */
+  --ash:#9b98a8;         /* secondary text */
+  --neon:#ff2b3d;        /* neon red: glows, active states */
+  --ember:#e3262f;       /* jeby Red: the family dot */
+  --oxblood:#5c0a12;     /* deep red for fills */
+  --chrome-red:linear-gradient(176deg,#ffb3b8 0%,#ff4a58 22%,#d1101f 46%,#6e0611 58%,#ff3445 78%,#ff9aa2 100%);
+  --chrome:linear-gradient(176deg,#ffffff 0%,#d9d7e0 30%,#77748a 52%,#f2f1f6 72%,#a9a6b8 100%);
+  --f-display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --glow:0 0 6px rgba(255,43,61,.75),0 0 22px rgba(255,43,61,.35);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;background:var(--void)}
+body{margin:0;background:var(--void);color:var(--chalk);font-family:var(--f-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:clip}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--void)}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--neon);outline-offset:3px;border-radius:4px}
+::selection{background:var(--neon);color:var(--void)}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+.mono{font-family:var(--f-mono)}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ash)}
+.eyebrow b{color:var(--neon);font-weight:500}
+
+/* ---------- ambient ---------- */
+.ambient{position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(60vw 40vw at 92% -8%,rgba(255,43,61,.16),transparent 60%),
+    radial-gradient(40vw 30vw at -10% 110%,rgba(255,43,61,.07),transparent 60%);}
+.ambient::after{content:"";position:absolute;inset:0;opacity:.35;
+  background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-size:48px 48px;mask-image:linear-gradient(180deg,#000 0%,transparent 55%)}
+main,header,footer{position:relative;z-index:1}
+
+/* ---------- header / tabs ---------- */
+header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:rgba(5,5,7,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--seam)}
+.bar .wrap{display:flex;align-items:center;gap:20px;min-height:64px}
+.wordmark{display:inline-flex;align-items:baseline;text-decoration:none;font-family:var(--f-display);font-weight:900;font-stretch:112%;font-size:26px;letter-spacing:-.02em;line-height:1;position:relative;color:var(--chalk)}
+.wordmark .j{position:relative}
+.wordmark .j::after{content:"";position:absolute;left:52%;top:-.08em;width:.2em;height:.2em;border-radius:50%;background:var(--ember);box-shadow:var(--glow);transform:translateX(-50%)}
+.wordmark .tld{font-weight:400;font-stretch:100%;color:var(--ash);font-size:.62em;margin-left:2px}
+nav.tabs{flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+.tabs ul{display:flex;gap:4px;list-style:none;margin:0;padding:0;justify-content:flex-end}
+.tab{appearance:none;border:0;background:none;color:var(--ash);font:500 14px/1 var(--f-body);padding:10px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;position:relative;display:inline-flex;align-items:center;gap:6px}
+.tab:hover:not([disabled]){color:var(--chalk);background:rgba(255,255,255,.04)}
+.tab[aria-selected="true"]{color:var(--chalk)}
+.tab[aria-selected="true"]::after{content:"";position:absolute;left:12px;right:12px;bottom:2px;height:2px;border-radius:2px;background:var(--neon);box-shadow:var(--glow)}
+.tab[disabled]{cursor:not-allowed;color:#55525f}
+.tab .soon{font:500 9px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;padding:3px 5px;border:1px solid #2e2c36;border-radius:4px;color:#6d6a78}
+
+/* ---------- shared ---------- */
+section.view{padding-block:56px 96px}
+section.view[hidden]{display:none}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-weight:800;font-stretch:118%;font-size:clamp(26px,3.4vw,38px);letter-spacing:-.02em;line-height:1.08}
+.metal{background:var(--chrome-red);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 14px rgba(255,43,61,.28))}
+.chromefx{background:var(--chrome);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+.btn{display:inline-flex;align-items:center;gap:10px;font:600 15px/1 var(--f-body);text-decoration:none;padding:13px 18px;border-radius:10px;border:1px solid var(--seam);background:var(--plate);color:var(--chalk);cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .2s}
+.btn:hover{border-color:var(--neon);box-shadow:0 0 0 1px var(--neon),0 0 24px rgba(255,43,61,.25)}
+.btn.primary{background:linear-gradient(180deg,#ff3a4b,#b10d1b);border-color:#ff5b69;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 6px 24px rgba(255,43,61,.3)}
+.btn.primary:hover{transform:translateY(-1px)}
+.btn svg{width:18px;height:18px;flex:none}
+.btn.missing{border-style:dashed;color:var(--ash)}
+.btn.missing small{font:500 10px/1 var(--f-mono);letter-spacing:.08em;color:var(--neon)}
+
+/* ---------- home ---------- */
+.hero{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:48px;align-items:end;padding-top:24px}
+.hero h1{font-weight:900;font-stretch:125%;font-size:clamp(52px,9.4vw,124px);line-height:.88;letter-spacing:-.035em;margin-top:18px}
+.hero h1 .line{display:block}
+.sheen{position:relative;display:inline-block}
+.sheen::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.85) 50%,transparent 65%);background-size:250% 100%;background-position:120% 0;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:sheen 2.4s .5s cubic-bezier(.3,.1,.2,1) 1 both;pointer-events:none}
+.sheen::after{content:attr(data-text)}
+@keyframes sheen{to{background-position:-30% 0}}
+.hero .lede{font-size:clamp(18px,1.6vw,21px);line-height:1.5;color:#d4d2db;max-width:34ch;margin:28px 0 0}
+.hero .lede em{font-style:normal;color:var(--chalk);border-bottom:1px solid var(--neon)}
+.cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:32px}
+.spec{border:1px solid var(--seam);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.025),transparent);padding:20px 22px;display:grid;gap:14px}
+.spec dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:10px 18px;font-size:14px}
+.spec dt{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ash);padding-top:3px}
+.spec dd{margin:0;color:var(--chalk)}
+.status{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:12px;color:var(--chalk)}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--neon);box-shadow:var(--glow);animation:pulse 2.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+
+.band{margin-top:96px;display:grid;gap:28px}
+.band-head{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap}
+.band-head p{margin:0;color:var(--ash);max-width:52ch}
+.pillars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--seam);border:1px solid var(--seam);border-radius:16px;overflow:hidden}
+.pillar{background:var(--void);padding:28px 26px 30px;display:grid;gap:14px;align-content:start}
+.pillar .k{font-family:var(--f-mono);font-size:12px;color:var(--neon)}
+.pillar h3{font-size:22px;font-weight:800;font-stretch:110%;letter-spacing:-.01em}
+.pillar p{margin:0;color:var(--ash);font-size:15px}
+.pillar ul{margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:11.5px;padding:4px 8px;border-radius:6px;border:1px solid var(--seam);color:#c9c7d1;background:rgba(255,255,255,.02)}
+
+.builds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.build{border:1px solid var(--seam);border-radius:16px;padding:24px;background:var(--plate);display:grid;gap:12px;align-content:start;position:relative;overflow:hidden;transition:border-color .25s}
+.build::before{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,var(--neon),transparent);opacity:0;transition:opacity .25s}
+.build:hover{border-color:#3a2a2e}.build:hover::before{opacity:1}
+.build .meta{display:flex;justify-content:space-between;gap:10px;font-family:var(--f-mono);font-size:11.5px;color:var(--ash)}
+.build h3{font-size:24px;font-weight:800;font-stretch:112%}
+.build p{margin:0;color:#c7c5cf;font-size:15px}
+.build .stack{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+
+.ledger{border-top:1px solid var(--seam)}
+.ledger a{display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:18px;align-items:baseline;padding:16px 4px;border-bottom:1px solid var(--seam);text-decoration:none;transition:background .2s,padding .2s}
+.ledger a:hover{background:linear-gradient(90deg,rgba(255,43,61,.07),transparent);padding-left:12px}
+.ledger .yrs{font-family:var(--f-mono);font-size:13px;color:var(--ash);font-variant-numeric:tabular-nums}
+.ledger .who{font-weight:600}
+.ledger .who span{color:var(--ash);font-weight:400}
+.ledger .arrow{color:var(--neon);font-family:var(--f-mono)}
+
+.contact{border:1px solid #3a1d22;border-radius:20px;padding:40px clamp(22px,4vw,48px);background:radial-gradient(120% 140% at 100% 0%,rgba(255,43,61,.18),transparent 55%),var(--plate);display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:32px;align-items:center}
+.contact h2{font-size:clamp(28px,4vw,46px)}
+.mailrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:18px}
+.mail{font-family:var(--f-mono);font-size:15px;padding:12px 14px;border-radius:10px;border:1px solid var(--seam);background:var(--void);user-select:all;word-break:break-all}
+.links{display:grid;gap:10px}
+.links .btn{justify-content:space-between}
+
+/* ---------- resume ---------- */
+.rs-head{display:flex;justify-content:space-between;align-items:end;gap:24px;flex-wrap:wrap}
+.rs-head h2{font-size:clamp(34px,5vw,60px);font-stretch:125%;font-weight:900}
+.switch{display:inline-flex;padding:4px;border:1px solid var(--seam);border-radius:12px;background:var(--plate)}
+.switch button{appearance:none;border:0;background:none;color:var(--ash);font:600 14px/1 var(--f-body);padding:11px 16px;border-radius:9px;cursor:pointer}
+.switch button[aria-pressed="true"]{background:linear-gradient(180deg,#2a0a0f,#17070a);color:#fff;box-shadow:inset 0 0 0 1px var(--neon),0 0 18px rgba(255,43,61,.25)}
+.pdfs{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.pdfs .btn{padding:10px 14px;font-size:13.5px}
+
+/* career strip, drawn to scale */
+.strip-wrap{margin-top:40px;border:1px solid var(--seam);border-radius:16px;background:var(--plate);padding:20px 20px 14px;overflow-x:auto}
+.strip{position:relative;min-width:760px;height:176px}
+.strip .grid{position:absolute;inset:0 0 22px 0}
+.strip .yr{position:absolute;top:0;bottom:0;border-left:1px dashed #23222a}
+.strip .yr span{position:absolute;bottom:-22px;left:0;transform:translateX(-50%);font-family:var(--f-mono);font-size:11px;color:var(--ash)}
+.strip .lane-label{position:absolute;left:0;font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#6d6a78}
+.seg{position:absolute;height:22px;border-radius:5px;cursor:pointer;border:0;padding:0 7px;font:600 11px/22px var(--f-body);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:clip;text-align:left;transition:filter .2s,box-shadow .2s}
+.seg.work{background:linear-gradient(180deg,#d11a2a,#7c0812)}
+.seg.venture{background:linear-gradient(180deg,#f2f1f6,#8c8a99);color:#111}
+.seg.project{background:transparent;box-shadow:inset 0 0 0 1.5px var(--neon);color:#ffb3b8}
+.seg.edu{background:#2a2932;color:var(--chalk)}
+.seg:hover,.seg:focus-visible{filter:brightness(1.2);box-shadow:var(--glow)}
+.now{position:absolute;top:-6px;bottom:16px;width:2px;background:var(--neon);box-shadow:var(--glow)}
+.now span{position:absolute;top:-14px;left:6px;font:600 10px/1 var(--f-mono);letter-spacing:.12em;color:var(--neon)}
+.legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px;font-size:12.5px;color:var(--ash)}
+.legend i{display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:36px}
+.filters button{appearance:none;font:500 13px/1 var(--f-body);color:var(--ash);background:none;border:1px solid var(--seam);border-radius:999px;padding:9px 14px;cursor:pointer}
+.filters button[aria-pressed="true"]{color:#fff;border-color:var(--neon);box-shadow:0 0 14px rgba(255,43,61,.25)}
+
+/* vertical timeline */
+.tl{position:relative;margin-top:32px;padding-left:0}
+.tl .spine{position:absolute;left:176px;top:6px;bottom:6px;width:2px;background:#1d1c23;border-radius:2px}
+.tl .spine b{position:absolute;left:0;top:0;width:100%;height:var(--fill,0%);background:linear-gradient(180deg,#ff8a93,var(--neon));box-shadow:var(--glow);border-radius:2px;transition:height .15s linear}
+.yearmark{position:relative;display:grid;grid-template-columns:176px 1fr;margin:36px 0 10px}
+.yearmark span{font-family:var(--f-display);font-weight:900;font-stretch:125%;font-size:30px;letter-spacing:-.02em;color:#2f2d37;text-align:right;padding-right:28px;transition:color .4s}
+.yearmark.lit span{color:var(--chalk)}
+.entry{position:relative;display:grid;grid-template-columns:176px minmax(0,1fr);margin-bottom:18px}
+.entry[hidden],.yearmark[hidden]{display:none}
+.entry .when{text-align:right;padding:18px 28px 0 0;font-family:var(--f-mono);font-size:12px;color:var(--ash);font-variant-numeric:tabular-nums;line-height:1.5}
+.entry .when b{display:block;font-weight:500;color:#c9c7d1;white-space:nowrap}
+.entry .node{position:absolute;left:170px;top:22px;width:14px;height:14px;border-radius:50%;background:var(--void);border:2px solid #3a3842;transition:all .35s}
+.entry.lit .node{border-color:var(--neon);background:var(--neon);box-shadow:var(--glow)}
+.entry.project .node{border-radius:3px;transform:rotate(45deg)}
+.card{margin-left:28px;border:1px solid var(--seam);border-radius:14px;background:var(--plate);padding:20px 22px;transition:border-color .35s,transform .35s,box-shadow .35s;min-width:0}
+.entry.lit .card{border-color:#3b2228;box-shadow:0 0 0 1px rgba(255,43,61,.06),0 16px 40px -24px rgba(255,43,61,.45)}
+.card .top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline}
+.card h3{font-size:21px;font-weight:800;font-stretch:108%;letter-spacing:-.01em}
+.card .org{color:var(--ash);font-size:15px;margin-top:2px}
+.card .org a{color:var(--chalk);text-decoration-color:var(--neon);text-underline-offset:3px}
+.kind{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;padding:4px 8px;border-radius:5px;border:1px solid var(--seam);color:var(--ash);white-space:nowrap}
+.kind.work{color:#ff8e97;border-color:#4a1e25}
+.kind.venture{color:var(--chalk);border-color:#45434f}
+.kind.project{color:var(--neon);border-color:var(--neon)}
+.card ul{margin:14px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+.card li{position:relative;padding-left:18px;color:#cfcdd6;font-size:15px}
+.card li::before{content:"";position:absolute;left:2px;top:.68em;width:7px;height:2px;background:var(--neon)}
+.card li strong{color:var(--chalk);font-weight:600}
+.card .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.entry.flash .card{animation:flash 1.2s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 2px var(--neon),0 0 40px rgba(255,43,61,.5)}100%{box-shadow:none}}
+
+.side-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:56px}
+.side{border:1px solid var(--seam);border-radius:14px;padding:22px;background:var(--plate)}
+.side h3{font-size:13px;font-family:var(--f-mono);font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--neon);margin-bottom:14px}
+.side p,.side li{font-size:14.5px;color:#cfcdd6;margin:0}
+.side ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.side .row{display:grid;gap:2px;margin-bottom:10px}
+.side .row b{color:var(--chalk);font-weight:600;font-size:14.5px}
+
+/* standard sheet */
+.sheet{margin-top:36px;border:1px solid var(--seam);border-radius:18px;background:var(--plate);padding:clamp(22px,5vw,56px);max-width:900px}
+.sheet header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:start;border-bottom:2px solid var(--neon);padding-bottom:22px;box-shadow:0 10px 18px -16px rgba(255,43,61,.6)}
+.sheet .nm{font-family:var(--f-display);font-weight:900;font-stretch:118%;font-size:clamp(30px,4.6vw,44px);letter-spacing:-.02em;line-height:1}
+.sheet .tagline{font-family:var(--f-mono);font-size:12.5px;letter-spacing:.06em;color:var(--neon);margin-top:10px}
+.sheet .contacts{margin-top:12px;font-size:14px;color:var(--ash);display:flex;flex-wrap:wrap;gap:4px 14px}
+.qr{width:104px;height:104px;border-radius:10px;background:#fff;padding:6px;display:block}
+.qr img{width:100%;height:100%;display:block}
+.sheet .sec{margin-top:28px}
+.sheet .sec>h4{font-family:var(--f-mono);font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--neon);margin:0 0 12px;display:flex;align-items:center;gap:12px}
+.sheet .sec>h4::after{content:"";flex:1;height:1px;background:var(--seam)}
+.sheet p{margin:0;color:#d4d2db;font-size:15px}
+.job{margin-bottom:16px}
+.job .l1{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:baseline}
+.job .l1 b{font-size:16px;color:var(--chalk)}
+.job .l1 span{font-family:var(--f-mono);font-size:12.5px;color:var(--ash);font-variant-numeric:tabular-nums}
+.job .l2{font-style:italic;color:var(--ash);font-size:14.5px}
+.job ul{margin:6px 0 0;padding-left:18px}
+.job li{font-size:14.5px;color:#d4d2db;margin-bottom:3px}
+.job li::marker{color:var(--neon)}
+.kv{display:grid;grid-template-columns:150px minmax(0,1fr);gap:6px 16px;font-size:14.5px}
+.kv dt{color:var(--chalk);font-weight:600}
+.kv dd{margin:0;color:#d4d2db}
+
+/* stub tabs */
+.stub{border:1px dashed #33313b;border-radius:18px;padding:48px 28px;display:grid;gap:12px;max-width:720px}
+.stub p{margin:0;color:var(--ash)}
+
+footer.foot{border-top:1px solid var(--seam);padding-block:28px 40px}
+footer .wrap{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--ash)}
+footer .family{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--f-mono);font-size:12px}
+footer .family span::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ember);margin-right:7px;vertical-align:2px}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:var(--plate);border:1px solid var(--neon);color:var(--chalk);padding:10px 16px;border-radius:10px;font-size:14px;box-shadow:var(--glow);transition:all .25s;z-index:40;pointer-events:none}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:900px){
+  .hero,.contact{grid-template-columns:1fr}
+  .pillars,.builds,.side-grid{grid-template-columns:1fr}
+  .hero{gap:32px}
+}
+@media (max-width:640px){
+  .bar .wrap{gap:12px}
+  .tabs ul{justify-content:flex-start}
+  .tl .spine{left:14px}
+  .yearmark{grid-template-columns:1fr;margin:28px 0 8px}
+  .yearmark span{text-align:left;padding:0 0 0 40px;font-size:26px}
+  .entry{grid-template-columns:1fr}
+  .entry .when{text-align:left;padding:0 0 6px 40px;order:-1}
+  .entry .when b{display:inline;margin-right:8px}
+  .entry .node{left:8px;top:4px}
+  .card{margin-left:40px;padding:18px}
+  .ledger a{grid-template-columns:1fr auto;gap:4px 14px}
+  .ledger .yrs{grid-column:1/-1}
+  .sheet header{grid-template-columns:1fr}
+  .kv{grid-template-columns:1fr}
+  .kv dd{margin-bottom:8px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+
+<div class="ambient" aria-hidden="true"></div>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="wordmark" href="#home" data-go="home" aria-label="jeby.us home"><span class="j">ȷ</span>eby<span class="tld">.us</span></a>
+    <nav class="tabs" aria-label="Sections"><ul id="tablist" role="tablist"></ul></nav>
+  </div>
+</header>
+
+<main>
+<!-- ================= HOME ================= -->
+<section class="view" id="view-home" data-view="home">
+  <div class="wrap">
+    <div class="hero">
+      <div>
+        <div class="eyebrow"><b>●</b>&nbsp; Business Intelligence · Data Science · Analytics Leadership</div>
+        <h1><span class="line chromefx">James</span><span class="line"><span class="metal sheen" data-text="Eby.">Eby.</span></span></h1>
+        <p class="lede">I turn ambiguous business questions into <em>data infrastructure, models, and dashboards</em> that executives and clients actually use. Then I build the software around them.</p>
+        <div class="cta">
+          <button class="btn primary" type="button" data-go="resume">View my résumé
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+          <span id="cta-links" style="display:contents"></span>
+        </div>
+      </div>
+      <aside class="spec" aria-label="At a glance">
+        <span class="status"><i></i> Open to BI, data science and analytics leadership roles</span>
+        <dl>
+          <dt>Based</dt><dd>Miami, FL</dd>
+          <dt>Experience</dt><dd>6+ years in BI and data science</dd>
+          <dt>Built</dt><dd>2 analytics functions from zero</dd>
+          <dt>Degree</dt><dd>B.S. Statistics, Carnegie Mellon</dd>
+          <dt>Speaks</dt><dd>English, Spanish (native)</dd>
+        </dl>
+      </aside>
+    </div>
+
+    <div class="band">
+      <div class="band-head">
+        <div><div class="eyebrow">What I bring</div><h2>Three jobs, one person</h2></div>
+        <p>Most teams hire for these separately. I've done all three in the same week.</p>
+      </div>
+      <div class="pillars">
+        <div class="pillar">
+          <span class="k">// lead</span>
+          <h3>Analytics leadership</h3>
+          <p>Founded the analytics functions at Overproof and AutoQuotes. Mentor analysts, run the executive conversation, present to clients.</p>
+          <ul><li class="chip">Power BI rollouts</li><li class="chip">Industry reports</li><li class="chip">Exec SME</li></ul>
+        </div>
+        <div class="pillar">
+          <span class="k">// model</span>
+          <h3>Data science</h3>
+          <p>Statistics training from Carnegie Mellon. Customer health scores, venue profiling from menu data, forecasting and valuation.</p>
+          <ul><li class="chip">R</li><li class="chip">Python</li><li class="chip">Regression</li><li class="chip">Forecasting</li></ul>
+        </div>
+        <div class="pillar">
+          <span class="k">// ship</span>
+          <h3>Software engineering</h3>
+          <p>Full-stack since 2017. Data platforms, migrations to Snowflake, embedded dashboards, and my own products end to end.</p>
+          <ul><li class="chip">PostgreSQL</li><li class="chip">Snowflake</li><li class="chip">FastAPI</li><li class="chip">Angular</li><li class="chip">Docker</li></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="band-head">
+        <div><div class="eyebrow">Now building</div><h2>Current work</h2></div>
+        <p>Side projects under jeby Industries, built alongside client work at JA Insights.</p>
+      </div>
+      <div class="builds">
+        <article class="build">
+          <div class="meta"><span>jeby Real Estate</span><span>Sep 2026 → now</span></div>
+          <h3>jRE</h3>
+          <p>Market analysis for Miami Springs and Virginia Gardens. Property histories over time, every fact traced to its source, and a review queue for doubtful records.</p>
+          <div class="stack"><span class="chip">PostgreSQL 16</span><span class="chip">FastAPI</span><span class="chip">Angular</span><span class="chip">Docker</span></div>
+        </article>
+        <article class="build">
+          <div class="meta"><span>jebyLabs</span><span>Oct 2026 → now</span></div>
+          <h3>AppForge</h3>
+          <p>An app that makes apps. A method and toolkit for building with AI coding agents: every defect becomes a documented case, a reusable rule, and an automated test.</p>
+          <div class="stack"><span class="chip">AI agents</span><span class="chip">Test automation</span></div>
+        </article>
+        <article class="build">
+          <div class="meta"><span>jebyLabs</span><span>Oct 2026 → now</span></div>
+          <h3>Plantriloquist</h3>
+          <p>A houseplant that roasts me and my friends. Raspberry Pi, mic array, speech recognition and neural voice, on a hardware-neutral character engine.</p>
+          <div class="stack"><span class="chip">Raspberry Pi</span><span class="chip">Speech</span><span class="chip">Python</span></div>
+        </article>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="band-head">
+        <div><div class="eyebrow">Where I've worked</div><h2>Experience</h2></div>
+        <p>Select a role to jump to it on the résumé timeline.</p>
+      </div>
+      <div class="ledger" id="ledger"></div>
+    </div>
+
+    <div class="band">
+      <div class="contact">
+        <div>
+          <div class="eyebrow">Get in touch</div>
+          <h2>Hiring for BI or data science? <span class="metal">Let's talk.</span></h2>
+          <div class="mailrow"><span class="mail" id="mail"></span><button class="btn" type="button" id="copymail">Copy email</button></div>
+        </div>
+        <div class="links" id="links"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RESUME ================= -->
+<section class="view" id="view-resume" data-view="resume" hidden>
+  <div class="wrap">
+    <div class="rs-head">
+      <div>
+        <div class="eyebrow">Résumé · updated Oct 2026</div>
+        <h2 id="rs-title"><span class="chromefx">Career</span> <span class="metal">timeline</span></h2>
+      </div>
+      <div class="switch" role="group" aria-label="Résumé layout">
+        <button type="button" id="mode-tl" aria-pressed="true">Timeline</button>
+        <button type="button" id="mode-std" aria-pressed="false">Standard</button>
+      </div>
+    </div>
+    <div class="pdfs" id="pdfs"></div>
+
+    <div id="rs-timeline">
+      <div class="strip-wrap" aria-label="Career at a glance, 2015 to now">
+        <div class="strip" id="strip"></div>
+        <div class="legend">
+          <span><i style="background:linear-gradient(180deg,#d11a2a,#7c0812)"></i>Employment</span>
+          <span><i style="background:linear-gradient(180deg,#f2f1f6,#8c8a99)"></i>Companies founded</span>
+          <span><i style="box-shadow:inset 0 0 0 1.5px var(--neon)"></i>Software projects</span>
+          <span><i style="background:#2a2932"></i>Teaching</span>
+        </div>
+      </div>
+
+      <div class="filters" role="group" aria-label="Filter timeline" id="filters"></div>
+      <div class="tl" id="tl"><div class="spine"><b></b></div></div>
+
+      <div class="side-grid">
+        <div class="side">
+          <h3>Education</h3>
+          <div class="row"><b>Carnegie Mellon University</b><p>B.S. Statistics, Computer Science concentration, 2019</p></div>
+          <p>Data Mining · Advanced Data Analysis · Regression Analysis · Statistical Computing · Graphics and Visualization · Great Theoretical Ideas in CS</p>
+        </div>
+        <div class="side">
+          <h3>Skills</h3>
+          <div class="row"><b>Languages</b><p>R, Python, DAX, SQL, JavaScript, TypeScript, HTML, CSS</p></div>
+          <div class="row"><b>BI and data</b><p>Power BI, Azure Embedded, Looker, Snowflake, PostgreSQL, Excel, Minitab</p></div>
+          <div class="row"><b>Engineering</b><p>git, Jira, Angular, FastAPI, Docker, full-stack web</p></div>
+        </div>
+        <div class="side">
+          <h3>Also</h3>
+          <ul>
+            <li>Tartan Data Science Cup, Organizer's Choice Award (most accurate predictions, undergraduate)</li>
+            <li>Research: Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression</li>
+            <li>About ten years of tutoring, coding-camp lead, college TA</li>
+            <li>Archery club president, 2016 · Sports Analytics Club treasurer, 2015–2016</li>
+            <li>6th place, Statistics Individual, Mu Alpha Theta Nationals, 2013</li>
+            <li>SCUBA certified · English, Spanish (native), French (basic)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div id="rs-standard" hidden>
+      <article class="sheet" aria-label="Standard résumé">
+        <header>
+          <div>
+            <div class="nm">James David Eby</div>
+            <div class="tagline">BUSINESS INTELLIGENCE · DATA SCIENCE · ANALYTICS LEADERSHIP</div>
+            <div class="contacts" id="std-contacts"></div>
+          </div>
+          <span class="qr" title="Scan to open jeby.us"><img src="drew-qr.png" alt="QR code with Drew the dog, links to jeby.us"></span>
+        </header>
+        <div class="sec"><h4>Summary</h4>
+          <p>Business intelligence leader and data scientist with six-plus years turning ambiguous business questions into strategy, data infrastructure, statistical models, and customer-facing analytics. Statistics training (Carnegie Mellon) paired with hands-on software engineering. Founded two analytics functions, mentors analysts, and works directly with executives and clients. Bilingual English and Spanish.</p>
+        </div>
+        <div class="sec"><h4>Experience</h4><div id="std-work"></div></div>
+        <div class="sec"><h4>Software projects</h4><div id="std-proj"></div></div>
+        <div class="sec"><h4>Business</h4><div id="std-biz"></div></div>
+        <div class="sec"><h4>Education and teaching</h4>
+          <div class="job"><div class="l1"><b>Carnegie Mellon University</b><span>2019</span></div><div class="l2">B.S. Statistics, Computer Science concentration</div>
+          <ul><li>Coursework: Data Mining; Advanced Data Analysis; Regression Analysis; Statistical Computing; Graphics and Visualization; Great Theoretical Ideas in CS</li>
+          <li>Teaching: roughly ten years of tutoring, coding-camp lead instructor, and college teaching assistant</li></ul></div>
+        </div>
+        <div class="sec"><h4>Skills</h4>
+          <dl class="kv">
+            <dt>Languages</dt><dd>R, Python, DAX, SQL, JavaScript, TypeScript, HTML, CSS</dd>
+            <dt>BI and data</dt><dd>Power BI, Azure Embedded, Looker, Snowflake, PostgreSQL, Excel, Minitab</dd>
+            <dt>Engineering</dt><dd>git, Jira, Angular, FastAPI, Docker, full-stack web development</dd>
+            <dt>Spoken</dt><dd>English (native), Spanish (native), French (basic)</dd>
+          </dl>
+        </div>
+        <div class="sec"><h4>Extracurricular</h4>
+          <div class="job"><ul>
+            <li>Tartan Data Science Cup, "Organizer's Choice" Award (Most Accurate Predictions, Undergraduate)</li>
+            <li>Research: "Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression"</li>
+            <li>Archery club president, 2016; Sports Analytics Club Treasurer, 2015–2016</li>
+            <li>6th place, Statistics Individual, Mu Alpha Theta National Convention, 2013</li>
+            <li>SCUBA certified</li>
+          </ul></div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FUTURE TABS (disabled in CONFIG) ================= -->
+<section class="view" data-view="projects" hidden><div class="wrap"><div class="stub"><div class="eyebrow">Projects</div><h2>Case studies</h2><p>jRE analytics showcase, AppForge, Plantriloquist and Lighting Lab, each with the problem, the build and the results.</p></div></div></section>
+<section class="view" data-view="jebylabs" hidden><div class="wrap"><div class="stub"><div class="eyebrow">jebyLabs</div><h2>The software side of jeby</h2><p>Lighting Lab, AppForge and Plantriloquist. Product pages, release notes and downloads.</p></div></div></section>
+<section class="view" data-view="jainsights" hidden><div class="wrap"><div class="stub"><div class="eyebrow">JA Insights</div><h2>Data consulting for small businesses</h2><p>Services, sample dashboards and how to book a call.</p></div></div></section>
+<section class="view" data-view="realestate" hidden><div class="wrap"><div class="stub"><div class="eyebrow">jeby Real Estate</div><h2>Miami Springs and Virginia Gardens</h2><p>Market reports and the jRE analytics showcase.</p></div></div></section>
+<section class="view" data-view="drew" hidden><div class="wrap"><div class="stub"><div class="eyebrow">Drew</div><h2>Chief Morale Officer</h2><p>The dog in the QR code. Mascot gallery and the blep.</p></div></div></section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span>© <span id="yr">2026</span> James Eby · jeby.us</span>
+    <span class="family"><span>jeby Industries</span><span>JA Insights</span><span>jebyLabs</span><span>jeby Real Estate</span></span>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   CONFIG: the only part you normally edit.
+   - links: paste full URLs. Empty ones show a dashed "add link" button.
+   - tabs: flip enabled to true when a section is ready.
+   - pdfs: file names uploaded next to index.html. Empty = hidden.
+   ===================================================================== */
+const CONFIG = {
+  links: {
+    linkedin: "",                       // e.g. https://www.linkedin.com/in/your-handle
+    github:   "",                       // e.g. https://github.com/your-username
+    jre:      "",                       // live jRE app, when public
+  },
+  email: ["jameseby21", "gmail.com"],    // assembled in the browser to slow down scrapers
+  pdfs: [
+    { label: "BI résumé (PDF)",           file: "resume-bi.pdf" },
+    { label: "Data science résumé (PDF)", file: "resume-ds.pdf" },
+    { label: "Full catalog (PDF)",        file: "resume-extended.pdf" },
+  ],
+  tabs: [
+    { id: "home",        label: "Home",             enabled: true },
+    { id: "resume",      label: "Résumé",           enabled: true },
+    { id: "projects",    label: "Projects",         enabled: false },
+    { id: "jebylabs",    label: "jebyLabs",         enabled: false },
+    { id: "jainsights",  label: "JA Insights",      enabled: false },
+    { id: "realestate",  label: "jeby Real Estate", enabled: false },
+    { id: "drew",        label: "Drew",             enabled: false },
+  ],
+  showDisabledTabs: true,   // true = greyed out with "soon"; false = hidden
+};
+
+/* ---------- résumé data (from resume_extended_v6) ---------- */
+const NOW = [2026, 10];
+const ENTRIES = [
+  { id:"jre", kind:"project", title:"Founder", org:"jRE (jeby Real Estate)", start:[2026,9], end:null,
+    bullets:["Market analysis platform for Miami Springs and Virginia Gardens: property histories over time, every fact traced to its source, and a quarantine-and-review workflow for doubtful records",
+             "<strong>Analytics showcase (in development):</strong> forecasting, valuation models, and model comparison in one interactive view",
+             "Built on PostgreSQL 16 with schema migrations, FastAPI, Angular, and Docker; setup verified repeatable from a fresh copy on Windows and macOS"],
+    tags:["PostgreSQL 16","FastAPI","Angular","Docker"] },
+  { id:"appforge", kind:"project", title:"Founder", org:"AppForge", start:[2026,10], end:null,
+    bullets:["A method and toolkit for building software with AI coding agents, described as “an app that makes apps”: each defect becomes a documented case, a reusable rule, and an automated test"],
+    tags:["AI coding agents","Testing"] },
+  { id:"plant", kind:"project", title:"Builder", org:"Plantriloquist", start:[2026,10], end:null,
+    bullets:["A talking houseplant that makes fun of me and my friends: Raspberry Pi, microphone array, speaker, speech recognition, and neural voice synthesis, with a hardware-neutral character engine underneath"],
+    tags:["Raspberry Pi","Speech recognition","TTS"] },
+  { id:"jrellc", kind:"venture", title:"Florida LLC, formed Sep 16, 2026", org:"jeby Real Estate LLC", start:[2026,9], end:null,
+    bullets:["Real estate business entity; Florida Real Estate Sales Associate License, broker affiliation pending"], tags:[] },
+  { id:"jai", kind:"venture", title:"Founder", org:"JA Insights", start:[2025,11], end:null,
+    bullets:["Founded a data consulting practice for small businesses; sole operator for strategy, development, and delivery",
+             "Florida LLC, formed Nov 12, 2025"], tags:["Consulting","Strategy","Delivery"] },
+  { id:"overproof", kind:"work", title:"Senior BI Analyst", org:"Overproof, Inc", start:[2022,6], end:[2025,9],
+    bullets:["Founded and led the Overproof Analytics function; mentored junior analysts and interns across international teams",
+             "Authored quarterly industry trend reports that drove thousands of clicks from alcohol-industry professionals and sparked brand interest in our data and services",
+             "Built a “Venue Profile” algorithm from menu data to generate targeted account lists for clients",
+             "Led the company-wide Power BI rollout and Azure Embedded integration, placing client dashboards inside the customer portal",
+             "Oversaw the PostgreSQL-to-Snowflake migration and directed data QA across databases",
+             "Produced marketing analytics that increased engagement and generated leads",
+             "Served as analytics subject-matter expert for executives, Sales, Customer Success, and client calls"],
+    tags:["Power BI","Azure Embedded","Snowflake","PostgreSQL","Python"] },
+  { id:"gridlex", kind:"work", title:"Senior Data Analyst", org:"Gridlex, Inc", start:[2021,10], end:[2022,6],
+    bullets:["Delivered KPI, prospect-targeting, and market-share insights from client sales data",
+             "Managed a cross-functional development team in India building client dashboards; project-managed 3 enterprise clients",
+             "Designed and implemented custom CRM applications with Master Data Management (MDM)",
+             "Prototyped new products in Python and Excel, later built into the client portal"],
+    tags:["Python","Excel","MDM","Team lead"] },
+  { id:"aq", kind:"work", title:"Business Intelligence Analyst", org:"AutoQuotes (now Revalize), LLC", start:[2020,6], end:[2021,10],
+    bullets:["Founded AQ Data, delivering custom reporting, business insights, and KPI dashboards in Power BI",
+             "Presented commercial-kitchen industry trend reports in 3–4 webinars, reaching roughly 1,000 participants",
+             "Built and automated customer health scores to proactively reduce churn; set post-launch baselines and target metrics",
+             "Produced quarterly industry analysis reports; integrated business systems from mergers and acquisitions into Salesforce",
+             "Led data QA for customer data: deduplication, outlier detection, and accuracy controls"],
+    tags:["Power BI","DAX","Salesforce","Churn modeling"] },
+  { id:"guma", kind:"work", title:"Data Analyst", org:"Guma Pharma", start:[2019,2], end:[2020,1],
+    bullets:["Translated inventory and supply-chain policy into an automated decision tool, coordinating a cross-functional team",
+             "Developed a web dashboard that made inventory analyses universally accessible"],
+    tags:["Supply chain","Web dashboards"] },
+  { id:"lannett", kind:"work", title:"Corporate Statistician", org:"Lannett Company, Inc.", start:[2018,7], end:[2018,10],
+    bullets:["Monitored continued process validation statistics across company products and reported results",
+             "Replaced a multi-step Minitab procedure with a single R function, automating CPV preparation",
+             "Provided internal statistical consulting for engineers and management"],
+    tags:["R","Minitab","CPV"] },
+  { id:"ulmg", kind:"work", title:"Full-Stack Engineer", org:"Unified Life Management Group", start:[2017,5], end:[2018,6],
+    bullets:["Sole developer responsible for all company data, including customer, agent, and policy information",
+             "Fixed bugs in an established site; added messaging and SMS updates for agents",
+             "Rebuilt an inefficient site from scratch in Angular, improving functionality and processes"],
+    tags:["Angular","Full stack"] },
+  { id:"ckc", kind:"edu", title:"Camp Lead", org:"Code Kids Camp", start:[2015,5], end:[2016,8],
+    bullets:["Junior instructor (year 1) teaching children aged 7–13 computer science theory and practice",
+             "Led a team of instructors at the Coral Gables branch (year 2)",
+             "Ran day-to-day operations: time management, learning activities, and parent communications"],
+    tags:["Teaching","Leadership"] },
+];
+const KIND_LABEL = { work:"Employment", venture:"Founded", project:"Project", edu:"Teaching" };
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+/* ---------- helpers ---------- */
+const $ = (s, r=document) => r.querySelector(s);
+const el = (tag, attrs={}, html="") => { const e=document.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (html) e.innerHTML = html; return e; };
+const fmt = d => d ? `${MONTHS[d[1]-1]} ${d[0]}` : "Present";
+const months = (a,b) => ((b||NOW)[0]-a[0])*12 + ((b||NOW)[1]-a[1]) + 1;
+const dur = (a,b) => { const m = months(a,b), y = Math.floor(m/12), r = m%12; return [y?`${y} yr`:"", r?`${r} mo`:""].filter(Boolean).join(" ") || "1 mo"; };
+const ICON = {
+  linkedin:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9.5h4V21H3zM9.5 9.5h3.8v1.6h.06c.53-1 1.84-2.06 3.79-2.06 4.05 0 4.8 2.67 4.8 6.13V21h-4v-5.1c0-1.22-.02-2.78-1.7-2.78-1.7 0-1.96 1.33-1.96 2.7V21h-4z"/></svg>',
+  github:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.62 1.58.23 2.75.11 3.04.74.8 1.18 1.83 1.18 3.08 0 4.41-2.7 5.38-5.26 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>',
+  web:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg>',
+};
+let toastT; function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),2200); }
+
+/* ---------- links + email ---------- */
+const email = CONFIG.email.join("@");
+$("#mail").textContent = email;
+$("#copymail").addEventListener("click", () => {
+  const fallback = () => { const r=document.createRange(); r.selectNodeContents($("#mail")); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast("Email selected. Press Ctrl+C to copy"); };
+  try { navigator.clipboard.writeText(email).then(()=>toast("Email copied"), fallback); } catch(e){ fallback(); }
+});
+function linkBtn(key, label, icon, cls="btn"){
+  const url = CONFIG.links[key];
+  if (url) return `<a class="${cls}" href="${url}" target="_blank" rel="noopener">${ICON[icon]}${label}</a>`;
+  return `<span class="${cls} missing">${ICON[icon]}${label} <small>ADD LINK</small></span>`;
+}
+$("#cta-links").innerHTML = linkBtn("linkedin","LinkedIn","linkedin") + linkBtn("github","GitHub","github");
+$("#links").innerHTML = linkBtn("linkedin","LinkedIn profile","linkedin") + linkBtn("github","GitHub repositories","github")
+  + (CONFIG.links.jre ? linkBtn("jre","jRE live demo","web") : "");
+$("#std-contacts").innerHTML = `<span>Miami, FL</span><span>${email}</span><span>jeby.us</span>`
+  + (CONFIG.links.linkedin ? `<a href="${CONFIG.links.linkedin}" target="_blank" rel="noopener">LinkedIn</a>` : "")
+  + (CONFIG.links.github ? `<a href="${CONFIG.links.github}" target="_blank" rel="noopener">GitHub</a>` : "");
+$("#pdfs").innerHTML = CONFIG.pdfs.filter(p=>p.file).map(p=>`<a class="btn" href="${p.file}" target="_blank" rel="noopener">${ICON.doc}${p.label}</a>`).join("");
+
+/* ---------- tabs + routing ---------- */
+const tablist = $("#tablist");
+CONFIG.tabs.forEach(t => {
+  if (!t.enabled && !CONFIG.showDisabledTabs) return;
+  const li = el("li", {role:"presentation"});
+  const b = el("button", {class:"tab", role:"tab", type:"button", "data-go":t.id, "aria-selected":"false"}, t.label + (t.enabled ? "" : ' <span class="soon">soon</span>'));
+  if (!t.enabled) { b.disabled = true; b.setAttribute("aria-disabled","true"); b.title = "Coming soon"; }
+  li.appendChild(b); tablist.appendChild(li);
+});
+const enabled = new Set(CONFIG.tabs.filter(t=>t.enabled).map(t=>t.id));
+function show(view, opts={}){
+  let mode = null;
+  if (view === "resume-standard") { view = "resume"; mode = "std"; }
+  if (!enabled.has(view)) view = "home";
+  document.querySelectorAll("section.view").forEach(s => s.hidden = s.dataset.view !== view);
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.go === view));
+  if (view === "resume") setMode(mode || (opts.keepMode ? curMode : "tl"), true);
+  if (!opts.noScroll) window.scrollTo({top:0, behavior:"instant" in window ? "instant" : "auto"});
+  const h = view === "resume" && curMode === "std" ? "resume-standard" : view;
+  if (location.hash.slice(1) !== h) history.replaceState(null, "", "#" + h);
+  requestAnimationFrame(updateSpine);
+}
+document.addEventListener("click", e => {
+  const g = e.target.closest("[data-go]"); if (!g || g.disabled) return;
+  e.preventDefault(); show(g.dataset.go);
+});
+window.addEventListener("hashchange", () => show(location.hash.slice(1) || "home"));
+
+/* ---------- résumé mode ---------- */
+let curMode = "tl";
+function setMode(m, silent){
+  curMode = m;
+  $("#rs-timeline").hidden = m !== "tl"; $("#rs-standard").hidden = m !== "std";
+  $("#rs-title").innerHTML = m==="tl" ? '<span class="chromefx">Career</span> <span class="metal">timeline</span>' : '<span class="chromefx">The</span> <span class="metal">résumé</span>';
+  $("#mode-tl").setAttribute("aria-pressed", m==="tl"); $("#mode-std").setAttribute("aria-pressed", m==="std");
+  if (!silent) history.replaceState(null, "", "#" + (m==="std" ? "resume-standard" : "resume"));
+  requestAnimationFrame(updateSpine);
+}
+$("#mode-tl").onclick = () => setMode("tl");
+$("#mode-std").onclick = () => setMode("std");
+
+/* ---------- career strip (to scale: Jan 2015 → Dec 2026) ---------- */
+(function strip(){
+  const s = $("#strip"), Y0 = 2015, Y1 = 2027, span = (Y1-Y0)*12;
+  const x = d => ((d[0]-Y0)*12 + (d[1]-1)) / span * 100;
+  const LANES = { work:{top:34,label:"Employment"}, venture:{top:72,label:"Founded"}, project:{top:110,label:"Projects"}, edu:{top:34} };
+  const grid = el("div",{class:"grid"});
+  for (let y=Y0; y<=Y1; y++) grid.appendChild(el("div",{class:"yr",style:`left:${(y-Y0)/(Y1-Y0)*100}%`}, `<span>${y}</span>`));
+  s.appendChild(grid);
+  [["Employment",14],["Founded",58],["Projects",96]].forEach(([t,top]) => s.appendChild(el("div",{class:"lane-label",style:`top:${top}px`},t)));
+  const projRow = {};
+  ENTRIES.forEach(e => {
+    let top = LANES[e.kind].top;
+    if (e.kind === "project") { const k = e.start.join("-"); projRow[k] = (projRow[k]||0); top += projRow[k]*0; }
+    const l = x(e.start), r = x(e.end ? [e.end[0], e.end[1]+1] : [NOW[0], NOW[1]+1]);
+    const short = e.org.replace(/,? (Inc\.?|LLC|Company, Inc\.)$/,"").replace(" (now Revalize)","").replace("jRE (jeby Real Estate)","jRE");
+    const b = el("button",{class:`seg ${e.kind}`, type:"button", style:`left:${l}%;width:calc(${r-l}% - 2px);top:${top}px`, title:`${e.org} · ${fmt(e.start)} – ${fmt(e.end)}`, "aria-label":`${e.org}, ${fmt(e.start)} to ${fmt(e.end)}`}, (r-l) > 4 ? short : "");
+    b.addEventListener("click", () => jump(e.id));
+    s.appendChild(b);
+  });
+  // late-2026 projects overlap: stack their labels as a bracket list
+  const lateL = x([2026,9]);
+  const tag = el("div",{style:`position:absolute;top:136px;right:0;font:500 11px/1.3 var(--f-mono);color:var(--neon);text-align:right`}, "jRE · AppForge · Plantriloquist ↗");
+  s.appendChild(tag);
+  // JA Insights label sits left of its short bar
+  const jai = ENTRIES.find(e=>e.id==="jai");
+  s.appendChild(el("div",{style:`position:absolute;top:76px;right:calc(${100-x(jai.start)}% + 8px);font:600 11px/1 var(--f-body);color:var(--chalk);white-space:nowrap`},"JA Insights · jeby Real Estate →"));
+  s.appendChild(el("div",{class:"now",style:`left:${x([NOW[0],NOW[1]+1])}%`},"<span>NOW</span>"));
+})();
+
+/* ---------- vertical timeline ---------- */
+const tl = $("#tl");
+let lastYear = null;
+const sorted = [...ENTRIES].sort((a,b)=> (b.start[0]*12+b.start[1]) - (a.start[0]*12+a.start[1]));
+sorted.forEach(e => {
+  const y = e.start[0];
+  if (y !== lastYear) { tl.appendChild(el("div",{class:"yearmark","data-year":y},`<span>${y}</span>`)); lastYear = y; }
+  const node = el("article",{class:`entry ${e.kind}`, id:`e-${e.id}`, "data-kind":e.kind, "data-year":y});
+  node.innerHTML = `
+    <div class="when"><b>${fmt(e.start)} – ${fmt(e.end)}</b>${dur(e.start,e.end)}</div>
+    <span class="node" aria-hidden="true"></span>
+    <div class="card">
+      <div class="top"><div><h3>${e.org}</h3><div class="org">${e.title}</div></div><span class="kind ${e.kind}">${KIND_LABEL[e.kind]}</span></div>
+      <ul>${e.bullets.map(b=>`<li>${b}</li>`).join("")}</ul>
+      ${e.tags.length ? `<div class="tags">${e.tags.map(t=>`<span class="chip">${t}</span>`).join("")}</div>` : ""}
+    </div>`;
+  tl.appendChild(node);
+});
+tl.appendChild(el("div",{class:"yearmark","data-year":"cmu"},`<span>CMU</span>`));
+const cmu = el("article",{class:"entry edu", id:"e-cmu","data-kind":"edu"});
+cmu.innerHTML = `<div class="when"><b>Graduated 2019</b>Pittsburgh, PA</div><span class="node" aria-hidden="true"></span>
+  <div class="card"><div class="top"><div><h3>Carnegie Mellon University</h3><div class="org">B.S. Statistics, Computer Science concentration</div></div><span class="kind">Education</span></div>
+  <ul><li>Tartan Data Science Cup, Organizer's Choice Award for most accurate predictions (undergraduate)</li><li>Research: Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression</li><li>College teaching assistant; archery club president; Sports Analytics Club treasurer</li></ul></div>`;
+tl.appendChild(cmu);
+
+const FILTERS = [["all","Everything"],["work","Employment"],["venture","Founded"],["project","Projects"],["edu","Teaching & education"]];
+const fbox = $("#filters");
+FILTERS.forEach(([k,label],i) => {
+  const b = el("button",{type:"button","aria-pressed":i===0?"true":"false","data-f":k},label);
+  b.onclick = () => {
+    fbox.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b));
+    tl.querySelectorAll(".entry").forEach(n => n.hidden = !(k==="all" || n.dataset.kind===k));
+    tl.querySelectorAll(".yearmark").forEach(ym => {
+      let n = ym.nextElementSibling, any = false;
+      while (n && !n.classList.contains("yearmark")) { if (!n.hidden) any = true; n = n.nextElementSibling; }
+      ym.hidden = !any;
+    });
+    updateSpine();
+  };
+  fbox.appendChild(b);
+});
+
+function jump(id){
+  show("resume", {noScroll:true}); setMode("tl");
+  fbox.querySelector('[data-f="all"]').click();
+  const n = document.getElementById("e-"+id); if (!n) return;
+  n.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"center"});
+  n.classList.remove("flash"); void n.offsetWidth; n.classList.add("flash");
+}
+
+/* lit nodes + spine fill follow the scroll; content is always visible */
+function updateSpine(){
+  if ($("#view-resume").hidden || $("#rs-timeline").hidden) return;
+  const r = tl.getBoundingClientRect(), vh = innerHeight, mark = vh*0.62;
+  const pct = Math.max(0, Math.min(1, (mark - r.top) / r.height));
+  tl.style.setProperty("--fill", (pct*100).toFixed(2)+"%");
+  tl.querySelectorAll(".entry,.yearmark").forEach(n => {
+    if (n.hidden) return;
+    n.classList.toggle("lit", n.getBoundingClientRect().top < mark);
+  });
+}
+addEventListener("scroll", updateSpine, {passive:true});
+addEventListener("resize", updateSpine);
+
+/* ---------- home ledger + standard résumé ---------- */
+$("#ledger").innerHTML = ENTRIES.filter(e=>e.kind==="work"||e.id==="jai"||e.kind==="edu").map(e =>
+  `<a href="#resume" data-jump="${e.id}"><span class="yrs">${e.start[0]}–${e.end?e.end[0]:"now"}</span><span class="who">${e.org} <span>· ${e.title}</span></span><span class="arrow">→</span></a>`).join("");
+$("#ledger").addEventListener("click", ev => { const a = ev.target.closest("[data-jump]"); if (!a) return; ev.preventDefault(); ev.stopPropagation(); jump(a.dataset.jump); });
+
+const jobHTML = e => `<div class="job"><div class="l1"><b>${e.org}</b><span>${fmt(e.start)} – ${fmt(e.end)}</span></div><div class="l2">${e.title}</div><ul>${e.bullets.map(b=>`<li>${b}</li>`).join("")}</ul></div>`;
+$("#std-work").innerHTML = ENTRIES.filter(e=>e.kind==="work"||e.kind==="edu"||e.id==="jai").sort((a,b)=>(b.start[0]*12+b.start[1])-(a.start[0]*12+a.start[1])).map(e => e.id==="jai" ? jobHTML({...e, bullets:[e.bullets[0]]}) : jobHTML(e)).join("");
+$("#std-proj").innerHTML = ENTRIES.filter(e=>e.kind==="project").map(jobHTML).join("");
+$("#std-biz").innerHTML = [
+  jobHTML(ENTRIES.find(e=>e.id==="jrellc")),
+  jobHTML({org:"JA Insights LLC", title:"Florida LLC, formed Nov 12, 2025", start:[2025,11], end:null, bullets:["Data consulting entity for small businesses"]})
+].join("");
+
+$("#yr").textContent = new Date().getFullYear();
+show((location.hash || "#home").slice(1), {noScroll:true});
+</script>
+
+</body>
+</html>
