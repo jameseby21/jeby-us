@@ -196,6 +196,48 @@
         "jeby-us-dot.svg",
         "candidate"
       ]
+    ],
+    "territory": [
+      [
+        "terr-paw",
+        "terr-paw-light.svg",
+        "terr-paw-dark.svg",
+        "candidate"
+      ],
+      [
+        "terr-hex",
+        "terr-hex-light.svg",
+        "terr-hex-dark.svg",
+        "candidate"
+      ]
+    ],
+    "driver-tracking": [
+      [
+        "driver-pin",
+        "driver-pin-light.svg",
+        "driver-pin-dark.svg",
+        "candidate"
+      ],
+      [
+        "driver-van",
+        "driver-van-light.svg",
+        "driver-van-dark.svg",
+        "candidate"
+      ]
+    ],
+    "route-optimizer": [
+      [
+        "route-loop",
+        "route-loop-light.svg",
+        "route-loop-dark.svg",
+        "candidate"
+      ],
+      [
+        "route-arrow",
+        "route-arrow-light.svg",
+        "route-arrow-dark.svg",
+        "candidate"
+      ]
     ]
   },
   "favicons": {

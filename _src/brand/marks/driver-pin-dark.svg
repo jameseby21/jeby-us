@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Driver tracking">
+<title>Driver tracking</title>
+<rect width="64" height="64" rx="14" fill="#111116"/>
+
+<path d="M10 52c6-2 8-8 14-9s9 4 15 2" fill="none" stroke="#6D6A7C" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 6"/>
+<path d="M42 50s-13-13-13-22a13 13 0 0 1 26 0c0 9-13 22-13 22Z" fill="#EEECF2"/>
+<circle cx="42" cy="28" r="5.5" fill="#E3262F"/>
+</svg>
