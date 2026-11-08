@@ -16,6 +16,20 @@
     new IntersectionObserver((es, o) => es.forEach(x => { if (x.isIntersecting) { el.classList.add(cls); o.disconnect(); } }), { threshold: .45 }).observe(el); };
   $$(".fig").forEach(f => seen(f, "play")); $$(".u").forEach(u => seen(u, "on")); $$(".steps").forEach(s => seen(s, "on"));
 
+  // SVG words are drawn in the picture's own units, so a figure shown smaller than its viewBox shrinks them. Every word is kept at 12 px or more on screen (JEBYUS-0058);
+  // print has its own sizes, so the overrides are taken off before printing and put back after.
+  const MINPX = 12, unfit = t => { t.style.fontSize = ""; t.removeAttribute("data-fit"); };
+  const fitSvgText = (root = document) => $$("svg", root).forEach(svg => {
+    const vb = svg.viewBox && svg.viewBox.baseVal; if (!vb || !vb.width) return;
+    $$("[data-fit]", svg).forEach(unfit);
+    const m = svg.getScreenCTM(), k = m ? Math.hypot(m.a, m.b) : 0; if (!k) return;   // the real scale on screen, also for a figure that is tilted
+    $$("text, tspan", svg).forEach(t => { if (!(t.textContent || "").trim()) return; const f = parseFloat(getComputedStyle(t).fontSize); if (f * k < MINPX + 0.1) { t.style.fontSize = ((MINPX + 0.15) / k).toFixed(2) + "px"; t.setAttribute("data-fit", ""); } });
+  });
+  window.JAI = Object.assign(window.JAI || {}, { fitSvgText });
+  { let raf = 0; const again = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => fitSvgText()); };
+    again(); addEventListener("load", again); addEventListener("resize", again); addEventListener("afterprint", again); if (document.fonts && document.fonts.ready) document.fonts.ready.then(again);
+    addEventListener("beforeprint", () => $$("[data-fit]").forEach(unfit)); }
+
   // tabs with a hash per tab
   $$("[role=tablist][data-tabs]").forEach(list => {
     const tabs = $$("[role=tab]", list);

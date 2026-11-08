@@ -3,7 +3,7 @@ Items marked DRAFT are proposals waiting for James's approval."""
 CONFIG = {
     "email": "jeby@jainsights.com",            # switch to hello@jainsights.com once the alias exists
     "rate": 95,                                # DRAFT: one published hourly rate
-    "report_rows": 5000, "report_cols": 12,     # free report limits; the paid Data health check has none
+    "report_rows": 10000, "report_cols": 12,     # free report limits; the paid Data health check has none
     "booking": {"provider": "email",           # "email" | "cal" | "calendly" | "form"; Cal.com + Stripe is the default plan
                 "cal": "", "calendly": "", "form": ""},
     "linkedin": "https://www.linkedin.com/in/jeby-d",

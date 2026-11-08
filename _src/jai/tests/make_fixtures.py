@@ -5,6 +5,11 @@ Writes, next to this file under fixtures/:
     sales_planted.csv + sales_planted.truth.json   sale_observations shape with planted problems
     sales_clean.csv                                 the same generator with nothing planted
     venues.csv + venues.truth.json                  venues export shape with planted problems
+    records_mixed.csv + records_mixed.truth.json    no topic: normal, sparse, rich, duplicate, conflicting, outlier and corrupted records (CONS-0064)
+    ledger_headerless.csv / ledger_header.csv / ledger_title.csv + ledger.truth.json
+                                                    a made-up debit-card ledger (CONS-0071/0072/0073): no header row, with a header row, and with a title row above it
+    numeric_header.csv                              a header made of years, over amounts (CONS-0071)
+    sales_roles.csv                                 sales shape with year built, zip, a count column and a true area column (CONS-0070/0074)
     sales_county.csv + sales_county.truth.json      county sales file shape (CONS-0058/0059/0063): a nominal $100 cluster, same-address
                                                     duplicates under new ids, near-duplicates, repeat sales and a few domain problems
 Row numbers in the truth files are 0-based body indexes (the header is not counted)."""
@@ -88,6 +93,10 @@ cvs_addr = "1200 Brickell Ave"; start = 100
 for k, nm in enumerate(["CVS Pharmacy", "CVS Pharmacy", "CVS  Pharmacy", "CVS  Pharmacy", "CVS", "CVS"]):
     r = venues[start + k]; r[0], r[1], r[2], r[3], r[4], r[6] = nm, "Pharmacy", cvs_addr, "", "Miami", "33131"
 vt["cvs_all"] = list(range(start, start + 6)); vt["cvs_spacing"] = [start + 2, start + 3]; vt["cvs_short"] = [start + 4, start + 5]
+# CONS-0040: Burger King written two ways at two different addresses (a spelling variant, not a duplicate); the CVS rows above are one place written several ways (duplicate places)
+for k, nm in zip((110, 111), ("Burger King", "BURGER KING")):
+    venues[k][0], venues[k][1] = nm, "Restaurant"
+vt["bk"] = [110, 111]
 write("venues.csv", VH, venues)
 (OUT / "venues.truth.json").write_text(json.dumps(vt, indent=1), encoding="utf-8")
 
@@ -153,4 +162,126 @@ def plant_county(rows):
 cs = county(2000); cs_truth = plant_county(cs)
 write("sales_county.csv", CS_H, cs)
 (OUT / "sales_county.truth.json").write_text(json.dumps(cs_truth, indent=1), encoding="utf-8")
+
+# ---------- mixed records (CONS-0064): normal, sparse, rich, duplicate, conflicting, outlier and corrupted records, no topic
+MX_H = ["ref", "name", "city", "postal", "joined", "amount", "qty", "notes"]
+def mixed():
+    r = random.Random(555); rows = []; cities = ["Alder", "Birch", "Cedar", "Dunmore", "Elmont"]
+    for i in range(400):
+        city = r.choice(cities); amount = round(math.exp(r.gauss(math.log(80), 0.25)) * (1 + cities.index(city) * 0.15), 2)
+        d = (datetime.date(2025, 1, 1) + datetime.timedelta(days=r.randrange(0, 300))).isoformat()
+        rows.append([f"R{1000 + i}", f"Person {i}", city, f"{10000 + cities.index(city) * 111}", d, f"{amount:.2f}", str(r.randrange(1, 6)), ""])
+    t = {}; idx = list(range(400)); r.shuffle(idx); take = lambda k: [idx.pop() for _ in range(k)]
+    rich = take(5)
+    for i in rich: rows[i][7] = "renewal discussed on call"               # rich: every field present
+    t["rich"] = rich
+    sparse = take(25)
+    for i in sparse: rows[i][1] = rows[i][2] = rows[i][3] = rows[i][5] = rows[i][6] = ""   # sparse: only the key and a date
+    t["sparse"] = sparse
+    out = take(3)
+    for i in out: rows[i][5] = f"{float(rows[i][5]) * 100:.2f}"           # contextual outliers: two digits too many
+    t["outlier"] = out
+    bad = take(3)
+    for i, v in zip(bad, ["12x5", "n/a", "$ten"]): rows[i][5] = v           # corrupted: not numbers
+    t["malformed_amount"] = bad
+    baddate = take(2)
+    for i in baddate: rows[i][4] = "2999-01-01"                          # corrupted: impossible dates
+    t["malformed_date"] = baddate
+    rep = take(16)
+    for i in rep: rows[i][5] = "49.99"                                   # repeated value: one amount copied into many rows
+    t["repeated_value"] = rep
+    dups = take(5); extra = []
+    for i in dups: extra.append(rows[i][:])                              # duplicates: exact copies
+    t["duplicate_first"] = dups; t["duplicate_second"] = list(range(400, 405)); rows.extend(extra)
+    conf = take(4); extra2 = []
+    for i in conf:                                                       # conflicting: one ref on two different records
+        o = rows[i][:]; o[1] = "Someone Else"; o[5] = f"{float(o[5]) * 1.3:.2f}" if o[5] and o[5].replace('.', '').isdigit() else "70.00"; extra2.append(o)
+    t["conflict_first"] = conf; t["conflict_second"] = list(range(405, 409)); rows.extend(extra2)
+    return rows, t
+mx, mx_truth = mixed()
+write("records_mixed.csv", MX_H, mx)
+(OUT / "records_mixed.truth.json").write_text(json.dumps(mx_truth, indent=1), encoding="utf-8")
+
+# ---------- a made-up debit-card ledger (CONS-0071, 0072, 0073): signed amounts, merchant strings with store numbers, cities and processor prefixes,
+# a type column, a running balance and two blank trailing columns. Newest first, as banks export it. No real rows: every line is generated.
+def ledger():
+    r = random.Random(20181119); tx = []        # (date, description, amount, kind)
+    d0 = datetime.date(2018, 1, 2); end = datetime.date(2018, 11, 19)
+    day = d0
+    while day <= end:
+        if day.day in (5, 20) or (day.day == 19 and day.month == 11): tx.append((day, "PAYROLL ACME CORP", 2150.00, "ACH_CREDIT"))
+        if day.day == 19 and day.month != 11: tx.append((day, "NETFLIX.COM" if day.month % 2 else "Netflix.com", -15.49, "DEBIT_CARD"))
+        if day.day == 3: tx.append((day, "SPOTIFY USA", -10.99, "DEBIT_CARD"))
+        day += datetime.timedelta(days=1)
+    shops = [("KROGER {s} COLUMBUS IN 50910", 30, 18, 95), ("KROGER {s} INDIANAPOLIS IN 46204", 10, 18, 95), ("Kroger #{s}", 6, 18, 95), ("SHELL OIL {s} COLUMBUS IN", 24, 22, 58),
+             ("SQ *BLUE BOTTLE COFFEE", 22, 4, 9), ("SQ *BLUE BOTTLE COFFEE SAN FRANCISCO CA", 6, 4, 9), ("TST* TACO PLACE {s} COLUMBUS IN", 14, 9, 31), ("VENMO* JORDAN", 7, 10, 80),
+             ("VENMO*PAYMENT", 5, 10, 80), ("PAYPAL *EBAY", 8, 12, 140), ("AMAZON.COM*2K4TT1 SEATTLE WA", 12, 9, 120), ("AMZN Mktp US*1A2B3", 8, 9, 120), ("WAL-MART #{s}", 12, 14, 160)]
+    for tmpl, n, lo, hi in shops:
+        for _ in range(n):
+            dd = d0 + datetime.timedelta(days=r.randrange(0, (end - d0).days + 1))
+            tx.append((dd, tmpl.format(s=r.choice([710, 712, 1234, 4005])), -round(r.uniform(lo, hi), 2), "DEBIT_CARD"))
+    tx.append((datetime.date(2018, 6, 14), "BEST BUY 000123 COLUMBUS IN", -1862.94, "DEBIT_CARD"))
+    refund_day = datetime.date(2018, 8, 21)
+    tx.append((refund_day, "KROGER 710 COLUMBUS IN 50910", -62.15, "DEBIT_CARD")); tx.append((refund_day, "KROGER 710 COLUMBUS IN 50910", 62.15, "DEBIT_CARD"))   # a purchase and its refund on the same day
+    dup_day = datetime.date(2018, 9, 12)
+    tx.append((dup_day, "TST* TACO PLACE 0042 COLUMBUS IN", -27.80, "DEBIT_CARD")); tx.append((dup_day, "TST* TACO PLACE 0042 COLUMBUS IN", -27.80, "DEBIT_CARD"))      # the same charge entered twice
+    tx.sort(key=lambda t: (t[0], t[3] != "ACH_CREDIT", t[1], t[2]))
+    bal = 5000.00; rows = []
+    for dd, desc, amt, kind in tx:
+        bal = round(bal + amt, 2)
+        rows.append([("CREDIT" if amt > 0 else "DEBIT"), dd.strftime("%m/%d/%Y"), desc, f"{amt:.2f}", kind, f"{bal:.2f}", "", ""])
+    rows.reverse()                                          # newest first
+    return rows
+LEDGER = ledger()
+LH = ["Details", "Posting Date", "Description", "Amount", "Type", "Balance", "", ""]
+def write_raw(name, header, rows, title=None):
+    with open(OUT / name, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f, lineterminator="\n")
+        if title: w.writerow([title])
+        if header: w.writerow(header)
+        w.writerows(rows)
+write_raw("ledger_headerless.csv", None, LEDGER)
+write_raw("ledger_header.csv", LH, LEDGER)
+write_raw("ledger_title.csv", LH, LEDGER, title="Synthetic checking activity, Jan 2 to Nov 19 2018, made up for tests")
+dupkey = [i for i, row in enumerate(LEDGER) if row[2].startswith("TST* TACO PLACE 0042") and row[3] == "-27.80"]
+refund = [i for i, row in enumerate(LEDGER) if row[2].startswith("KROGER 710 COLUMBUS IN 50910") and row[1] == "08/21/2018"]
+(OUT / "ledger.truth.json").write_text(json.dumps({"duplicate_rows": dupkey, "refund_pair": refund, "rows": len(LEDGER),
+    "recurring": ["Netflix", "Spotify"], "big_purchase": [i for i, row in enumerate(LEDGER) if row[3] == "-1862.94"]}, indent=1), encoding="utf-8")
+
+# a header made of years, over amounts: a row of numbers on top is still a header (CONS-0071)
+nr = random.Random(5)
+write_raw("numeric_header.csv", ["2022", "2023", "2024"], [[f"{nr.uniform(900, 4000):.2f}" for _ in range(3)] for _ in range(14)])
+
+# ---------- sales with year built, zip and a true area column (CONS-0070, 0074). "Sales (#)" is 1 on every row, as in the file that showed TOTAL SALES (#).
+def sales_roles():
+    r = random.Random(8080); rows = []
+    cities = {"Miami": ("33130", 430), "Hialeah": ("33012", 330), "Doral": ("33166", 400), "Coral Gables": ("33134", 620), "Miami Beach": ("33139", 780)}
+    for i in range(1200):
+        city = r.choice(list(cities)); zc, ppsf = cities[city]
+        area = int(min(6000, max(500, math.exp(r.gauss(math.log(1500), 0.28))))); yb = r.randrange(1925, 2023)
+        price = int(round(area * ppsf * math.exp(r.gauss(0, 0.18)), -3))
+        rows.append([f"{100000 + i * 7 + r.randrange(0, 5)}", (datetime.date(2024, 1, 1) + datetime.timedelta(days=r.randrange(0, 500))).isoformat(), city, zc, yb, area, r.randrange(1, 6), price, 1])
+    return rows
+write_raw("sales_roles.csv", ["Parcel", "Sale date", "City", "Zip", "Year built", "Living area sqft", "Beds", "Sale price", "Sales (#)"], sales_roles())
+
+# ---------- sale observations across four states (CONS-0051): the one problem that only shows in CA is the four prices with an extra zero, so a slice for CA has findings the whole file does not
+def sales_states():
+    r = random.Random(5151); rows = []
+    st = {"CA": (["Los Angeles", "San Diego", "Fresno"], 620), "FL": (["Miami", "Tampa", "Orlando"], 330), "TX": (["Austin", "Dallas", "Houston"], 260), "NY": (["Albany", "Buffalo", "Ithaca"], 280)}
+    keys = list(st); w = [30, 30, 25, 15]
+    for i in range(800):
+        s = r.choices(keys, w)[0]; city = r.choice(st[s][0]); ptype = r.choices(list(TYPES), [50, 35, 15])[0]
+        area = int(min(6000, max(500, math.exp(r.gauss(math.log(1500), 0.28))))); price = int(round(area * st[s][1] * TYPES[ptype] * math.exp(r.gauss(0, 0.15)), -3))
+        d = datetime.date(2024, 1, 1) + datetime.timedelta(days=r.randrange(0, 700))
+        rows.append([f"SO-{300000 + i}", price, d.isoformat(), city, s, f"{r.randrange(100, 9900)} {r.choice(STREETS)}", area, max(1, min(7, round(area / 520 + r.gauss(0, 0.6)))), max(1, min(6, round(area / 700 + r.gauss(0, 0.5)))), "" if ptype == "Condo" else int(area * r.uniform(2.5, 6)), ptype, r.choices(SOURCES, [70, 20, 10])[0]])
+    ca = [i for i, x in enumerate(rows) if x[4] == "CA"]; pick = r.sample(ca, 4)
+    for i in pick: rows[i][1] *= 10
+    fl = [i for i, x in enumerate(rows) if x[4] == "FL" and i not in pick]; dup = r.sample(fl, 3)
+    for i in dup: rows.append(rows[i][:])
+    return rows, {"ca_x10": pick, "fl_copied": dup, "ca_rows": ca}
+SS_H = ["observation_id", "sale_price", "sale_date", "city", "state", "address", "living_area_sqft", "beds", "baths", "lot_size_sqft", "property_type", "source"]
+ss, ss_truth = sales_states()
+write("sales_states.csv", SS_H, ss)
+(OUT / "sales_states.truth.json").write_text(json.dumps(ss_truth, indent=1), encoding="utf-8")
 print("fixtures written to", OUT)
+

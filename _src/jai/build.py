@@ -68,7 +68,7 @@ def page(key, title, desc, body):
 {FONTS}<link rel="stylesheet" href="assets/jai.css">
 <script type="speculationrules">{{"prerender":[{{"where":{{"href_matches":"/*"}},"eagerness":"moderate"}}]}}</script>{ld}
 </head><body>{header(key)}<main id="main">{body}</main>{footer()}
-<script src="assets/jai.js" defer></script>{'<script src="assets/records.js" defer></script><script src="assets/domain.js" defer></script><script src="assets/report.js" defer></script>' if key == "report" else ""}<script src="assets/brand.js" defer></script><script src="assets/family.js" data-site="jai" defer></script></body></html>'''
+<script src="assets/jai.js" defer></script>{'<script src="assets/records.js" defer></script><script src="assets/rules.js" defer></script><script src="assets/domain.js" defer></script><script src="assets/shape.js" defer></script><script src="assets/pack.js" defer></script><script src="assets/screening.js" defer></script><script src="assets/sources.js" defer></script><script src="assets/report.js" defer></script>' if key == "report" else ""}<script src="assets/brand.js" defer></script><script src="assets/family.js" data-site="jai" defer></script></body></html>'''
     (OUT / f"{key}.html").write_text(doc, encoding="utf-8")
 
 def mark(it):
@@ -178,11 +178,12 @@ page("report", "Free one-page report · JA Insights", "Add a spreadsheet and get
 <div class="intake" id="report-intake">
   <label class="drop" id="report-drop" for="report-file"><input type="file" id="report-file" class="sr-only" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls">
     <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M12 4h17l9 9v31H12z" fill="#fff" stroke="currentColor" stroke-width="2"/><path d="M29 4v9h9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M17 22h16M17 28h16M17 34h10" stroke="currentColor" stroke-width="2"/></svg>
-    <b>Drop a CSV or Excel file here</b><span>or click to choose one · free for up to {J.CONFIG["report_rows"]:,} rows and {J.CONFIG["report_cols"]} columns</span></label>
+    <b>Drop a CSV or Excel file here</b><span>or click to choose one · free for up to {J.CONFIG["report_rows"]:,} rows and {J.CONFIG["report_cols"]} columns at a time; a bigger file is read in pieces</span></label>
   <div class="intake-side"><button class="btn" type="button" id="report-sample">Try it on a made-up café's sales {ARROW}</button>
     <div class="private"><span class="label"><b>●</b> Private by design</span><ul><li>Your file is read by code on this page, on your device.</li><li>Nothing is uploaded, stored or logged, and this site has no analytics.</li><li>Close the tab and it's gone.</li></ul>
     <p class="meta">Check it yourself: load this page, turn off Wi-Fi, then add your file. It still works.</p></div></div>
 </div>
+<p class="pack-line print-hide">Rule pack: <b id="pack-name">none</b> <label class="rec-link"><input type="file" id="report-pack" accept=".json,application/json" class="sr-only">Load a rule pack (optional)</label></p>
 <p class="status-line" id="report-status" role="status"></p>
 <div id="report-out" hidden></div>
 </div></section>
@@ -251,7 +252,8 @@ page("contact", "Contact · JA Insights", "Book a free 30-minute intro call with
 
 # assets
 S2 = ROOT.parent / "jeby" / "out" / "assets"; FAM = ROOT.parent / "family"
-shutil.copy(ROOT / "src" / "jai.css", OUT / "assets" / "jai.css"); shutil.copy(ROOT / "src" / "jai.js", OUT / "assets" / "jai.js"); shutil.copy(ROOT / "src" / "report.js", OUT / "assets" / "report.js"); shutil.copy(ROOT / "src" / "records.js", OUT / "assets" / "records.js"); shutil.copy(ROOT / "src" / "domain.js", OUT / "assets" / "domain.js")
+shutil.copy(ROOT / "src" / "jai.css", OUT / "assets" / "jai.css"); shutil.copy(ROOT / "src" / "jai.js", OUT / "assets" / "jai.js"); shutil.copy(ROOT / "src" / "report.js", OUT / "assets" / "report.js"); shutil.copy(ROOT / "src" / "records.js", OUT / "assets" / "records.js"); shutil.copy(ROOT / "src" / "domain.js", OUT / "assets" / "domain.js"); shutil.copy(ROOT / "src" / "pack.js", OUT / "assets" / "pack.js"); shutil.copy(ROOT / "src" / "rules.js", OUT / "assets" / "rules.js"); shutil.copy(ROOT / "src" / "shape.js", OUT / "assets" / "shape.js"); shutil.copy(ROOT / "src" / "sources.js", OUT / "assets" / "sources.js"); shutil.copy(ROOT / "src" / "screening.js", OUT / "assets" / "screening.js"); shutil.copy(ROOT / "src" / "report-worker.js", OUT / "assets" / "report-worker.js")
+shutil.copytree(ROOT / "packs", OUT / "assets" / "packs", dirs_exist_ok=True)
 shutil.copy(FAM / "family.js", OUT / "assets" / "family.js")
 for f in ("plantriloquist.png", "musicalgames.svg", "lighting-lab.svg", "desk.svg"): shutil.copy(S2 / f, OUT / "assets" / f)
 BR.copy_assets(OUT / "assets")

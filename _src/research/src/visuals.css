@@ -11,7 +11,7 @@
 .orbit.fill{height:100%;border:0;border-radius:0}
 .orbit canvas{position:absolute;inset:0}
 .orbit-overlay{position:absolute;left:0;top:0;padding:30px 32px;max-width:min(46%,480px);pointer-events:none;display:grid;gap:12px}
-.orbit-overlay .orbit-eyebrow{font:500 11.5px/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--ash)}
+.orbit-overlay .orbit-eyebrow{font:500 12px/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--ash)}
 .orbit-overlay .orbit-eyebrow b{color:var(--neon);font-weight:500}
 .orbit-overlay .orbit-title{margin:0;font-family:var(--f-display);font-weight:900;font-stretch:118%;font-size:clamp(26px,3.2vw,40px);line-height:1;letter-spacing:-.025em;text-wrap:balance}
 .orbit-overlay .orbit-title span{background:linear-gradient(176deg,#ffb3b8 0%,#ff4a58 22%,#d1101f 46%,#6e0611 58%,#ff3445 78%,#ff9aa2 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -35,7 +35,7 @@
 .w2-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .w2-steps{display:flex;gap:6px;flex-wrap:wrap;min-width:0}
 .w2-steps button,.w2-ctl button{appearance:none;font:500 13px/1 var(--f-body);color:var(--ash);background:var(--void);border:1px solid var(--seam);border-radius:999px;padding:8px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
-.w2-steps button span{font:600 10.5px/1 var(--f-mono);color:#6d6a78}
+.w2-steps button span{font:600 12px/1 var(--f-mono);color:#8a8799}
 .w2-steps button.done{color:#cfcdd6}
 .w2-steps button[aria-selected="true"]{color:#fff;border-color:var(--neon);box-shadow:0 0 14px rgba(255,43,61,.28)}
 .w2-steps button[aria-selected="true"] span{color:var(--neon)}
@@ -44,7 +44,7 @@
 .w2-panels{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.25fr);gap:12px}
 .w2-left,.w2-right{height:440px;border-radius:12px;overflow:hidden;border:1px solid var(--seam);min-width:0}
 .w2-cap{display:grid;gap:6px;min-height:104px}
-.w2-k{font:500 11px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--neon)}
+.w2-k{font:500 12px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--neon)}
 .w2-cap h3{margin:0;font-family:var(--f-display);font-weight:800;font-stretch:110%;font-size:clamp(19px,2.2vw,24px);letter-spacing:-.01em;text-wrap:balance}
 .w2-cap p{margin:0;color:#cfcdd6;font-size:15px;line-height:1.55;max-width:75ch}
 .w2-prog{height:2px;background:var(--seam);border-radius:2px;overflow:hidden}
@@ -65,7 +65,7 @@
 .rs-text .rs-why{border-left:2px solid #ff2b3d;padding-left:16px;color:#dcdae3}
 .rs-facts{border:1px solid #22212a;border-radius:14px;background:#0d0d11;padding:20px 22px;display:grid;gap:16px}
 .rs-facts dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:14px}
-.rs-facts dt{font:500 11px/1.6 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#9b98a8}
+.rs-facts dt{font:500 12px/1.6 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#9b98a8}
 .rs-facts dd{margin:0;color:#eeecf2}
 .rs-poster{justify-self:start}
 @media (max-width:879px){.rs-grid{grid-template-columns:1fr}}
@@ -79,7 +79,7 @@
 .deck-cover{height:640px}
 .deck-split{display:grid;grid-template-columns:minmax(0,.82fr) minmax(0,1.5fr);height:640px;border:1px solid #22212a;border-radius:18px;overflow:hidden;background:#0d0d11}
 .deck-text{padding:28px 28px;display:flex;flex-direction:column;gap:12px;overflow:auto;min-width:0;border-right:1px solid #22212a}
-.deck-eyebrow{font:500 11.5px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#9b98a8}
+.deck-eyebrow{font:500 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#9b98a8}
 .deck-eyebrow b{color:#ff2b3d;font-weight:600}
 .deck-text h3{margin:0;font-family:"Archivo","Arial Narrow",system-ui,sans-serif;font-weight:800;font-stretch:110%;font-size:clamp(21px,2.1vw,27px);line-height:1.1;letter-spacing:-.015em;text-wrap:balance;color:#eeecf2}
 .deck-text p{margin:0;font-size:14.5px;line-height:1.6;color:#cfcdd6}
@@ -94,7 +94,7 @@
 .deck-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;padding:2px}
 .deck-chips::-webkit-scrollbar{display:none}
 .deck-chips button,.deck-arrow{appearance:none;flex:none;font:500 13px/1 "Figtree",ui-sans-serif,system-ui,sans-serif;color:#9b98a8;background:#050507;border:1px solid #22212a;border-radius:999px;padding:9px 13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
-.deck-chips button span{font:600 10.5px/1 "IBM Plex Mono",ui-monospace,monospace;color:#6d6a78}
+.deck-chips button span{font:600 12px/1 "IBM Plex Mono",ui-monospace,monospace;color:#8a8799}
 .deck-chips button.done{color:#cfcdd6}
 .deck-chips button[aria-selected="true"]{color:#fff;border-color:#ff2b3d;box-shadow:0 0 14px rgba(255,43,61,.28)}
 .deck-chips button[aria-selected="true"] span{color:#ff2b3d}
@@ -107,8 +107,9 @@
 }
 .rs-foot{margin:0;font-size:13px;color:#9b98a8}
 .rs-foot a{color:#eeecf2;text-decoration-color:#ff2b3d;text-underline-offset:3px}
+:root[data-theme="light"] .rs-foot{color:var(--muted)}:root[data-theme="light"] .rs-foot a{color:var(--fg)}   /* the page is dark by design; these two lines sit on the light page when the visitor picks light */
 .deck-improve{display:grid;gap:4px;padding:12px 14px;border-radius:10px;background:rgba(255,43,61,.08);border:1px solid rgba(255,43,61,.35);font-size:14px;line-height:1.5;color:#eeecf2}
-.deck-improve b{font:600 10.5px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#ff2b3d}
+.deck-improve b{font:600 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#ff2b3d}
 
 .deck-watch{display:grid;gap:3px;font-size:13.5px;line-height:1.5;color:#b9b6c6;border-left:2px solid rgba(238,236,242,.25);padding-left:12px}
-.deck-watch b{font:600 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#eeecf2}
+.deck-watch b{font:600 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#eeecf2}
