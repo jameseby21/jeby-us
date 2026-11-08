@@ -87,11 +87,11 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     assert(/All records.*Search: “Sunny”.*Back to all/.test(m.crumbs), m.crumbs); assert(!/of 5,000/.test(m.count) || !/Showing 5,000/.test(m.count), m.count);
     await js(`document.querySelector('[data-crumbs] .rec-x').click()`); assert(/Showing 5,000 of 5,000/.test(await js(`document.querySelector('[data-count]').textContent`)));
   });
-  await check("clicking a finding shows its rows; flagged cells carry red and a reason on focus", async () => {
+  await check("clicking a finding shows its rows; an advisory outlier cell is slate (Look) and carries its reason on focus", async () => {
     await js(`document.querySelector('[data-find="unit:unit_price"]').click()`);
-    const m = await js(`(() => { const c = document.querySelector('.rec-td.fix'); c.focus(); const tip = document.querySelector('.rec-tip'); return { count: document.querySelector('[data-count]').textContent, crumbs: document.querySelector('[data-crumbs]').textContent, cls: c.className, bg: getComputedStyle(c).backgroundColor, rule: getComputedStyle(c).boxShadow, tip: tip.textContent, op: getComputedStyle(tip).opacity }; })()`);
+    const m = await js(`(() => { const c = document.querySelector('.rec-td.look'); c.focus(); const tip = document.querySelector('.rec-tip'); return { count: document.querySelector('[data-count]').textContent, crumbs: document.querySelector('[data-crumbs]').textContent, cls: c.className, bg: getComputedStyle(c).backgroundColor, rule: getComputedStyle(c).boxShadow, tip: tip.textContent, op: getComputedStyle(tip).opacity }; })()`);
     assert(/Showing 12 of 5,000/.test(m.count), m.count); assert(/unit price/i.test(m.crumbs), m.crumbs);
-    assert(/247, 227, 227|f7e3e3/i.test(m.bg), "tint " + m.bg); assert(/179, 18, 26/.test(m.rule), "red rule " + m.rule);
+    assert(/230, 234, 240/.test(m.bg), "slate tint (an outlier is advisory: Look) " + m.bg); assert(/47, 59, 75/.test(m.rule), "slate rule " + m.rule);
     assert(/\$115\.00 is 10x this item's usual \$11\.50\. Likely/.test(m.tip), m.tip);
     await sleep(250); assert.strictEqual(await js(`getComputedStyle(document.querySelector('.rec-tip')).opacity`), "1", "the reason is visible while the cell has focus");
   });
@@ -127,7 +127,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     const before = await js(`document.querySelector('.chart.bars [data-g="Sunny Isles Beach"]').dataset.tip`);
     await js(`document.querySelector('[data-find="unit:unit_price"]').click()`);
     for (let i = 0; i < 12; i++) {
-      await js(`(() => { const c = document.querySelector('.rec-td.fix[data-c="5"]'); c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); })()`);
+      await js(`(() => { const c = document.querySelector('.rec-td.look[data-c="5"]'); c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); })()`);
       await js(`(() => { const inp = document.querySelector('[data-edit]'); inp.value = '$11.50'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
     }
     const m = await js(`(() => ({ n: document.querySelector('.rec-edits .n').textContent, finds: document.querySelector('#rep-sheet .finds').textContent, edited: document.querySelectorAll('.rec-td.edited').length, tip: document.querySelector('.chart.bars [data-g="Sunny Isles Beach"]').dataset.tip }))()`);
@@ -187,7 +187,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     const pdf = await send("Page.printToPDF", { preferCSSPageSize: true, printBackground: true }), txt = Buffer.from(pdf.data, "base64").toString("latin1");
     const pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length; const dbg = await js(`(() => { const sh = document.querySelector('.sheet'); return { pz: sh.style.getPropertyValue('--pz'), pw: sh.dataset.pw, ph: sh.dataset.ph, h: sh.offsetHeight, fit: JAIReportDebug.fitLog.join(' ') }; })()`); assert.strictEqual(pages, 1, "printed pages: " + pages + " " + JSON.stringify(dbg));
     const f = await js(`(() => { const sh = document.querySelector('.sheet'); return { z: sh.style.getPropertyValue('--pz'), rows: sh.dataset.pw || '5', health: !sh.dataset.ph, drop: sh.dataset.ph || '0' } })()`);
-    assert(+f.rows >= 3, "worth-a-look rows kept in print: " + f.rows);
+    assert(+f.rows >= 3, "worth-a-look rows kept in print: " + f.rows + " " + (await js(`JAIReportDebug.fitLog.join(" ")`)));
     return `1 printed page at zoom ${f.z}, ${f.rows} worth-a-look rows, print detail level ${f.drop} (0 = everything kept)`;
   });
   await check("nothing leaves the browser: no request while working, none that is a POST or PUT, ever", async () => {

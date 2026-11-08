@@ -191,7 +191,7 @@ test("cafe sample: at most ten, one reason each, price rows first, ordered by se
   const { a, s } = cafe(), w = R.pickNotable(a, s); assert(w.length <= 10 && w.length >= 5, w.length);
   w.forEach(x => assert(x.reason && x.reason.length > 10 && !/<b>/.test(x.reason), JSON.stringify(x)));
   const pf = a.findingsAll.find(f => f.id === "unit:unit_price"); assert(pf.rows.includes(w[0].ri), "first is not a price row: " + JSON.stringify(w[0]));
-  const rank = { fix: 2, look: 1, ctx: 0 }; for (let i = 1; i < w.length; i++) assert(rank[w[i - 1].sev] >= rank[w[i].sev], "severity order at " + i);
+  const rank = { fix: 2, look: 1, ctx: 0 }; for (let i = 1; i < w.length; i++) assert(rank[w[i - 1].pri] >= rank[w[i].pri], "priority order at " + i);
 });
 test("a record that is one of many with the same problem says how many (the twelve price rows read '1 of 12')", () => {
   const { a, s } = cafe(), w = R.pickNotable(a, s), pf = a.findingsAll.find(f => f.id === "unit:unit_price");

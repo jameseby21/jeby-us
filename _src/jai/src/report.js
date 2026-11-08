@@ -364,6 +364,19 @@
         add("fix", `${odd.length} date${odd.length > 1 ? "s" : ""} outside a sensible range`, `${fut ? fut + " in the future" : ""}${fut && anc ? ", " : ""}${anc ? anc + " before 1900" : ""}. For example row ${odd[0][1] + 2}: ${body[odd[0][1]][dateCol.i]}.`, 85, true, "date", "Dates far outside the file"); }
     }
 
+    // an exact value repeated far more than chance in a column of otherwise varied numbers (CONS-0064: repeated-value)
+    cols.filter(c => c.type === "number" && (c.role === "money" || c.role === "measure") && !c.count && c.distinct > c.filled * 0.4 && c.filled >= 40).forEach(c => {
+      const m = new Map(); body.forEach((r, ri) => { const v = r[c.i].trim(); if (v) (m.get(v) || m.set(v, []).get(v)).push(ri); });
+      const top = [...m.entries()].sort((x, y) => y[1].length - x[1].length)[0]; if (!top) return; const nomSet = nominal.has(c.i) ? nominal.get(c.i).set : null;
+      if (top[1].length >= Math.max(8, N * 0.03) && !(nomSet && top[1].every(ri => nomSet.has(ri)))) {
+        top[1].forEach(ri => link("rv:" + c.name, ri, c.i, "look", `<b>${esc(top[0])} appears ${top[1].length.toLocaleString("en-US")} times in ${esc(c.name)}.</b> Most values in this column are different, so one value this common is probably a default or a copy.`, "", 0));
+        add("look", `${top[1].length.toLocaleString("en-US")} rows share one ${human(c.name)} (${top[0]})`, `Most ${human(c.name)} values are different, so ${top[1].length.toLocaleString("en-US")} identical ones are probably a default value or a copied entry.`, 74, true, "rv:" + c.name, `Repeated ${human(c.name)}`);
+        meta.set("rv:" + c.name, { cls: "repeated-value", rule: "A value repeated in a column of otherwise varied numbers is a placeholder or a copy.", todo: "Check where these rows came from." });
+      }
+    });
+    if (dateCol) { const ok = dateInfo ? dateInfo.okDates : []; if (ok.length) { const newest = ok[ok.length - 1], months = (Date.now() - newest) / 2629800000;
+      if (months > Dom.DOMAIN.staleMonths) { add("look", `The newest date is ${Math.round(months)} months old`, `The latest ${human(dateCol.name)} is ${dstr(newest)}. The file may be out of date.`, 55, true, "stale", "Possibly out of date"); meta.set("stale", { cls: "stale", rule: Dom.CHK.stale.rule, todo: Dom.CHK.stale.todo }); } } }
+
     // nominal transfers (CONS-0058): their own QA finding, never part of a baseline
     nominal.forEach(nm => {
       const n = nm.rows.length, fl = nm.floor >= 1000 ? "$" + Math.round(nm.floor).toLocaleString("en-US") : "$" + nm.floor.toFixed(2), vs = nm.values.slice(0, 4).map(([v, k]) => `${money(v)} (${k.toLocaleString("en-US")})`).join(", ");
@@ -440,13 +453,17 @@
     }
 
     findings.forEach(f => { Object.assign(f, meta.get(f.id) || {}); if (!f.kind) f.kind = "qa"; if (f.kind === "qa" && !f.cls) f.cls = classOfFinding(f); });
+    const byFid = new Map(findings.filter(f => f.id).map(f => [f.id, f])), CL = Dom.DOMAIN.classes;
+    findings.forEach(f => { if (f.kind === "qa" && f.cls && CL[f.cls] && f.sev !== "ok") { f.hard = CL[f.cls].hard; f.pri = f.sev; f.sev = f.hard ? "fix" : "look"; const ck = checks.find(c => c.title === f.title); if (ck) ck.sev = f.sev; } });
+    flags.forEach(fl => { const fd = byFid.get(fl.id); if (fd && fd.kind === "qa" && fd.cls && CL[fd.cls]) { fl.pri = fl.pri || fl.sev; fl.sev = CL[fd.cls].hard ? "fix" : "look"; } });
+    const classCounts = Object.keys(CL).map(k => { const fs = findings.filter(f => f.kind === "qa" && f.cls === k); const rows = new Set(fs.flatMap(f => (fr.get(f.id) ? [...fr.get(f.id)] : []))); return { cls: k, label: CL[k].label, hard: CL[k].hard, n: k === "optional-field" ? optionalCols.length : rows.size }; }).filter(c => c.n > 0);
     findings.sort((a, b) => b.score - a.score);
     findings.forEach(f => { if (f.id) { f.rows = [...(fr.get(f.id) || [])].sort((a, b) => a - b); f.n = f.rows.length; } });
     const findingsAll = findings.filter(f => f.id && f.n > 0);
     const rank = { fix: 0, look: 1, ok: 2 }; checks.sort((a, b) => rank[a.sev] - rank[b.sev]);
     const needsCleanup = checks.some(c => c.sev === "fix");
     const qaSample = N >= 10 ? qaSampleOf({ N, header, cat, flags, findingsList: findings }, body, choice.seed) : null;
-    return { name: data.name, sheet: data.sheet, N, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, qaSample, notChecked: Dom.notChecked(cols), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+    return { name: data.name, sheet: data.sheet, N, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, classCounts, qaSample, notChecked: Dom.notChecked(cols), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
   }
 
   // ---------- classes and review verbs
@@ -482,8 +499,8 @@
     const fin = new Map(a.findingsList.map(f => [f.id, f])), byRow = new Map();
     a.flags.forEach((f, k) => { const fd = fin.get(f.id); if (!fd || fd.kind !== "qa") return; const ri = +k.split(":")[0]; const r = byRow.get(ri) || byRow.set(ri, []).get(ri); r.push({ f, fd, ci: +k.split(":")[1] }); });
     const SEV = { fix: 0, look: 1, ctx: 2 }, flagged = [];
-    byRow.forEach((cells, ri) => { cells.sort((x, y) => (x.fd.id === "gaps") - (y.fd.id === "gaps") || SEV[x.f.sev] - SEV[y.f.sev] || (x.fd.n || 0) - (y.fd.n || 0) || y.f.eff - x.f.eff || x.ci - y.ci); flagged.push({ ri, top: cells[0], cells }); });
-    flagged.sort((x, y) => (x.top.fd.id === "gaps") - (y.top.fd.id === "gaps") || SEV[x.top.f.sev] - SEV[y.top.f.sev] || (x.top.fd.n || 0) - (y.top.fd.n || 0) || y.top.f.eff - x.top.f.eff || x.ri - y.ri);
+    byRow.forEach((cells, ri) => { cells.sort((x, y) => (x.fd.id === "gaps") - (y.fd.id === "gaps") || SEV[x.f.pri || x.f.sev] - SEV[y.f.pri || y.f.sev] || (x.fd.n || 0) - (y.fd.n || 0) || y.f.eff - x.f.eff || x.ci - y.ci); flagged.push({ ri, top: cells[0], cells }); });
+    flagged.sort((x, y) => (x.top.fd.id === "gaps") - (y.top.fd.id === "gaps") || SEV[x.top.f.pri || x.top.f.sev] - SEV[y.top.f.pri || y.top.f.sev] || (x.top.fd.n || 0) - (y.top.fd.n || 0) || y.top.f.eff - x.top.f.eff || x.ri - y.ri);
     const take = flagged.slice(0, size), taken = new Set(take.map(x => x.ri)), rest = []; for (let i = 0; i < N; i++) if (!byRow.has(i)) rest.push(i);
     const need = Math.max(0, size - take.length), rnd = mulberry(seed), groups = new Map(), gi = a.cat ? a.cat.i : -1;
     rest.forEach(ri => { const k = gi >= 0 ? (body[ri][gi].trim() || "(blank)") : ""; (groups.get(k) || groups.set(k, []).get(k)).push(ri); });
@@ -517,15 +534,15 @@
     a.flags.forEach((f, k) => { const [ri, ci] = k.split(":").map(Number); const r = byRow.get(ri) || byRow.set(ri, []).get(ri); r.push({ ci, f }); findEff.set(f.id, (findEff.get(f.id) || 0) + f.eff); });
     const cand = [];
     byRow.forEach((cells, ri) => {
-      cells.sort((x, y) => SEVRANK[y.f.sev] - SEVRANK[x.f.sev] || y.f.eff - x.f.eff || x.ci - y.ci);
+      cells.sort((x, y) => SEVRANK[y.f.pri || y.f.sev] - SEVRANK[x.f.pri || x.f.sev] || y.f.eff - x.f.eff || x.ci - y.ci);
       const top = cells[0], eff = cells.reduce((s, c) => s + c.f.eff, 0);
-      cand.push({ ri, ci: top.ci, sev: top.f.sev, id: top.f.id, fe: findEff.get(top.f.id) || 0, eff, n: cells.length, why: top.f.why });
+      cand.push({ ri, ci: top.ci, sev: top.f.sev, pri: top.f.pri || top.f.sev, id: top.f.id, fe: findEff.get(top.f.id) || 0, eff, n: cells.length, why: top.f.why });
     });
-    cand.sort((x, y) => SEVRANK[y.sev] - SEVRANK[x.sev] || y.fe - x.fe || y.eff - x.eff || y.n - x.n || x.ri - y.ri);
+    cand.sort((x, y) => SEVRANK[y.pri] - SEVRANK[x.pri] || y.fe - x.fe || y.eff - x.eff || y.n - x.n || x.ri - y.ri);
     const out = [], used = new Map(), picked = new Set();
     const where = ri => a.cat ? ` · ${rows[ri][a.cat.i].trim() || "(blank)"}` : "";
     const kindOf = id => { const f = a.findingsList && a.findingsList.find(x => x.id === id); return f ? f.kind : (id === "rank" || id === "largest" || id === "recent") ? "insight" : "qa"; };
-    const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, kind: kindOf(c.id), id: c.id || null, title: `Row ${(c.ri + 2).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason: reason + (oneOf(c.id) > 1 ? ` One of ${oneOf(c.id).toLocaleString("en-US")} rows with this problem.` : "") });
+    const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, pri: c.pri || sev, kind: kindOf(c.id), id: c.id || null, title: `Row ${(c.ri + 2).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason: reason + (oneOf(c.id) > 1 ? ` One of ${oneOf(c.id).toLocaleString("en-US")} rows with this problem.` : "") });
     const oneOf = id => { const f = a.findingsAll.find(x => x.id === id); return f ? f.n : 0; };   // a list of ten cannot hold every row of a big finding, so each entry says how many there are
     const qaCap = 7, nIn = k => out.filter(w => w.kind === k).length;
     for (const c of cand) { if (out.length >= 10) break; if (kindOf(c.id) === "qa" && nIn("qa") >= qaCap) continue; if (kindOf(c.id) === "insight" && nIn("insight") >= 10 - qaCap) continue; if (c.id === "gaps") continue; /* a blank cell is a column-wide matter, not a record to read */ if ((used.get(c.id) || 0) >= PER_FINDING) continue; used.set(c.id, (used.get(c.id) || 0) + 1); picked.add(c.ri); out.push(entry(c, plain(c.why), c.sev)); }
@@ -638,7 +655,8 @@
     const trendSvg = a.trend && a.trend.series.length > 1 ? lineSVG(a.trend, a.measure ? a.measure.name : "Rows") : "";
     const tableRows = (a.trend ? a.trend.series.map(p => `<tr><td>${a.trend.label(p.t)}</td><td>${full(p.v, 0)}</td></tr>`).join("") : "");
     const sec = sections(a, notable);
-    const li = f => `<li><b>${esc(f.title)}</b><span>${esc(f.detail)}</span>${f.rule ? `<small class="rule print-hide">Rule: ${esc(f.rule)} To do: ${esc(f.todo)}</small>` : ""}${f.id && f.n ? `<button class="rec-link print-hide" type="button" data-find="${esc(f.id)}">Show ${fmtCount(f.n)} ${f.n === 1 ? "row" : "rows"}</button>` : ""}</li>`;
+    const tag = f => f.cls && Dom.DOMAIN.classes[f.cls] ? `<em class="cls ${f.hard ? "hard" : "adv"}" title="${esc(Dom.DOMAIN.classes[f.cls].means)}">${f.hard ? "Invalid" : "Check"} · ${esc(Dom.DOMAIN.classes[f.cls].label)}</em> ` : "";
+    const li = f => `<li><b>${tag(f)}${esc(f.title)}</b><span>${esc(f.detail)}</span>${f.rule ? `<small class="rule print-hide">Rule: ${esc(f.rule)} To do: ${esc(f.todo)}</small>` : ""}${f.id && f.n ? `<button class="rec-link print-hide" type="button" data-find="${esc(f.id)}">Show ${fmtCount(f.n)} ${f.n === 1 ? "row" : "rows"}</button>` : ""}</li>`;
     const listHTML = (fs, none) => fs.length ? `<ol class="finds">${fs.slice(0, 6).map(li).join("")}</ol>` : `<p class="calm">${none}</p>`;
     const worthHTML = (list, title, cls) => list.length ? `<section class="sh-worth ${cls}"><h3>${title} <span class="hint print-hide">Click one to find it in the table.</span></h3><ol class="worth">${list.map(w => `<li><button class="wrow" type="button" data-row="${w.ri}"><i class="sev ${w.sev}" aria-hidden="true">${w.sev === "fix" ? "×" : w.sev === "look" ? "!" : "·"}</i><span><b>${esc(w.title)}</b><span class="wreason">${esc(w.reason)}</span></span></button></li>`).join("")}</ol></section>` : "";
     const qaRows = new Set(sec.qa.findings.flatMap(f => f.rows || [])), insRows = new Set(sec.insights.findings.flatMap(f => f.rows || []));

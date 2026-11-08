@@ -12,7 +12,7 @@
     // First matching name wins; names are compared lower-case with spaces, dashes and underscores treated alike.
     // Roles that come from the name: identifier, coordinates, postal, city, state, unit, address. Money, measure, date, category and text come from the values.
     roles: [
-      ["identifier", /(^|[_\s-])(id|uuid|guid)$|^id([_\s-]|$)|^(row|rownum|record|observation)([_\s-]?(no|num|number|id))?$/],
+      ["identifier", /(^|[_\s-])(id|uuid|guid)$|^id([_\s-]|$)|^(row|rownum|record|observation|ref|reference)([_\s-]?(no|num|number|id))?$/],
       ["coordinates", /(^|[_\s-])(lat|latitude|lon|lng|long|longitude)($|[_\s-])/],
       ["unit", /^(address[_\s-]*)?(unit|apt|apartment|suite|ste)([_\s-]*(no|num|number))?$/],
       ["postal", /zip|postal|post[_\s-]?code/],

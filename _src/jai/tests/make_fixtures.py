@@ -5,6 +5,7 @@ Writes, next to this file under fixtures/:
     sales_planted.csv + sales_planted.truth.json   sale_observations shape with planted problems
     sales_clean.csv                                 the same generator with nothing planted
     venues.csv + venues.truth.json                  venues export shape with planted problems
+    records_mixed.csv + records_mixed.truth.json    no topic: normal, sparse, rich, duplicate, conflicting, outlier and corrupted records (CONS-0064)
     sales_county.csv + sales_county.truth.json      county sales file shape (CONS-0058/0059/0063): a nominal $100 cluster, same-address
                                                     duplicates under new ids, near-duplicates, repeat sales and a few domain problems
 Row numbers in the truth files are 0-based body indexes (the header is not counted)."""
@@ -153,4 +154,43 @@ def plant_county(rows):
 cs = county(2000); cs_truth = plant_county(cs)
 write("sales_county.csv", CS_H, cs)
 (OUT / "sales_county.truth.json").write_text(json.dumps(cs_truth, indent=1), encoding="utf-8")
+
+# ---------- mixed records (CONS-0064): normal, sparse, rich, duplicate, conflicting, outlier and corrupted records, no topic
+MX_H = ["ref", "name", "city", "postal", "joined", "amount", "qty", "notes"]
+def mixed():
+    r = random.Random(555); rows = []; cities = ["Alder", "Birch", "Cedar", "Dunmore", "Elmont"]
+    for i in range(400):
+        city = r.choice(cities); amount = round(math.exp(r.gauss(math.log(80), 0.25)) * (1 + cities.index(city) * 0.15), 2)
+        d = (datetime.date(2025, 1, 1) + datetime.timedelta(days=r.randrange(0, 300))).isoformat()
+        rows.append([f"R{1000 + i}", f"Person {i}", city, f"{10000 + cities.index(city) * 111}", d, f"{amount:.2f}", str(r.randrange(1, 6)), ""])
+    t = {}; idx = list(range(400)); r.shuffle(idx); take = lambda k: [idx.pop() for _ in range(k)]
+    rich = take(5)
+    for i in rich: rows[i][7] = "renewal discussed on call"               # rich: every field present
+    t["rich"] = rich
+    sparse = take(25)
+    for i in sparse: rows[i][1] = rows[i][2] = rows[i][3] = rows[i][5] = rows[i][6] = ""   # sparse: only the key and a date
+    t["sparse"] = sparse
+    out = take(3)
+    for i in out: rows[i][5] = f"{float(rows[i][5]) * 100:.2f}"           # contextual outliers: two digits too many
+    t["outlier"] = out
+    bad = take(3)
+    for i, v in zip(bad, ["12x5", "n/a", "$ten"]): rows[i][5] = v           # corrupted: not numbers
+    t["malformed_amount"] = bad
+    baddate = take(2)
+    for i in baddate: rows[i][4] = "2999-01-01"                          # corrupted: impossible dates
+    t["malformed_date"] = baddate
+    rep = take(16)
+    for i in rep: rows[i][5] = "49.99"                                   # repeated value: one amount copied into many rows
+    t["repeated_value"] = rep
+    dups = take(5); extra = []
+    for i in dups: extra.append(rows[i][:])                              # duplicates: exact copies
+    t["duplicate_first"] = dups; t["duplicate_second"] = list(range(400, 405)); rows.extend(extra)
+    conf = take(4); extra2 = []
+    for i in conf:                                                       # conflicting: one ref on two different records
+        o = rows[i][:]; o[1] = "Someone Else"; o[5] = f"{float(o[5]) * 1.3:.2f}" if o[5] and o[5].replace('.', '').isdigit() else "70.00"; extra2.append(o)
+    t["conflict_first"] = conf; t["conflict_second"] = list(range(405, 409)); rows.extend(extra2)
+    return rows, t
+mx, mx_truth = mixed()
+write("records_mixed.csv", MX_H, mx)
+(OUT / "records_mixed.truth.json").write_text(json.dumps(mx_truth, indent=1), encoding="utf-8")
 print("fixtures written to", OUT)

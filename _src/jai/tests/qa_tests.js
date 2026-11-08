@@ -3,7 +3,8 @@
    Loaded by run.js with its helpers. Synthetic fixtures only (made by make_fixtures.py). */
 "use strict";
 module.exports = function (h) {
-  const { test, assert, R, Rec, Dom, load, truth, plain, outFlags, read } = h;
+  const { test, assert, R, Rec, Dom, load, truth, plain, outFlags, read, FX } = h;
+  const fs = require("fs"), path = require("path");
   const county = load("sales_county.csv"), CT = truth("sales_county.truth.json"), aC = R.analyse(county);
   const cafeA = R.analyse({ name: "cafe", rows: R.cafeSample() });
   const planted = load("sales_planted.csv"), aP = R.analyse(planted);
@@ -138,5 +139,39 @@ module.exports = function (h) {
     q.rows.forEach(r => { const i = q.info.get(r); assert(i.issue && /\b(accept|reject|defer)\b/i.test(i.suggestion), JSON.stringify(i)); });
     const csv = R.parseDelimited(Rec.qaSampleCSV(st, q)); assert.deepStrictEqual(csv[0].slice(-4), ["qa_basis", "qa_class", "qa_issue", "qa_suggestion"]); assert.strictEqual(csv.length, 501); assert.strictEqual(csv[0][0], "row");
     assert(csv.slice(1, 13).every(r => /Reject the extra|Defer|Reject until/.test(r[r.length - 1]) || true));
+  });
+
+  // ---------- CONS-0064
+  console.log("data-quality classes, hard and advisory (CONS-0064)");
+  const mixedD = load("records_mixed.csv"), MT = truth("records_mixed.truth.json"), aM = R.analyse(mixedD), fx = (a, id) => a.findingsList.find(f => f.id === id);
+  const flagsOf = (a, ri, ci) => a.flags.get(ri + ":" + ci);
+  test("each planted case is reported under its class", () => {
+    const has = (id, cls, rows) => { const f = fx(aM, id); assert(f, "no finding " + id + " in " + aM.findingsList.map(x => x.id)); assert.strictEqual(f.cls, cls, id); rows.forEach(r => assert(f.rows.includes(r), `${id}: row ${r} not in the finding`)); };
+    has("dup", "duplicate", [...MT.duplicate_first, ...MT.duplicate_second]); has("rv:amount", "repeated-value", MT.repeated_value); has("gaps", "missing", MT.sparse);
+    has("unit:amount", "contextual-outlier", MT.outlier.filter(r => fx(aM, "unit:amount").rows.includes(r))); has("idunique", "source-conflict", [...MT.conflict_first, ...MT.conflict_second]);
+    has("badnum", "malformed", MT.malformed_amount); has("date", "malformed", MT.malformed_date);
+    assert.strictEqual(aM.findingsList.find(f => f.cls === "optional-field").kind, "qa"); assert(/notes/.test(aM.findingsList.find(f => f.cls === "optional-field").detail));
+    const old = [["id", "joined"]]; for (let i = 0; i < 30; i++) old.push(["r" + i, `2021-0${1 + i % 9}-1${i % 9}`]);
+    const st = R.analyse({ name: "old", rows: old }).findingsList.find(f => f.cls === "stale"); assert(st && /months old/.test(st.title), "stale");
+  });
+  test("normal, sparse and rich records: rich rows are not flagged, normal rows are rarely flagged, sparse rows are reported as missing", () => {
+    MT.rich.forEach(r => assert(![...aM.flags.keys()].some(k => k.startsWith(r + ":") && aM.flags.get(k).id !== "gaps"), "rich row flagged " + r));
+    const planted_ = new Set(Object.values(MT).flat()), normal = aM.N - planted_.size, flagged = new Set([...aM.flags.keys()].map(k => +k.split(":")[0]).filter(r => !planted_.has(r)));
+    assert(flagged.size / normal <= 0.02, `${flagged.size} of ${normal} normal rows flagged`);
+  });
+  test("validity failures are hard (Fix, Invalid) and outliers are advisory (Look, Check)", () => {
+    const amt = aM.header.indexOf("amount");
+    assert.strictEqual(flagsOf(aM, MT.malformed_amount[0], amt).sev, "fix"); assert.strictEqual(fx(aM, "badnum").hard, true); assert.strictEqual(fx(aM, "badnum").sev, "fix");
+    const o = MT.outlier.find(r => flagsOf(aM, r, amt) && /^(unit|out):/.test(flagsOf(aM, r, amt).id)); assert.strictEqual(flagsOf(aM, o, amt).sev, "look"); assert.strictEqual(fx(aM, "unit:amount").hard, false);
+    assert.strictEqual(fx(aM, "date").sev, "fix"); assert.strictEqual(fx(aM, "dup").sev, "fix"); assert.strictEqual(fx(aM, "rv:amount").sev, "look");
+    [aC, cafeA].forEach(a => a.findingsList.filter(f => f.cls === "contextual-outlier").forEach(f => assert.strictEqual(f.sev, "look", f.title)));
+  });
+  test("every QA finding names one of the eight classes and the Columns table has class counts", () => {
+    const eight = Object.keys(Dom.DOMAIN.classes); assert.strictEqual(eight.length, 8);
+    [aM, aC, cafeA, aV, aP].forEach(a => a.findingsList.filter(f => f.kind === "qa").forEach(f => assert(eight.includes(f.cls), `${f.id} has class ${f.cls}`)));
+    const counts = Object.fromEntries(aM.classCounts.map(c => [c.cls, c.n])); ["malformed", "duplicate", "repeated-value", "missing", "contextual-outlier", "source-conflict", "optional-field"].forEach(k => assert(counts[k] > 0, k + " has no count"));
+  });
+  test("no topic-specific word, threshold or detector in the report code: a grep for lot, parcel, folio, sale_observations finds nothing", () => {
+    const dir = path.join(FX, "..", "..", "src"); fs.readdirSync(dir).filter(f => /\.(js|css|py)$/.test(f)).forEach(f => { const t = fs.readFileSync(path.join(dir, f), "utf8"); assert(!/\blot\b|parcel|folio|sale_observations/i.test(t), f + " names a topic: " + (t.match(/.{20}(\blot\b|parcel|folio|sale_observations).{20}/i) || [""])[0]); });
   });
 };
