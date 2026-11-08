@@ -134,13 +134,7 @@
     const isCount = c => { const v = V(c); let ints = true, pos = []; for (let i = 0; i < N; i++) { if (v[i] !== v[i]) continue; if (v[i] !== Math.floor(v[i])) { ints = false; break; } if (v[i] > 0) pos.push(v[i]); } return ints && median(pos) <= 12; };
 
     // metrics: every numeric column, then ratios when the columns exist. Ratios go first so a short living area is named for what it is.
-    const find = (re, not) => numCols.find(c => re.test(c.name) && !(not && not.test(c.name)));
-    const priceC = find(/price|sold/i, /per|psf|sq/i) || find(/amount|value|cost/i, /per|psf|sq/i);
-    const areaC = find(/living|sq.?ft|sqft|square|(^|[_\s])area|size/i, /lot/i), lotC = find(/lot/i), bedC = find(/bed/i);
-    const metrics = [];
-    if (priceC && areaC && priceC !== areaC) metrics.push({ label: "price per sq ft", a: priceC, b: areaC, money: true });
-    if (priceC && lotC && priceC !== lotC) metrics.push({ label: "price per lot sq ft", a: priceC, b: lotC, money: true });
-    if (priceC && bedC && priceC !== bedC) metrics.push({ label: "price per bedroom", a: priceC, b: bedC, money: true });
+    const metrics = Dom.ratioPairs(cols, calc).map(p => ({ label: p.label, a: p.a, b: p.b, money: true }));   // any money column over any measure column; named by the columns (CONS-0063)
     // a total that is qty x price is judged through the qty and the price, so it is left out here
     numCols.filter(c => !(calc && c.i === calc.total)).forEach(c => metrics.push({ label: human(c.name), col: c, money: MONEY_RE.test(c.name), count: isCount(c) }));
     metrics.forEach(m => { const cs = m.col ? [m.col] : [m.a, m.b]; m.key = cs.map(c => c.i).join("/"); if (m.col) m.v = V(m.col); else { const a = V(m.a), b = V(m.b); m.v = Float64Array.from(a, (x, i) => (b[i] > 0 && x > 0 ? x / b[i] : NaN)); } });
@@ -265,24 +259,37 @@
     const total = measure ? body.reduce((a, r) => a + (num(r[measure.i]) || 0), 0) : 0, mval = ri => measure ? num(body[ri][measure.i]) : NaN;
     const idCols = cols.filter(c => c.type === "id"), firstCol = idCols[0] ? idCols[0].i : 0;
 
-    // duplicates
-    const seen = new Map(); let dupRows = 0, dupValue = 0;
-    body.forEach((r, ri) => { const k = r.join("\u0001"); if (seen.has(k)) { dupRows++; if (measure) dupValue += num(r[measure.i]) || 0; const first = seen.get(k), v = Math.abs(mval(ri)) || 0;
-        link("dup", ri, firstCol, "fix", `<b>Exact copy of row ${first + 2}.</b> Entered twice.`, "", v); link("dup", first, firstCol, "fix", `<b>Has an exact copy in row ${ri + 2}.</b> Entered twice.`, "", 0); } else seen.set(k, ri); });
-    let nearDup = 0, nearExample = null;
-    if (idCols.length) {
-      const m2 = new Map(), near = [];
-      body.forEach((r, ri) => { const k = r.filter((_, i) => !idCols.some(c => c.i === i)).join("\u0001");
-        if (m2.has(k)) { near.push([m2.get(k), ri]); if (!nearExample) nearExample = [m2.get(k), ri]; } else m2.set(k, ri); });
-      nearDup = Math.max(0, near.length - dupRows);
-      if (near.length > N * .02 || nearDup === 0) { nearDup = 0; nearExample = null; }   // so many matches that they are chance, not double entry
-      else near.forEach(([a, b]) => { if (body[a].join("\u0001") !== body[b].join("\u0001")) link("dup", b, firstCol, "fix", `<b>Matches row ${a + 2} on everything except ${idCols.map(c => c.name).join(", ")}.</b> The same record under a new ID.`, "", Math.abs(mval(b)) || 0); });
+    // duplicates (CONS-0059): rows equal on every place field plus date and money; identifiers are never a matching column
+    const dctx = { body, cols, num, dt, dateCol, measure, nominal, calc }, dups = Dom.duplicates(dctx), meta = new Map();
+    let dupRows = 0, dupValue = 0, nearDup = 0;
+    if (dups.mode === "place") {
+      const addrC = Dom.byRole(cols, "address")[0], ids = dups.ids, same = Dom.listWords(dups.fields), diff = ids.length ? `; different ${Dom.listWords(ids.map(c => c.name))}` : "";
+      dups.exactPairs.forEach(([x, y]) => { dupRows++; if (measure) dupValue += num(body[y][measure.i]) || 0; const v = Math.abs(mval(y)) || 0;
+        link("dup", y, addrC.i, "fix", `<b>Duplicate of row ${x + 2}.</b> Same ${esc(same)}${esc(diff)}.`, "", v); link("dup", x, addrC.i, "fix", `<b>Has a duplicate in row ${y + 2}.</b> Same ${esc(same)}${esc(diff)}.`, "", 0); });
+      dups.nearPairs.forEach(([x, y]) => { nearDup++; const v = Math.abs(mval(y)) || 0;
+        link("dupnear", y, addrC.i, "fix", `<b>Probably a duplicate of row ${x + 2}.</b> The address matches once case, punctuation, St and Street and unit formats are written the same way; same ${esc(Dom.listWords(dups.fields.filter(f => f !== addrC.name)))}${esc(diff)}.`, "", v);
+        link("dupnear", x, addrC.i, "fix", `<b>Probably has a duplicate in row ${y + 2}.</b> The address matches after normalizing it.`, "", 0); });
+      const ex = p => `rows ${p[0] + 2} and ${p[1] + 2}`;
+      if (dupRows) add("fix", `${dupRows.toLocaleString("en-US")} duplicate row${dupRows > 1 ? "s" : ""}`, `Same ${same}${diff} (${ex(dups.exactPairs[0])}, for example).${measure && total ? ` Together they add ${full(dupValue)} to ${measure.name}, ${pct(dupValue, total).toFixed(1)}% of the total.` : ""}`, 93, true, "dup", "Duplicate rows");
+      if (nearDup) add("fix", `${nearDup.toLocaleString("en-US")} likely duplicate${nearDup > 1 ? "s" : ""} after writing the address the same way`, `Same ${same} once case, punctuation, St and Street and unit formats are normalized${diff} (${ex(dups.nearPairs[0])}, for example).`, 91, true, "dupnear", "Likely duplicates");
+      if (!dupRows && !nearDup) add("ok", "No duplicate rows", `No two rows share ${same}.`);
+    } else {
+      const seen = new Map(); let nearExample = null;
+      body.forEach((r, ri) => { const k = r.join("\u0001"); if (seen.has(k)) { dupRows++; if (measure) dupValue += num(r[measure.i]) || 0; const first = seen.get(k), v = Math.abs(mval(ri)) || 0;
+          link("dup", ri, firstCol, "fix", `<b>Exact copy of row ${first + 2}.</b> Entered twice.`, "", v); link("dup", first, firstCol, "fix", `<b>Has an exact copy in row ${ri + 2}.</b> Entered twice.`, "", 0); } else seen.set(k, ri); });
+      if (idCols.length) {
+        const m2 = new Map(), near = [];
+        body.forEach((r, ri) => { const k = r.filter((_, i) => !idCols.some(c => c.i === i)).join("\u0001"); if (m2.has(k)) { near.push([m2.get(k), ri]); if (!nearExample) nearExample = [m2.get(k), ri]; } else m2.set(k, ri); });
+        nearDup = Math.max(0, near.length - dupRows);
+        if (near.length > N * .02 || nearDup === 0) { nearDup = 0; nearExample = null; }   // so many matches that they are chance, not double entry
+        else near.forEach(([a, b]) => { if (body[a].join("\u0001") !== body[b].join("\u0001")) link("dup", b, firstCol, "fix", `<b>Matches row ${a + 2} on every column except ${idCols.map(c => esc(c.name)).join(", ")}.</b> The same record under a new ID.`, "", Math.abs(mval(b)) || 0); });
+      }
+      const both = dupRows && nearDup, ex = nearExample ? ` (rows ${nearExample[0] + 2} and ${nearExample[1] + 2}, for example)` : "";
+      if (dupRows) add("fix", `${dupRows} row${dupRows > 1 ? "s appear" : " appears"} twice`, `Identical in every column.${measure && total ? ` Together they add ${full(dupValue)} to ${measure.name}, ${pct(dupValue, total).toFixed(1)}% of the total.` : ""}`, 90, !both, "dup", "Rows entered twice");
+      if (nearDup) add("fix", `${nearDup} likely double entr${nearDup > 1 ? "ies" : "y"}`, `Rows that match on every column except ${idCols.map(c => c.name).join(", ")}${ex}. Same record, two IDs.`, 95, !both, "dup", "Rows entered twice");
+      if (both) findings.push({ id: "dup", sev: "fix", title: `${dupRows + nearDup} rows look entered twice`, detail: `${dupRows} are exact copies. ${nearDup} more match on every column except ${idCols.map(c => c.name).join(", ")}${ex}: the same record under a new ID.`, score: 95, crumb: "Rows entered twice" });
+      if (!dupRows && !nearDup) add("ok", "No duplicate rows", "Every row is unique.");
     }
-    const both = dupRows && nearDup, ex = nearExample ? ` (rows ${nearExample[0] + 2} and ${nearExample[1] + 2}, for example)` : "";
-    if (dupRows) add("fix", `${dupRows} row${dupRows > 1 ? "s appear" : " appears"} twice`, `Identical in every column.${measure && total ? ` Together they add ${full(dupValue)} to ${measure.name}, ${pct(dupValue, total).toFixed(1)}% of the total.` : ""}`, 90, !both, "dup", "Rows entered twice");
-    if (nearDup) add("fix", `${nearDup} likely double entr${nearDup > 1 ? "ies" : "y"}`, `Rows that match on everything except ${idCols.map(c => c.name).join(", ")}${ex}. Same record, two IDs.`, 95, !both, "dup", "Rows entered twice");
-    if (both) findings.push({ id: "dup", sev: "fix", title: `${dupRows + nearDup} rows look entered twice`, detail: `${dupRows} are exact copies. ${nearDup} more match on everything except ${idCols.map(c => c.name).join(", ")}${ex}: the same record under a new ID.`, score: 95, crumb: "Rows entered twice" });
-    if (!dupRows && !nearDup) add("ok", "No duplicate rows", "Every row is unique.");
 
     // empties: whole columns with gaps, then the odd blank in a column that is otherwise full
     const emptyCells = cols.reduce((a, c) => a + c.empty, 0), totalCells = N * cols.length;
@@ -357,8 +364,8 @@
     // nominal transfers (CONS-0058): their own QA finding, never part of a baseline
     nominal.forEach(nm => {
       const n = nm.rows.length, fl = nm.floor >= 1000 ? "$" + Math.round(nm.floor).toLocaleString("en-US") : "$" + nm.floor.toFixed(2), vs = nm.values.slice(0, 4).map(([v, k]) => `${money(v)} (${k.toLocaleString("en-US")})`).join(", ");
-      nm.rows.forEach(ri => link("nominal", ri, nm.col.i, "look", `<b>${money(num(body[ri][nm.col.i]))} is a nominal price.</b> Typical sale here is ${money(nm.typical)}. Likely a transfer between related parties or a foreclosure, not a market sale. It is left out of every baseline.`, "", 0));
-      add("look", `${n.toLocaleString("en-US")} nominal transfers (price ${fl} or less), set aside`, `${vs}. Typical sale is ${money(nm.typical)} (median of ${nm.nRest.toLocaleString("en-US")} other rows). Deeds between family, trusts and foreclosures are recorded this way. They are left out of every baseline.`, 92, true, "nominal", "Nominal transfers");
+      nm.rows.forEach(ri => link("nominal", ri, nm.col.i, "look", `<b>${money(num(body[ri][nm.col.i]))} is a nominal price.</b> Typical value here is ${money(nm.typical)}. Likely a placeholder or a transfer between related parties, not a market amount. It is left out of every baseline.`, "", 0));
+      add("look", `${n.toLocaleString("en-US")} nominal transfers (price ${fl} or less), set aside`, `${vs}. Typical value is ${money(nm.typical)} (median of ${nm.nRest.toLocaleString("en-US")} other rows). Repeated tiny amounts are usually placeholders, test entries or transfers between related parties. They are left out of every baseline.`, 92, true, "nominal", "Nominal transfers");
     });
 
     // outliers (CONS-0048)
@@ -390,6 +397,15 @@
     if (outItems.length) { const nrows = new Set(outItems.flatMap(it => it.cells.map(c => c.ri))).size; checks.push({ sev: outItems.some(it => it.cells.some(c => c.sev === "fix")) ? "fix" : "look", title: `${nrows} record${nrows > 1 ? "s" : ""} far from the usual`, detail: "" }); }
     else checks.push({ sev: "ok", title: "No extreme values", detail: "Nothing far outside the normal range." });
 
+    // role-driven checks and insights (CONS-0063): repeat occurrences of a place over time, identifier uniqueness, coordinates, top and bottom by ratio, concentration
+    const repeats = Dom.repeatOccurrences(dctx, dups);
+    Dom.domainItems(dctx, dups, repeats).forEach(it => {
+      it.cells.forEach(c => link(it.id, c.ri, c.ci, c.sev, c.why, "", c.eff));
+      meta.set(it.id, { kind: it.kind, cls: it.cls, rule: it.rule, todo: it.todo, repeat: it.repeat });
+      if (it.kind === "qa") add(it.sev, it.title, it.detail, it.score, true, it.id, it.crumb);
+      else findings.push({ id: it.id, kind: "insight", sev: it.sev, title: it.title, detail: it.detail, score: it.score, crumb: it.crumb });
+    });
+
     // trend (dates outside a sensible range are left out so they do not stretch the chart)
     let trend = null;
     if (dateCol && dateInfo && dateInfo.okDates.length) {
@@ -420,7 +436,7 @@
       if (items2.length > 1 && items2[0][1][0] / breakdown.total >= .5) findings.push({ id: null, kind: "insight", sev: "look", title: `${items2[0][0]} is ${pct(items2[0][1][0], breakdown.total).toFixed(0)}% of ${measure ? measure.name : "rows"}`, detail: `One ${cat.name} carries most of the total. Good to know before you plan around averages.`, score: 40 });
     }
 
-    findings.forEach(f => { if (!f.kind) f.kind = "qa"; });
+    findings.forEach(f => { Object.assign(f, meta.get(f.id) || {}); if (!f.kind) f.kind = "qa"; });
     findings.sort((a, b) => b.score - a.score);
     findings.forEach(f => { if (f.id) { f.rows = [...(fr.get(f.id) || [])].sort((a, b) => a - b); f.n = f.rows.length; } });
     const findingsAll = findings.filter(f => f.id && f.n > 0);

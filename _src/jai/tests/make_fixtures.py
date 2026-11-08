@@ -135,7 +135,7 @@ def plant_county(rows):
     sources = [i for i in take(300) if i not in nom and rows[i][7] > 1000]
     rep = sources[:25]; extra = []
     for i in rep:                                           # repeat sales: same address, later date, higher price
-        o = rows[i]; d = datetime.date.fromisoformat(o[6]) + datetime.timedelta(days=r.randrange(200, 900))
+        o = rows[i]; d = min(datetime.date.fromisoformat(o[6]) + datetime.timedelta(days=r.randrange(200, 600)), datetime.date(2026, 10, 31))
         extra.append([f"S-{n0 + len(extra) + 1:06d}", o[1], o[2], o[3], o[4], o[5], d.isoformat(), int(round(o[7] * r.uniform(1.04, 1.35), -3)), o[8], o[9], o[10], o[11], o[12]])
     t["repeat_first"] = rep; t["repeat_second"] = list(range(n0, n0 + len(extra)))
     rows.extend(extra)

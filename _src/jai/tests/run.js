@@ -48,9 +48,9 @@ test("planted fixture: x100 and x1000 rows are unit findings with plain reasons"
   const why = plain(aP.flags.get(`${PT.x100[0]}:1`).why);
   assert(/is far above this city's usual \$[\d,]+/.test(why) && /cents/.test(why), why);
 });
-test("planted fixture: area typos are found through price per square foot", () => {
+test("planted fixture: area typos are found (through the area column or the money-per-area ratio)", () => {
   PT.area_typo.forEach(r => assert([...aP.flags.entries()].some(([k, f]) => k.startsWith(r + ":") && f.fam === "out"), "area typo row not flagged"));
-  assert(aP.findingsAll.some(x => /per sq/.test(x.title + x.detail)), "no per-ratio finding: " + aP.findingsAll.map(x => x.title).join(" | "));
+  assert(aP.findingsAll.some(x => /per living area|living area/.test(x.title + x.detail)), "no finding naming the area column: " + aP.findingsAll.map(x => x.title).join(" | "));
 });
 test("planted fixture: future and ancient dates are named", () => {
   const f = aP.findingsAll.find(x => x.id === "date"); assert(f && f.n === 3, f && f.n);

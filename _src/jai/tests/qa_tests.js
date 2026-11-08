@@ -45,9 +45,40 @@ module.exports = function (h) {
     assert(w2 && /across the file \(city “Tinyville” has fewer than 8\)/.test(plain(w2.why)), w2 && plain(w2.why));
   });
   test("money columns are recognized by name or by format, and the Columns table says which", () => {
-    const price = aC.cols.find(c => c.name === "sale_price"); assert.strictEqual(price.role, "price"); assert.strictEqual(price.moneyBy, "name");
+    const price = aC.cols.find(c => c.name === "sale_price"); assert.strictEqual(price.role, "money"); assert.strictEqual(price.moneyBy, "name");
     const rows = [["a", "val"]]; for (let i = 0; i < 40; i++) rows.push(["r" + i, "$" + (1000 + i * 37) + ".50"]);
     const v = R.analyse({ name: "t", rows }).cols.find(c => c.name === "val"); assert.strictEqual(v.role, "money"); assert.strictEqual(v.moneyBy, "format");
     assert.strictEqual(Dom.roleLabel(v), "money (by format)"); assert.strictEqual(Dom.roleLabel(price), "money (by name)");
+  });
+
+  // ---------- CONS-0059
+  console.log("duplicates and repeat occurrences (CONS-0059)");
+  const venues = load("venues.csv"), aV = R.analyse(venues), role = (a, n) => a.cols.find(c => c.name === n).role;
+  test("roles are found from the file, not from knowing the topic: county sales and venues", () => {
+    assert.deepStrictEqual(["sale_id", "address", "unit", "city", "zip", "sale_date", "sale_price", "living_area_sqft", "beds", "property_type"].map(n => role(aC, n)),
+      ["identifier", "address", "unit", "city", "postal", "date", "money", "measure", "measure", "category"]);
+    assert.deepStrictEqual(["place_id", "vip_id", "address_line_1", "city", "postal_code", "latitude", "longitude"].map(n => role(aV, n)), ["identifier", "identifier", "address", "city", "postal", "coordinates", "coordinates"]);
+  });
+  test("county sales: same address, zip, date and price under a new id is a duplicate, and the finding names the fields", () => {
+    const f = aC.findingsAll.find(x => x.id === "dup"); assert(f, "no dup finding"); assert.strictEqual(f.kind, "qa");
+    assert.deepStrictEqual(f.rows, [...CT.dup_first, ...CT.dup_second].sort((x, y) => x - y));
+    assert(/Same address, unit, city, zip, sale_date and sale_price; different sale_id/.test(f.detail), f.detail);
+    assert(!/everything except/.test(f.detail + f.title), "an id must not be described as a matching column");
+  });
+  test("county sales: the same sale with the address written differently is a near-duplicate, reported separately with the normalization named", () => {
+    const f = aC.findingsAll.find(x => x.id === "dupnear"); assert(f, "no dupnear finding");
+    assert.deepStrictEqual(f.rows, [...CT.near_first, ...CT.near_second].sort((x, y) => x - y)); assert(/case, punctuation, St and Street and unit formats/.test(f.detail), f.detail);
+    assert(!f.rows.some(r => (aC.findingsAll.find(x => x.id === "dup").rows).includes(r)), "a row is both exact and near");
+  });
+  test("county sales: the same address on different dates is a repeat occurrence (an Insight with the change), never a duplicate", () => {
+    const f = aC.findingsAll.find(x => x.id === "repeat"); assert(f, "no repeat finding"); assert.strictEqual(f.kind, "insight");
+    [...CT.repeat_first, ...CT.repeat_second].forEach(r => assert(f.rows.includes(r), "repeat row missing " + r));
+    assert(/changed by a median of \+\d+%/.test(f.detail), f.detail); assert.strictEqual(f.repeat.n >= 25, true);
+    const dupRows = new Set(aC.findingsAll.filter(x => x.id === "dup" || x.id === "dupnear").flatMap(x => x.rows)); CT.repeat_second.forEach(r => assert(!dupRows.has(r), "repeat row reported as duplicate"));
+  });
+  test("no finding anywhere says an id was a match; files with no place columns keep the all-columns rule", () => {
+    aC.findingsAll.forEach(f => assert(!/matches? (on )?everything/i.test(f.title + f.detail), f.title));
+    const cafe = cafeA.findingsAll.find(x => x.id === "dup"); assert(cafe && cafe.n === 18, "cafe sample exact copies: " + (cafe && cafe.n));
+    assert.strictEqual(aV.findingsAll.some(x => x.id === "dup" || x.id === "dupnear"), false, "venues has no duplicate rows");
   });
 };
