@@ -24,6 +24,7 @@ Commit the root after `--publish`; that commit is what goes live on jeby.us.
 | `jai/build.py`, `jai/src/jai.css`, `jai/src/jai.js`, `jai/src/report.js` | The jainsights.com generator, styles, behaviour and the in-browser free report |
 | `family/family.js` | How the two sites link: the shared "jeby family" strip (option C, the default), or one site (A) or sister sites (B) |
 | `research/src/` | The galaxy-cluster slideshow on jeby.us/research |
+| `ARCHITECTURE.md`, `architecture/` | Diagrams of the hosting, the build, both sites, the family links and the free report, with the tech stack and brand assets. `architecture/` holds each diagram's Mermaid source and SVG render |
 
 The Lab projects in `jeby/src/content.py` feed both sites: the free edition on jeby.us/lab and the paid edition on jainsights.com/products.
 

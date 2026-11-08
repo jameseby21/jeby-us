@@ -1,0 +1,59 @@
+flowchart LR
+  subgraph local["Owner's machine"]
+    src["Source · _src/<br/>content .py files, CSS, JS, static/, family/, research/"]
+    build["Build · python3 _src/build.py<br/>Python 3.10+, standard library only"]
+    jebyOut["_src/jeby/out/ · jeby.us build<br/>gitignored"]
+    artifact["_src/jeby/artifact/ · preview build<br/>gitignored"]
+    jaiOut["_src/jai/out/ · jainsights.com build<br/>gitignored"]
+    rootFiles["Repo root · the published jeby.us<br/>*.html, assets/, CNAME, sitemap.xml, robots.txt, llms.txt"]
+    gitLocal["git commit + push"]
+  end
+
+  subgraph github["GitHub"]
+    repo["Repo jameseby21/jeby-us<br/>main = earlier one-page site<br/>redesign/2026-11-family-sites = this build"]
+    pages["GitHub Pages · Jekyll branch build<br/>serves the repo root, skips _src/<br/>unclear: source branch is set in repo settings"]
+    jaiRepo["Separate repo for jainsights.com<br/>unclear: name and copy step"]
+    jaiPages["GitHub Pages for that repo<br/>CNAME jainsights.com"]
+  end
+
+  dnsE["DNS for jeby.us<br/>unclear: provider not named"]
+  dnsJ["DNS for jainsights.com · Squarespace"]
+
+  subgraph browser["Visitor's browser"]
+    jebySite["jeby.us · static pages<br/>site.js, family.js, research.js"]
+    jaiSite["jainsights.com · static pages<br/>jai.js, family.js, report.js"]
+    fileIn["Visitor's CSV or Excel file<br/>read in the page, never uploaded"]
+  end
+
+  subgraph ext["External services"]
+    fonts["Google Fonts · fonts.googleapis.com"]
+    sheetjs["cdnjs · SheetJS xlsx 0.18.5"]
+    mail["Visitor's email app · mailto: links"]
+    social["LinkedIn, Instagram, GitHub · outbound links"]
+  end
+
+  noci["CI, tests, lockfiles · none in repo"]
+
+  src --> build
+  build -->|"jeby/build.py"| jebyOut
+  build -->|"jeby/build.py"| artifact
+  build -->|"jai/build.py"| jaiOut
+  jebyOut -->|"build.py --publish copies"| rootFiles
+  rootFiles --> gitLocal
+  src --> gitLocal
+  gitLocal -->|"push"| repo
+  repo --> pages
+  jaiOut -.->|"copied over, unclear how"| jaiRepo
+  jaiRepo --> jaiPages
+  pages -->|"HTTPS"| jebySite
+  jaiPages -->|"HTTPS"| jaiSite
+  dnsE -.-> pages
+  dnsJ -.-> jaiPages
+  jebySite -->|"web fonts"| fonts
+  jaiSite -->|"web fonts"| fonts
+  jaiSite -->|"lazy-loads for .xlsx"| sheetjs
+  fileIn -->|"FileReader"| jaiSite
+  jebySite <-->|"family links"| jaiSite
+  jebySite --> mail
+  jaiSite --> mail
+  jebySite --> social

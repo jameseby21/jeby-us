@@ -1,0 +1,31 @@
+flowchart TB
+  start(["Visitor opens jainsights.com/report"])
+  warm["Warm up the Excel reader in idle time<br/>loadXLSX · SheetJS xlsx 0.18.5 from cdnjs"]
+  pick{"Input"}
+  drop["Drop or choose a file<br/>.csv .tsv .txt .xlsx .xlsm .xls"]
+  sample["Made-up café sample<br/>seeded generator with planted problems"]
+  read["readFile<br/>CSV or TSV: parseDelimited, delimiter sniffed<br/>Excel: SheetJS, first sheet only"]
+  limit["Free limits · first 5,000 rows, 12 columns<br/>from CONFIG.report_rows and report_cols"]
+  analyse["analyse<br/>pick the measure, date and group-by columns"]
+  profile["profileCol · type each column:<br/>number, date, id, category, text or empty"]
+  checks["Checks · exact duplicates, same row under two IDs,<br/>empty cells and columns, spelling variants,<br/>numbers stored as text, mixed types,<br/>extreme or negative values, odd dates"]
+  render["render<br/>KPIs, What stands out, Data health,<br/>trend line SVG, breakdown bars SVG, column table"]
+  nextStep["What I'd do next<br/>a package suggestion priced as hours × rate"]
+  controls["Controls · change measure, date or group-by,<br/>Print or save as PDF, Start over"]
+  privacy["Nothing is uploaded, stored or logged<br/>closing the tab discards it"]
+
+  start --> warm
+  start --> pick
+  pick --> drop
+  drop --> read
+  pick --> sample
+  sample --> analyse
+  read --> limit
+  limit --> analyse
+  analyse --> profile
+  profile --> checks
+  checks --> render
+  render --> nextStep
+  render --> controls
+  controls -->|"runs analyse again"| analyse
+  render -.-> privacy
