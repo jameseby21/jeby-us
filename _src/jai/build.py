@@ -5,7 +5,7 @@ sys.path.insert(0, str(ROOT / "src")); sys.path.insert(0, str(ROOT.parent / "jeb
 import jai_content as J
 from content import LAB
 E = html.escape
-OUT = ROOT / "out"; shutil.rmtree(OUT, ignore_errors=True); (OUT / "assets").mkdir(parents=True)
+OUT = ROOT / "out"; shutil.rmtree(OUT, ignore_errors=True); (OUT / "assets").mkdir(parents=True, exist_ok=True)
 RATE = J.CONFIG["rate"]; EMAIL = J.CONFIG["email"]
 money = lambda n: f"${n:,.0f}"
 PK = {p["id"]: p for p in J.PACKAGES}
@@ -67,7 +67,7 @@ def page(key, title, desc, body):
 <script type="speculationrules">{{"prerender":[{{"where":{{"href_matches":"/*"}},"eagerness":"moderate"}}]}}</script>{ld}
 </head><body>{header(key)}<main id="main">{body}</main>{footer()}
 <script src="assets/jai.js" defer></script>{'<script src="assets/report.js" defer></script>' if key == "report" else ""}<script src="assets/family.js" data-site="jai" defer></script></body></html>'''
-    (OUT / f"{key}.html").write_text(doc)
+    (OUT / f"{key}.html").write_text(doc, encoding="utf-8")
 
 def mark(it):
     if it.get("mark_img"): return f'<span class="mark" style="background:{it["accent"]}"><img src="assets/{it["mark_img"]}" alt=""></span>'
@@ -250,9 +250,9 @@ S2 = ROOT.parent / "jeby" / "out" / "assets"; FAM = ROOT.parent / "family"
 shutil.copy(ROOT / "src" / "jai.css", OUT / "assets" / "jai.css"); shutil.copy(ROOT / "src" / "jai.js", OUT / "assets" / "jai.js"); shutil.copy(ROOT / "src" / "report.js", OUT / "assets" / "report.js")
 shutil.copy(FAM / "family.js", OUT / "assets" / "family.js")
 for f in ("plantriloquist.png", "musicalgames.svg", "lighting-lab.svg", "desk.svg"): shutil.copy(S2 / f, OUT / "assets" / f)
-(OUT / "assets" / "favicon.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#fafaf7"/><text x="32" y="44" text-anchor="middle" font-family="Georgia,serif" font-size="32" fill="#b3121a">JA</text></svg>')
-(OUT / "CNAME").write_text("jainsights.com\n")
-(OUT / "robots.txt").write_text("User-agent: *\nAllow: /\nSitemap: https://jainsights.com/sitemap.xml\n")
+(OUT / "assets" / "favicon.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#fafaf7"/><text x="32" y="44" text-anchor="middle" font-family="Georgia,serif" font-size="32" fill="#b3121a">JA</text></svg>', encoding="utf-8")
+(OUT / "CNAME").write_text("jainsights.com\n", encoding="utf-8")
+(OUT / "robots.txt").write_text("User-agent: *\nAllow: /\nSitemap: https://jainsights.com/sitemap.xml\n", encoding="utf-8")
 (OUT / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
-    "".join(f"<url><loc>https://jainsights.com/{'' if k == 'index' else k}</loc></url>" for k in ("index", "services", "report", "products", "approach", "about", "contact")) + "</urlset>")
+    "".join(f"<url><loc>https://jainsights.com/{'' if k == 'index' else k}</loc></url>" for k in ("index", "services", "report", "products", "approach", "about", "contact")) + "</urlset>", encoding="utf-8")
 print("built", sorted(p.name for p in OUT.glob("*.html")))

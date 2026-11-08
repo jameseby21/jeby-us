@@ -5,7 +5,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import content as C
 
 OUT = ROOT / "out"; ART = ROOT / "artifact"
-for d in (OUT, ART): shutil.rmtree(d, ignore_errors=True); (d / "assets").mkdir(parents=True)
+for d in (OUT, ART): shutil.rmtree(d, ignore_errors=True); (d / "assets").mkdir(parents=True, exist_ok=True)
 E = html.escape
 RS = ROOT.parent / "research" / "src"; ST = ROOT / "static"; FAM = ROOT.parent / "family"
 
@@ -78,7 +78,7 @@ def page(key, title, desc, body, extra_head="", extra_js="", artifact=False):
     return f'<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n{head}\n</head>\n<body data-page="{key}">\n{bodyhtml}\n</body>\n</html>\n'
 
 # ---------------------------------------------------------------- shared bits
-drew_src = (ST / "drew-tongue.svg").read_text()
+drew_src = (ST / "drew-tongue.svg").read_text(encoding="utf-8")
 drew_svg = re.sub(r"<style>.*?</style>", "", drew_src, flags=re.S).replace('class="tongue"', 'class="tongue-anim"').replace('id="mouth"', 'id="drew-mouth"').replace("url(#mouth)", "url(#drew-mouth)")
 drew_svg = re.sub(r'<svg ([^>]*?) width="512" height="504"', r'<svg \1', drew_svg).replace("<title>Drew sticking his tongue out</title>", "")
 DREW = f'<div class="drew-art" role="button" tabindex="0" aria-label="Drew, a black Scottish Terrier, illustrated. Press to make him stick his tongue out.">{drew_svg}</div>'
@@ -318,7 +318,7 @@ research = f'''
   <h1 class="page-title">Predicting the masses of galaxy clusters.</h1>
   <p class="lede">My undergraduate poster as a slideshow, one slide per section. Use the arrows, your keyboard, or swipe.</p>
 </section>
-<section class="wrap block" style="padding-top:0">{(RS / "section.html").read_text()}</section>'''
+<section class="wrap block" style="padding-top:0">{(RS / "section.html").read_text(encoding="utf-8")}</section>'''
 
 # ---------------------------------------------------------------- story and support
 def story_html():
@@ -399,14 +399,14 @@ SPECS = [
 ]
 for key, title, desc, body, xh, xj in SPECS:
     fn = "index.html" if key == "home" else f"{key}.html"
-    (OUT / fn).write_text(page(key, title, desc, body, xh, xj))
-    (ART / fn).write_text(page(key, title, desc, body, xh, xj, artifact=(key == "home")))
+    (OUT / fn).write_text(page(key, title, desc, body, xh, xj), encoding="utf-8")
+    (ART / fn).write_text(page(key, title, desc, body, xh, xj, artifact=(key == "home")), encoding="utf-8")
 
 # assets
 for d in (OUT, ART):
     shutil.copy(ROOT / "src/site.css", d / "assets/site.css"); shutil.copy(ROOT / "src/site.js", d / "assets/site.js")
-    (d / "assets/research.css").write_text((RS / "visuals.css").read_text())
-    (d / "assets/research.js").write_text("\n".join((RS / f).read_text() for f in ["common.js", "model.js", "los-orbit.js", "slides.js"]))
+    (d / "assets/research.css").write_text((RS / "visuals.css").read_text(encoding="utf-8"), encoding="utf-8")
+    (d / "assets/research.js").write_text("\n".join((RS / f).read_text(encoding="utf-8") for f in ["common.js", "model.js", "los-orbit.js", "slides.js"]), encoding="utf-8")
     shutil.copy(ST / "jebynote.svg", d / "assets/jebynote.svg")
     shutil.copy(ST / "lighting-lab.svg", d / "assets/lighting-lab.svg")
     for f in ("desk.svg", "james-drew.jpg", "james-drew-600.jpg"): shutil.copy(ST / f, d / "assets" / f)
@@ -416,10 +416,10 @@ for d in (OUT, ART):
     shutil.copy(ST / "favicon.svg", d / "favicon.svg")
     (d / "research").mkdir(exist_ok=True); shutil.copy(ST / "poster.pdf", d / "research/poster.pdf")
 shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT / "drew-qr.png")
-(OUT / "CNAME").write_text("jeby.us\n")
-(OUT / "robots.txt").write_text("User-agent: *\nAllow: /\nSitemap: https://jeby.us/sitemap.xml\n")
+(OUT / "CNAME").write_text("jeby.us\n", encoding="utf-8")
+(OUT / "robots.txt").write_text("User-agent: *\nAllow: /\nSitemap: https://jeby.us/sitemap.xml\n", encoding="utf-8")
 (OUT / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    "".join(f"  <url><loc>https://jeby.us/{'' if k == 'home' else k}</loc></url>\n" for k, *_ in SPECS if k != "yt") + "</urlset>\n")
+    "".join(f"  <url><loc>https://jeby.us/{'' if k == 'home' else k}</loc></url>\n" for k, *_ in SPECS if k != "yt") + "</urlset>\n", encoding="utf-8")
 (OUT / "llms.txt").write_text(f"""# James Eby (jeby)
 > Interdisciplinary problem-solver in Miami, FL: statistics, software, business intelligence and teaching.
 
@@ -431,5 +431,5 @@ shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT 
 - [Free data report](https://jainsights.com/report): a one-page report on any spreadsheet, run in the browser.
 - [Dog QR prompt](https://jeby.us/qr): a prompt that makes an AI build a picture QR code that scans.
 Contact: {C.CONFIG["email"]} · {C.CONFIG["instagram"]} · {C.CONFIG["linkedin"]} · {C.CONFIG["github"]}
-""")
+""", encoding="utf-8")
 print("built", sorted(p.name for p in OUT.iterdir()))
