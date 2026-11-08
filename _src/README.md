@@ -38,3 +38,7 @@ The Lab projects in `jeby/src/content.py` feed both sites: the free edition on j
 ## jainsights.com
 
 The JA Insights build in `_src/jai/out` is served from its own repository with its own GitHub Pages site and `CNAME` (`jainsights.com`). The domain's DNS lives at Squarespace. Go-live order: jainsights.com first, then jeby.us, so the family links never point at an empty site.
+
+## Release
+
+How a change goes from `_src` to live: [docs/RELEASE.md](../docs/RELEASE.md). Local preview: `preview.cmd` (Windows) or `./preview.sh`.
