@@ -187,7 +187,9 @@ test("export: an untouched file exports byte for byte, including quotes, CRLF an
   const txt = 'id,name,note\r\n1,"Smith, A",plain\r\n2,"say ""hi""",\r\n3,x,"multi\nline"';
   const d = { name: "q.csv", rows: R.parseDelimited(txt) }; const s = R.makeStore(d, R.analyse(d));
   assert.strictEqual(Rec.exportCSV(s), txt);
-  for (const n of ["sales_planted.csv", "venues.csv", "sales_clean.csv"]) { const dd = load(n), ss = R.makeStore(dd, R.analyse(dd)); assert.strictEqual(Rec.exportCSV(ss), read(n), n); }
+  for (const n of ["sales_planted.csv", "venues.csv", "sales_clean.csv"]) { const dd = load(n), ss = R.makeStore(dd, R.analyse(dd));
+    // Changed on purpose (CONS-0045): the venues file's td_linxID column is screened out, so the export is the file without that last column; every other fixture is byte for byte.
+    const want = n === "venues.csv" ? read(n).split("\n").map(l => l.replace(/,[^,]*$/, "")).join("\n") : read(n); assert.strictEqual(Rec.exportCSV(ss), want, n); }
 });
 test("export round trip: edit, export, re-import, compare; change log has row, column, before, after, edited_at", () => {
   const dd = load("venues.csv"), a = R.analyse(dd), s = R.makeStore(dd, a), f = a.findingsAll.find(x => x.id === "variant"), ri = f.rows[0], ci = a.header.indexOf("venue_name");
@@ -195,7 +197,7 @@ test("export round trip: edit, export, re-import, compare; change log has row, c
   const out = Rec.exportCSV(s), again = R.parseDelimited(out);
   assert.strictEqual(again.length, dd.rows.length); assert.strictEqual(again[ri + 1][ci], "CVS Pharmacy");
   again.forEach((row, i) => row.forEach((v, j) => { if (!(i === ri + 1 && j === ci)) assert.strictEqual(v, dd.rows[i][j]); }));
-  assert.deepStrictEqual(again[0], dd.rows[0]);
+  assert.deepStrictEqual(again[0], dd.rows[0].slice(0, 11));   // td_linxID is screened out (CONS-0045)
   const log = R.parseDelimited(Rec.changeLogCSV(s)); assert.deepStrictEqual(log[0], ["row", "column", "before", "after", "edited_at"]);
   assert.deepStrictEqual(log[1], [String(ri + 2), "venue_name", was, "CVS Pharmacy", "2026-11-08T12:00:00.000Z"]);
   const a2 = R.analyse({ name: "v", rows: again }), v2 = a2.findingsAll.find(x => x.id === "variant");
@@ -240,6 +242,7 @@ require("./qa_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFla
 
 require("./shape_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
 
+require("./screen_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
 require("./round4_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
 
 Promise.all(asyncTests).then(() => {

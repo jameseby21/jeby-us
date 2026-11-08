@@ -456,6 +456,8 @@ body.print-fit .sh-foot{padding-top:8px}body.print-fit .sh-foot p{font-size:12px
 .pack-line{margin:8px 0 0;font-size:13px;color:var(--ink-2)}
 
 /* how to supplement your data (CONS-0042): the last section of the report; hidden in print */
+.sh-supp{display:grid;gap:18px;border-top:2px solid var(--ink);padding-top:12px}
+.sh-supp>h2{margin:0;font:400 24px/1.15 var(--serif)}
 .sh-supp .supp-lead{margin:0;font-size:14px;line-height:1.55;color:var(--ink-2);max-width:78ch}
 .supp-group{display:grid;gap:6px}
 .supp-list{list-style:none;margin:0;padding:0;display:grid;gap:0}
@@ -465,3 +467,18 @@ body.print-fit .sh-foot{padding-top:8px}body.print-fit .sh-foot p{font-size:12px
 .chip{display:inline-block;font:500 12px/1 var(--mono);padding:3px 6px;border-radius:4px;border:1px solid var(--rule-2);color:var(--ink-2);white-space:nowrap}
 .chip.free{background:#e8f1ea;border-color:#b9d4c0;color:#1f4d33}.chip.paid{background:var(--paper-2);color:var(--ink)}
 @media (max-width:760px){.supp-list li{grid-template-columns:auto auto 1fr}.supp-name{grid-column:1/-1}.supp-adds{grid-column:1/-1}}
+
+/* screening (CONS-0045): what was left out before any statistics */
+.sh-screen{display:grid;gap:10px;border-top:2px solid var(--ink);padding-top:12px}
+.sh-screen>h2{display:flex;align-items:baseline;gap:10px;margin:0;font:400 24px/1.15 var(--serif)}
+.sh-screen>h2 .sec-n{font:500 12px/1 var(--mono);color:#fff;background:var(--ink);border-radius:999px;padding:4px 8px}
+.scr-lead{margin:0;font-size:14px;line-height:1.55;color:var(--ink-2);max-width:78ch}
+.scr-list{list-style:none;margin:0;padding:0}
+.scr-list li{display:grid;grid-template-columns:minmax(120px,190px) auto 1fr;gap:4px 12px;align-items:baseline;padding:10px 0;border-top:1px solid var(--rule)}
+.scr-name{font:500 14px/1.4 var(--mono)}
+.scr-why{font-size:14px;line-height:1.5;color:var(--ink-2)}
+.scr-choice{grid-column:2/-1;font-size:14px;color:var(--ink)}
+.scr-choice .btn{margin-left:6px}
+.chip.never{background:var(--red-tint);border-color:#e3b9b9;color:var(--red-hi)}.chip.may{background:var(--slate-tint);border-color:#c3ccd8;color:var(--slate)}
+.screen-note{margin:0;font-size:12px;line-height:1.45;color:var(--ink-2)}
+@media (max-width:760px){.scr-list li{grid-template-columns:1fr}.scr-choice{grid-column:1}}

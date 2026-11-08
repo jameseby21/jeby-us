@@ -18,7 +18,7 @@ if (typeof WebSocket === "undefined") { console.log("NOT RUN: this Node has no W
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const freePort = () => new Promise(res => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => res(p)); }); });
-let child = null, profile = null, tmpCsv = null, server = null, BASE = "";
+let child = null, profile = null, tmpCsv = null, tmpScreen = null, server = null, BASE = "";
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png" };
 const OUT = path.dirname(PAGE);
 function startServer() {   // serves only _src/jai/out, on 127.0.0.1 and a free port; closed in cleanup
@@ -40,7 +40,7 @@ function stopBrowser() {
 function cleanup() {
   try { if (server) server.close(); } catch (e) {} server = null;
   stopBrowser();
-  for (const p of [profile, tmpCsv]) { try { if (p) fs.rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {} }
+  for (const p of [profile, tmpCsv, tmpScreen]) { try { if (p) fs.rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {} }
 }
 process.on("exit", cleanup); process.on("SIGINT", () => { cleanup(); process.exit(130); });
 
@@ -285,7 +285,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
   const FXDIR = path.resolve(__dirname, "fixtures");   // read only; the fixtures are made up
   async function loadFx(name) {
     await send("Page.navigate", { url: BASE + "/report.html" }); await waitFor("document.readyState === 'complete' && !!window.JAIReportDebug && JAIReportDebug.engine === 'worker'");
-    const doc = await send("DOM.getDocument"), inp = await send("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "#report-file" }); await send("DOM.setFileInputFiles", { files: [path.join(FXDIR, name)], nodeId: inp.nodeId });
+    const doc = await send("DOM.getDocument"), inp = await send("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "#report-file" }); await send("DOM.setFileInputFiles", { files: [path.isAbsolute(name) ? name : path.join(FXDIR, name)], nodeId: inp.nodeId });
     await waitFor("!!JAIReportDebug.store && JAIReportDebug.store.rows.length > 0 && document.querySelectorAll('.rec-tr').length > 0", 30000);
   }
   const pick = async (sel, value) => { await js(`(() => { const s = document.querySelector('${sel}'); s.value = '${value}'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); };
@@ -369,7 +369,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     const out = [];
     for (const [fx, want, not] of [["venues.csv", /OpenStreetMap/, /NOAA/], ["sales_clean.csv", /NOAA/, /retail trade/], ["ledger_header.csv", /retail trade/, /OpenStreetMap/], ["numeric_header.csv", /Data\.gov/, /OpenStreetMap|NOAA|Consumer Price/]]) {
       await loadFx(fx);
-      const m = await js(`(() => { const s = document.querySelector('.sheet .sh-supp'), secs = [...document.querySelectorAll('.sheet .sh-sec')], items = [...s.querySelectorAll('.supp-list li')];
+      const m = await js(`(() => { const s = document.querySelector('.sheet .sh-supp'), secs = [...document.querySelectorAll('.sheet > section')], items = [...s.querySelectorAll('.supp-list li')];
         return { last: secs[secs.length - 1] === s, h: s.querySelector('h2').textContent, free: items.filter(l => l.querySelector('.chip.free')).length, paid: items.filter(l => l.querySelector('.chip.paid')).length, open: items.filter(l => l.querySelector('.chip.open')).length, licensed: items.filter(l => l.querySelector('.chip.licensed')).length,
           links: items.every(l => { const a = l.querySelector('a'); return a && /^https:/.test(a.href) && a.target === '_blank' && /noopener/.test(a.rel); }), text: s.textContent, printHidden: s.classList.contains('print-hide') }; })()`);
       assert(m.last && m.h === "How to supplement your data", fx + ": the section is not the last one"); assert(m.free >= 3 && m.paid >= 2, `${fx}: ${m.free} free, ${m.paid} paid`); assert(m.links, fx + ": links must open in a new tab");
@@ -378,6 +378,21 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
       out.push(`${fx}: ${m.free} free, ${m.paid} paid`);
     }
     return out.join("; ");
+  });
+
+  await check("CONS-0045: td_linxID is screened out before any statistics with its reason and a choice; the table and export are built without it; confirming brings it back and the footer records it; a never-process column has no button", async () => {
+    await loadFx("venues.csv");
+    const m = await js(`(() => ({ panel: document.querySelector('.sh-screen') && document.querySelector('.sh-screen').textContent, btn: [...document.querySelectorAll('.sh-screen [data-confirm]')].map(b => b.dataset.confirm), heads: [...document.querySelectorAll('.rec-thead .rec-th, .rec-thead button')].map(x => x.textContent).join('|'), cols: JAIReportDebug.analysis.header.length, rowLen: JAIReportDebug.store.rows[0].length, note: document.querySelector('.screen-note').textContent, kpiCols: [...document.querySelectorAll('.sh-kpis > div')].map(d => d.textContent).join('|'), printHidden: document.querySelector('.sh-screen').classList.contains('print-hide'), tablehas: JSON.stringify(JAIReportDebug.store.rows.slice(0, 50)).includes('LX7') }))()`);
+    assert(m.panel && /td_linxID/.test(m.panel) && /Licensed identifier/.test(m.panel) && /licen[cs]e/i.test(m.panel) && /nothing leaves this browser/.test(m.panel), m.panel); assert.deepStrictEqual(m.btn, ["td_linxID"]);
+    assert.strictEqual(m.cols, 11); assert.strictEqual(m.rowLen, 11); assert(!m.tablehas, "no flagged value in the table"); assert(/Left out before any statistics: td_linxID \(licensed identifier\)/.test(m.note), m.note); assert(m.printHidden, "the panel does not print; the footer line does");
+    await js(`document.querySelector('[data-confirm="td_linxID"]').click()`); await waitFor(`JAIReportDebug.analysis.header.length === 12 && JAIReportDebug.store.rows[0].length === 12 && !JAIReportDebug.analysis.screen.excluded.length`);
+    const k = await js(`({ note: document.querySelector('.screen-note').textContent, panel: document.querySelector('.sh-screen').textContent, btn: document.querySelectorAll('.sh-screen [data-confirm]').length, status: document.querySelector('#report-status').textContent })`);
+    assert(/Kept on the visitor's confirmation that they hold the rights, recorded .*td_linxID \(licensed identifier\)/.test(k.note), k.note); assert(/Included/.test(k.panel) && k.btn === 0, k.panel); assert(/td_linxID is included on your confirmation/.test(k.status), k.status);
+    tmpScreen = path.join(os.tmpdir(), `jai-screen-${process.pid}.csv`); fs.writeFileSync(tmpScreen, "name,ssn,age,city\n" + Array.from({ length: 40 }, (_, i) => `Cafe ${i},${100 + i}-45-${1000 + i},${30 + i},Miami`).join("\n") + "\n");
+    await loadFx(tmpScreen);
+    const n = await js(`({ items: [...document.querySelectorAll('.sh-screen .scr-list li')].map(l => l.dataset.col + ':' + (l.querySelector('[data-confirm]') ? 'button' : 'none') + ':' + l.textContent.includes('Never processed')), cols: JAIReportDebug.analysis.header.join('|') })`);
+    assert.deepStrictEqual(n.items, ["ssn:none:true"]); assert.strictEqual(n.cols, "name|age|city");
+    return "venues: 11 of 12 columns, confirm brings it back, ssn has no button; nothing was requested from the network (checked by the quiet-window test)";
   });
 
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {

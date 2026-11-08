@@ -12,6 +12,7 @@
   const Pack = typeof module !== "undefined" && module.exports ? require("./pack.js") : self.JAIPack;
   const Rules = typeof module !== "undefined" && module.exports ? require("./rules.js") : self.JAIRules;
   const Shape = typeof module !== "undefined" && module.exports ? require("./shape.js") : self.JAIShape;
+  const Screening = typeof module !== "undefined" && module.exports ? require("./screening.js") : self.JAIScreening;
   const Sources = typeof module !== "undefined" && module.exports ? require("./sources.js") : self.JAISources;   // the page loads it; the worker does not need it
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 0) => (Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(1) + "K" : v.toLocaleString("en-US", { maximumFractionDigits: d }));
@@ -238,10 +239,13 @@
   function analyse(data, choice = {}) {
     const rows = data.rows; if (rows.length < 2) throw new Error("That file needs at least two rows: a header and a row of data, or two rows of data.");
     const frm = Shape.frame(rows, choice, { num, dt, profileCol }), RB = frm.bodyStart + 1;   // RB: the row of the file where the first row of data sits (1 when there is no header; 3 with a title row and a header)
-    const allCols = frm.width, allRows = rows.length - frm.bodyStart;
-    let header = frm.names.slice(0, MAXC);
+    const allRows = rows.length - frm.bodyStart;
+    // screening (CONS-0045): before any value enters the report, columns that must not be processed are found and left out. choice.carry is the answer from the first pass of this file, so a recalculation of trimmed rows keeps it.
+    const scr = choice.carry || Screening.screen(frm.names, rows.slice(frm.bodyStart, frm.bodyStart + MAXR), { confirm: choice.confirm });
+    const out = new Set(choice.carry ? [] : scr.excludedIdx), keepAll = frm.names.map((_, i) => i).filter(i => !out.has(i)), keep = keepAll.slice(0, MAXC), allCols = keepAll.length;   // a flagged column does not use up the column limit
+    let header = keep.map(i => frm.names[i]);
     const seenH = {}; header = header.map(h => (seenH[h] = (seenH[h] || 0) + 1) > 1 ? `${h} (${seenH[h]})` : h);
-    const body = rows.slice(frm.bodyStart, frm.bodyStart + MAXR).map(r => header.map((_, i) => r[i] == null ? "" : String(r[i])));
+    const body = rows.slice(frm.bodyStart, frm.bodyStart + MAXR).map(r => keep.map(i => r[i] == null ? "" : String(r[i])));
     const truncated = allRows > MAXR || allCols > MAXC;
     const N = body.length;
     header.forEach((h, i) => {   // epoch seconds (10 digits) or milliseconds (13 digits) in a column whose name says it is a date or a time
@@ -310,7 +314,7 @@
         else near.forEach(([a, b]) => { if (body[a].join("\u0001") !== body[b].join("\u0001")) link("dup", b, firstCol, "fix", `<b>Matches row ${a + RB} on every column except ${idCols.map(c => esc(c.name)).join(", ")}.</b> The same record under a new ID.`, "", Math.abs(mval(b)) || 0); });
       }
       if (pd) { let dpEx = null; const nm = pd.nameC.name;
-        pd.groups.forEach(rows => { const f0 = rows[0]; rows.slice(1).forEach(ri => { if (body[ri].join("") === body[f0].join("")) return;   // an exact copy is counted above
+        pd.groups.forEach(rows => { const f0 = rows[0]; rows.slice(1).forEach(ri => { if (body[ri].join("\u0001") === body[f0].join("\u0001")) return;   // an exact copy is counted above
           dupPlace++; dpEx = dpEx || [f0, ri];
           link("dupplace", ri, pd.nameC.i, "fix", `<b>Duplicate of row ${f0 + RB}.</b> The same ${esc(nm)} (capitals, spacing and punctuation ignored) at the same ${pd.by}.`, "", 0);
           link("dupplace", f0, pd.nameC.i, "fix", `<b>Has a duplicate in row ${ri + RB}.</b> The same ${esc(nm)} (capitals, spacing and punctuation ignored) at the same ${pd.by}.`, "", 0); }); });
@@ -550,7 +554,7 @@
     const rank = { fix: 0, look: 1, ok: 2 }; checks.sort((a, b) => rank[a.sev] - rank[b.sev]);
     const needsCleanup = checks.some(c => c.sev === "fix");
     const qaSample = N >= 10 ? qaSampleOf({ N, header, cat, flags, findingsList: findings }, body, choice.seed) : null;
-    const res = { name: data.name, sheet: data.sheet, N, hdr: { isHeader: frm.isHeader, detected: frm.detected, forced: frm.forced, conf: frm.conf, why: frm.why, note: frm.note, titleRows: frm.titleRows, bodyStart: frm.bodyStart, replaced: frm.replaced }, rowBase: RB, notShown, measureMoney, measureName, kind: ledger ? "transactions" : "records",
+    const res = { name: data.name, sheet: data.sheet, N, keep, screen: { flagged: scr.flagged.map(({ i, name, cls, label, never, why, by, rule, excluded, confirmed }) => ({ i, name, cls, label, never, why, by, rule, excluded, confirmed })), excluded: scr.excluded, confirmed: scr.confirmed, excludedIdx: scr.excludedIdx }, hdr: { isHeader: frm.isHeader, detected: frm.detected, forced: frm.forced, conf: frm.conf, why: frm.why, note: frm.note, titleRows: frm.titleRows, bodyStart: frm.bodyStart, replaced: frm.replaced }, rowBase: RB, notShown, measureMoney, measureName, kind: ledger ? "transactions" : "records",
       ledger: ledger ? { cols: { date: header[ledgerCols.date], amount: header[ledgerCols.amount], description: header[ledgerCols.desc], type: ledgerCols.type != null ? header[ledgerCols.type] : null, balance: ledgerCols.balance != null ? header[ledgerCols.balance] : null }, signedBy: ledgerCols.dirByType ? "type" : "sign", order: ledgerCols.order,
         outflow: LD_.outflow, inflow: LD_.inflow, net: LD_.net, nOut: LD_.nOut, nIn: LD_.nIn, first: LD_.first, last: LD_.last, months: LD_.months, merchantCount: LD_.merchants.length,
         merchants: LD_.merchants.slice(0, Rules.LEDGER.topMerchants).map(m => ({ name: m.name, out: m.out, n: m.n, variants: m.variants.slice(0, 6) })), recurring: LD_.recurring.map(({ rows, ...r }) => ({ ...r, nRows: rows.length })),
@@ -669,9 +673,10 @@
 
   // ---------- the table's store, and the made-up sample
   function makeStore(data, a) {
-    const raw = data.rows, nc = a.header.length, bs = a.hdr.bodyStart, hasHdr = a.hdr.isHeader, lead = raw.slice(0, bs).map((r, i) => (hasHdr && i === bs - 1 ? r.slice(0, nc) : r).map(String));   // title rows and the header, kept as read so the export is the file as it came
-    return Rec.createStore({ header: hasHdr ? lead[bs - 1] : a.header, lead, leadMask: raw.mask ? raw.mask.slice(0, bs).map((m, i) => (hasHdr && i === bs - 1 ? m.slice(0, nc) : m)) : null, rowBase: a.rowBase, names: a.header, rows: raw.slice(bs, bs + MAXR).map(r => a.header.map((_, i) => r[i] == null ? "" : String(r[i]))),
-      mask: raw.mask ? raw.mask.slice(bs, bs + MAXR).map(m => a.header.map((_, i) => m[i] || 0)) : null,
+    const raw = data.rows, keep = a.keep || a.header.map((_, i) => i), nc = keep.length, bs = a.hdr.bodyStart, hasHdr = a.hdr.isHeader, ident = keep.every((k, i) => k === i);   // keep: the file's columns the report reads (the flagged ones are left out, CONS-0045)
+    const pick = r => (ident ? r.slice(0, nc) : keep.map(i => (r[i] == null ? "" : r[i]))), lead = raw.slice(0, bs).map((r, i) => (hasHdr && i === bs - 1 ? pick(r) : r).map(String));   // title rows and the header, kept as read so the export is the file as it came
+    return Rec.createStore({ header: hasHdr ? lead[bs - 1] : a.header, lead, leadMask: raw.mask ? raw.mask.slice(0, bs).map((m, i) => (hasHdr && i === bs - 1 ? pick(m) : m)) : null, rowBase: a.rowBase, names: a.header, rows: raw.slice(bs, bs + MAXR).map(r => keep.map(i => r[i] == null ? "" : String(r[i]))),
+      mask: raw.mask ? raw.mask.slice(bs, bs + MAXR).map(m => keep.map(i => m[i] || 0)) : null,
       fmt: raw.fmt || { delim: ",", eol: "\n", finalEol: true }, isNum: a.cols.map(c => c.type === "number"), num, calc: a.calc, name: data.name });
   }
   // A made-up café's sales: seeded, with the usual problems planted (the twelve $115.00 sandwiches are the headline).
@@ -786,9 +791,20 @@
     if (!Sources) return "";
     const groups = Sources.pick(a); if (!groups.length) return "";
     const chip = (cls, t) => `<span class="chip ${cls}">${t}</span>`;
-    return `<section class="sh-sec sh-supp print-hide" aria-label="${esc(Sources.SOURCES.title)}"><h2>${esc(Sources.SOURCES.title)}</h2><p class="supp-lead">${esc(Sources.SOURCES.lead)}</p>
+    return `<section class="sh-supp print-hide" aria-label="${esc(Sources.SOURCES.title)}"><h2>${esc(Sources.SOURCES.title)}</h2><p class="supp-lead">${esc(Sources.SOURCES.lead)}</p>
       ${groups.map(g => `<section class="supp-group" data-group="${esc(g.id)}"><h3>${esc(g.title)} <span class="hint">${esc(g.why)}</span></h3><ul class="supp-list">${g.items.map(s => `<li><span class="supp-name"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a></span> ${chip(s.cost, Sources.COST[s.cost])} ${chip(s.access, Sources.ACCESS[s.access])}<span class="supp-adds">${esc(s.adds)}</span></li>`).join("")}</ul></section>`).join("")}</section>`;
   }
+  // Screening (CONS-0045): what was left out before any statistics, with the reason and, where allowed, the choice; and the one line that prints in the footer
+  const screenPanel = a => { const f = a.screen && a.screen.flagged || []; if (!f.length) return "";
+    return `<section class="sh-screen print-hide" aria-label="Screening"><h2>Checked before any statistics <span class="sec-n">${f.length}</span></h2>
+      <p class="scr-lead">${f.length === 1 ? "One column was" : f.length + " columns were"} screened out or held for your say-so before anything was counted. Nothing from a left-out column is in the report, the table or the export, and nothing leaves this browser either way.</p>
+      <ul class="scr-list">${f.map(c => `<li class="${c.never ? "never" : "may"}" data-col="${esc(c.name)}"><span class="scr-name">${esc(c.name)}</span><span class="chip ${c.never ? "never" : "may"}">${esc(c.label)}</span><span class="scr-why">${esc(c.why)}</span>
+        <span class="scr-choice">${c.confirmed ? `<b>Included</b> on your confirmation that you hold the rights.` : c.never ? `<b>Left out.</b> Never processed: there is no override.` : `<b>Left out</b> by default. <button class="btn small" type="button" data-confirm="${esc(c.name)}">I hold the rights: include it</button>`}</span></li>`).join("")}</ul></section>`; };
+  const screenNote = a => { const sc = a.screen || { flagged: [], excluded: [], confirmed: [] }, parts = [];
+    if (sc.excluded.length) parts.push(`Left out before any statistics: ${sc.excluded.map(c => `${esc(c.name)} (${esc(c.label.toLowerCase())})`).join(", ")}.`);
+    if (sc.confirmed.length) parts.push(`Kept on the visitor's confirmation that they hold the rights, recorded ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}: ${sc.confirmed.map(c => `${esc(c.name)} (${esc(c.label.toLowerCase())})`).join(", ")}.`);
+    if (!parts.length) parts.push("Screened for licensed identifiers, personal data, minors and credentials: nothing found.");
+    return `<p class="screen-note">${parts.join(" ")}</p>`; };
   function sheetHTML(a, notable, ed) {
     const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     const kpi = a.kpi;
@@ -813,6 +829,7 @@
   <header class="sh-head"><div><span class="wm"><b>JA</b>Insights</span><span class="label">One-page report</span></div>
     <div class="sh-meta"><b>${esc(a.name)}${a.sheet ? " · " + esc(a.sheet) : ""}</b><span>${today} · ${a.kind === "transactions" ? "kind: transactions (a ledger) · " : ""}made in your browser, nothing uploaded${a.truncated ? ` · free limit: ${Math.min(a.allRows, MAXR).toLocaleString("en-US")} rows × ${Math.min(a.allCols, MAXC)} columns` : ""}${a.pack ? ` · rule pack: ${esc(a.pack.name)}` : ""}</span></div></header>
   <div class="sh-kpis">${kpi.map(([l, v]) => `<div><span class="label">${esc(l)}</span><b${String(v).length > 14 ? ' class="long"' : ""}>${esc(v)}</b></div>`).join("")}</div>
+  ${screenPanel(a)}
   <section class="sh-sec sh-insights" aria-label="Insights"><h2>Insights <span class="sec-n">${sec.insights.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="insight">Show ${fmtCount(insRows.size)} insight rows</button></h2>
     <div class="sh-two">
       <section><h3>What the data says</h3>${listHTML(sec.insights.findings, "Nothing stands out yet. Add a date, a place or a category column and this space fills.")}</section>
@@ -838,6 +855,7 @@
   </section>
   ${suppHTML(a)}
   ${ed && ed.n ? `<p class="print-only edit-note">${ed.n} edit${ed.n > 1 ? "s were" : " was"} made in this browser session${ed.cells !== ed.n ? ` (${ed.cells} cells changed, counting totals worked out again)` : ""}; the findings above are recalculated from the corrected values.</p>` : ""}
+  ${screenNote(a)}
   <footer class="sh-foot"><div><span class="label">What I'd do next</span><p><b>${next[0]}</b>, ${next[1]} h × $${RATE} = $${(next[1] * RATE).toLocaleString("en-US")}: ${next[2]}. This page is an automatic first pass; that's the human one.</p></div>
     <span class="stamp">Checked</span></footer>
 </article>
@@ -885,7 +903,7 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   let seq = 0, inflight = 0;
   function show(a, notable) {
     $("#rep-controls").innerHTML = controlsHTML(a); $("#rep-records").innerHTML = ""; table = null;
-    store = makeStore(current, a);
+    store = makeStore(current, a); choice.carry = a.screen;   // a recalculation of the trimmed rows keeps this answer
     out.hidden = false; $("#report-intake").hidden = true;
     paint(a, true, notable);
     table = Rec.mountTable($("#rep-records"), { store, analysis: a, fileName: a.name, truncated: a.truncated, onChange: reanalyse, say: status });
@@ -894,7 +912,7 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   // the findings, chart and worth-a-look list are worked out again from the current rows (after an edit, a setting change or a resample), off the main thread
   async function recompute(note, rebuild) {
     const my = ++seq, t0 = performance.now(); inflight++;
-    try { const rows = rebuild ? current.rows : [...current.rows.slice(0, last.hdr.bodyStart), ...store.rows];   // flipping the header changes which rows are data, so the table is built again from the file as read
+    try { const rows = rebuild ? current.rows : [...store.lead, ...store.rows];   // flipping the header changes which rows are data, so the table is built again from the file as read
       const r = hydrate(await engine.call({ op: "analyse", name: current.name, sheet: current.sheet, rows, choice })); if (my !== seq || !current) return;
       if (rebuild) { const edits = store ? store.edits.length : 0; show(r.a, r.notable); status(note(Math.round(performance.now() - t0)) + (edits ? ` Your ${edits} edit${edits > 1 ? "s were" : " was"} cleared: the table starts again from the file.` : "")); return; }
       $("#rep-controls").innerHTML = controlsHTML(r.a); paint(r.a, false, r.notable); status(note(Math.round(performance.now() - t0))); } catch (e) { status(e.message || "That could not be worked out."); } finally { inflight--; }
@@ -916,10 +934,12 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   out.innerHTML = `<div id="rep-controls"></div><div id="rep-sheet"></div><section class="records print-hide" id="rep-records" aria-label="All records"></section>`;
   out.addEventListener("change", e => { const rp = e.target.closest("[data-role]"); if (rp && current) { choice.roles = { ...(choice.roles || {}), [rp.dataset.role]: rp.value }; show2(); return; }   // a role changed in the Columns table: everything is worked out again
     const s = e.target.closest("[data-ch]"); if (!s || !current) return; choice[s.dataset.ch] = s.value;
-    if (s.dataset.ch === "header") { delete choice.measure; delete choice.date; delete choice.cat; delete choice.split; delete choice.roles; show2(true); } else show2(); });
+    if (s.dataset.ch === "header") { delete choice.measure; delete choice.date; delete choice.cat; delete choice.split; delete choice.roles; delete choice.carry; show2(true); } else show2(); });
   out.addEventListener("click", e => {
     if (e.target.closest("[data-print]")) window.print();
     if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
+    const cf = e.target.closest("[data-confirm]");
+    if (cf && current) { const name = cf.dataset.confirm; choice.confirm = [...new Set([...(choice.confirm || []), name])]; delete choice.carry; recompute(ms => `${name} is included on your confirmation that you hold the rights; the report footer records it. Worked out in ${ms} ms, on this device.`, true); return; }
     const mg = e.target.closest("[data-merge]");
     if (mg && table && last && store) { const fd = (last.findingsList || []).find(x => x.id === mg.dataset.merge && x.merge); if (fd) { const n = Rec.mergeCells(store, fd.merge.ci, fd.merge.map); recompute(ms => `Merged ${n.toLocaleString("en-US")} cell${n === 1 ? "" : "s"} in ${fd.merge.col}. Findings recalculated in ${ms} ms; Undo in the table puts a cell back, one at a time.`); } return; }
     const f = e.target.closest("[data-find]"); if (f && table) table.showFinding(f.dataset.find);
