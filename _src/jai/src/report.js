@@ -328,24 +328,45 @@
     else add("ok", "Few empty cells", `${pct(emptyCells, totalCells).toFixed(1)}% of all cells are blank.`);
     if (emptyCols.length) add("look", `${emptyCols.length} empty column${emptyCols.length > 1 ? "s" : ""}`, emptyCols.map(c => c.name).join(", ") + " never has a value.", 30);
 
-    // spelling variants: the same value with different capitals, spaces or punctuation, or two names at one address
+    // spelling variants (CONS-0073): one name written more than one way. A description-like column is compared by the merchant or name behind it (rules.js, NORMALIZE), any other column by case and punctuation.
+    // Seen so is an FYI with a Merge button; it is a QA finding only when merging would change a group's rank in the top ten.
     const variants = []; let varRows = 0;
     const normKey = s => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    cols.filter(c => (c.type === "category" || c.type === "text") && !(ledger && c.i === ledgerCols.desc)).forEach(c => {
-      const g = new Map(); body.forEach((r, ri) => { const raw = r[c.i]; if (!raw.trim()) return; const k = normKey(raw) || raw.trim().toLowerCase(); if (!g.has(k)) g.set(k, new Map()); const m = g.get(k); if (!m.has(raw)) m.set(raw, []); m.get(raw).push(ri); });
-      g.forEach(m => { if (m.size > 1) { const forms = [...m.entries()].sort((a, b) => b[1].length - a[1].length); const top = forms[0][0];
-        variants.push({ col: c.name, forms: forms.map(f => [f[0], f[1].length]), rows: forms.slice(1).reduce((x, f) => x + f[1].length, 0) });
-        forms.slice(1).forEach(([raw, rs]) => rs.forEach(ri => link("variant", ri, c.i, "look", `<b>“${esc(raw)}” is also written “${esc(top)}” (${forms[0][1].length} rows).</b> It is counted separately in every report.`))); } });
-    });
+    const isEntityCol = c => (ledger && c.i === ledgerCols.desc) || Rules.NORMALIZE.columns.test(c.name);
+    cols.filter(c => c.type === "category" || c.type === "text").forEach(c => {
+      const entity = isEntityCol(c), nrm = entity ? Shape.makeNormalizer(body.map(r => r[c.i])) : null, g = new Map();
+      body.forEach((r, ri) => { const raw = r[c.i]; if (!raw.trim()) return; const nv = entity ? nrm(raw) : null, k = entity ? nv.key : (normKey(raw) || raw.trim().toLowerCase());
+        const e = g.get(k) || g.set(k, { forms: new Map(), cleans: new Map(), alias: null }).get(k); if (!e.forms.has(raw)) e.forms.set(raw, []); e.forms.get(raw).push(ri); if (entity) { e.cleans.set(nv.clean, (e.cleans.get(nv.clean) || 0) + 1); e.alias = nv.alias; } });
+      const size = rows => (measure ? rows.reduce((t, ri) => t + Math.max(0, num(body[ri][measure.i]) || 0), 0) : rows.length), rawSize = new Map(), entSize = new Map();
+      g.forEach((e, k) => { let tot = 0; e.forms.forEach((rows, raw) => { const z = size(rows); rawSize.set(raw, z); tot += z; }); entSize.set(k, tot); });
+      const rawSorted = [...rawSize.values()], entSorted = [...entSize.values()], rankIn = (list, z) => 1 + list.filter(x => x > z).length;
+      g.forEach((e, k) => { if (e.forms.size < 2) return;
+        const forms = [...e.forms.entries()].sort((a, b) => b[1].length - a[1].length), canonical = entity ? Shape.canonicalName(e.cleans, e.alias) : forms[0][0];
+        const best = Math.max(...forms.map(f => rawSize.get(f[0]))), rRaw = rankIn(rawSorted, best), rMerged = rankIn(entSorted, entSize.get(k)), material = !(ledger && c.i === ledgerCols.desc) && rRaw !== rMerged && Math.min(rRaw, rMerged) <= 10;
+        const others = forms.filter(f => f[0] !== canonical);
+        variants.push({ col: c.name, ci: c.i, canonical, entity, material, rRaw, rMerged, forms: forms.map(f => [f[0], f[1].length]), rows: others.reduce((x, f) => x + f[1].length, 0), spans: forms.reduce((x, f) => x + f[1].length, 0), others: others.map(f => f[0]),
+          cells: others.flatMap(([raw, rs]) => rs.map(ri => [ri, raw])) }); }); });
     { const nameC = cols.find(c => (c.type === "text" || c.type === "category") && /name|venue|business|store|place/i.test(c.name)), addrC = cols.find(c => /address|street|addr/i.test(c.name) && c.type !== "number"), postC = cols.find(c => /zip|postal/i.test(c.name));
       if (nameC && addrC) { const at = new Map(); body.forEach((r, ri) => { const a = normKey(r[addrC.i]) + "|" + (postC ? r[postC.i].trim() : ""), n = normKey(r[nameC.i]); if (!normKey(r[addrC.i]) || !n) return; if (!at.has(a)) at.set(a, new Map()); const m = at.get(a); if (!m.has(n)) m.set(n, []); m.get(n).push(ri); });
         at.forEach(m => { if (m.size < 2) return; const names = [...m.entries()].sort((a, b) => b[1].length - a[1].length), top = names[0], tw = new Set(top[0].split(" "));
           names.slice(1).forEach(([n, rs]) => { const w = new Set(n.split(" ")), sub = [...w].every(x => tw.has(x)) || [...tw].every(x => w.has(x)); if (!sub) return;
-            variants.push({ col: nameC.name, forms: [[top[0], top[1].length], [n, rs.length]], rows: rs.length });
-            rs.forEach(ri => link("variant", ri, nameC.i, "look", `<b>“${esc(body[ri][nameC.i])}” is probably the same place as “${esc(body[top[1][0]][nameC.i])}”.</b> Both are at ${esc(body[ri][addrC.i])}, so they are counted as two places.`)); }); }); } }
-    if (variants.length) { const v = variants.sort((a, b) => b.rows - a.rows)[0], vr = fr.get("variant") ? fr.get("variant").size : 0;
-      add("look", `${variants.length} value${variants.length > 1 ? "s are" : " is"} spelled more than one way`, `In ${v.col}: ${v.forms.slice(0, 3).map(f => `“${f[0]}”`).join(", ")} count as different ${v.col} values in every report. ${vr} rows affected.`, 80, true, "variant", "Spelling variants"); }
+            variants.push({ col: nameC.name, ci: nameC.i, canonical: null, entity: false, material: true, forms: [[top[0], top[1].length], [n, rs.length]], rows: rs.length, others: [], cells: [],
+              place: rs.map(ri => [ri, `<b>“${esc(body[ri][nameC.i])}” is probably the same place as “${esc(body[top[1][0]][nameC.i])}”.</b> Both are at ${esc(body[ri][addrC.i])}, so they are counted as two places.`]) }); }); }); } }
+    const linkVariants = () => variants.forEach(v => { const sev = v.material ? "look" : "ctx";
+      (v.cells || []).forEach(([ri, raw]) => link("variant", ri, v.ci, sev, `<b>“${esc(raw)}” is also written “${esc(v.canonical)}”${v.entity ? "" : ` (${v.forms[0][1]} rows)`}.</b> ${v.material ? "It is counted separately in every report, and merging would change a rank in the top ten." : "Merge writes them the same way; nothing is wrong with the data."}`));
+      (v.place || []).forEach(([ri, why]) => link("variant", ri, v.ci, "look", why)); });
+    if (!ledger) linkVariants();   // a ledger's own findings (duplicates, balance) claim their cells first; the variants take what is left
+    if (variants.length) { const top = [...variants].sort((a, b) => b.rows - a.rows), v = top[0], vr = new Set(variants.flatMap(x => (x.cells || []).concat(x.place || []).map(c => c[0]))).size, material = variants.some(x => x.material), plural = variants.length > 1;
+      if (material) {
+        add("look", `${variants.length} value${plural ? "s are" : " is"} spelled more than one way`, `In ${v.col}: ${v.forms.slice(0, 3).map(f => `“${f[0]}”`).join(", ")} count as different ${v.col} values in every report. ${vr} rows affected.`, 80, true, "variant", "Spelling variants");
+        const mf = findings[findings.length - 1]; mf.merge = mergeOf(top.filter(x => x.ci === v.ci && x.canonical));
+      } else {
+        const ex = top.slice(0, 2).map(x => x.entity ? `${x.canonical} (${x.forms.length} ways, for example “${x.forms[0][0]}” and “${x.forms[1][0]}”)` : `“${x.forms[1][0]}” is also written “${x.forms[0][0]}”`).join("; ");
+        findings.push({ id: "variant", kind: "fyi", sev: "look", title: `${variants.length} name${plural ? "s are" : " is"} written more than one way`, detail: `In ${v.col}: ${ex}. ${top.some(x => x.entity) ? "They are grouped under one name in the insights; " : "Merging them changes no ranking; "}Merge writes them the same way in the table (Undo in the table puts a cell back).`, score: 28, crumb: "Spelling variants", merge: mergeOf(top.filter(x => x.ci === v.ci && x.canonical)) });
+        checks.push({ sev: "ok", title: "Names are consistent enough", detail: "Names written more than one way are listed as an FYI: they change no ranking." });
+      } }
     else add("ok", "Consistent spelling", "No values that differ only by capitals or spaces.");
+    function mergeOf(list) { const map = []; list.forEach(x => x.others.forEach(raw => map.push([raw, x.canonical]))); return list.length ? { ci: list[0].ci, col: list[0].col, map, n: map.length } : null; }
 
     // mixed types
     const bad = cols.filter(c => c.bad).sort((a, b) => b.bad - a.bad);
@@ -446,6 +467,7 @@
       else findings.push({ id: it.id, kind: it.kind, sev: it.sev, title: it.title, detail: it.detail, score: it.score, crumb: it.crumb, why: it.why });
     });
     if (ledger) {
+      linkVariants();
       if (!LD_.dupPairs.length) add("ok", "No duplicate rows", "No two rows share a date, an amount and a merchant.");
       if (LD_.balanceBreaks && !LD_.balanceBreaks.length) add("ok", "The running balance holds", "Previous balance plus the amount equals the balance on every row.");
       if (LD_.unreadable) add("look", `${LD_.unreadable} row${LD_.unreadable > 1 ? "s have" : " has"} no readable date or amount`, "They are left out of the totals.", 50, true, null, "Unreadable rows");
@@ -764,7 +786,7 @@
     const tableRows = (a.trend ? a.trend.series.map(p => `<tr><td>${a.trend.label(p.t)}</td><td>${full(p.v, 0)}</td></tr>`).join("") : "");
     const sec = sections(a, notable);
     const tag = f => f.cls && Dom.DOMAIN.classes[f.cls] ? `<em class="cls ${f.hard ? "hard" : "adv"}" title="${esc(Dom.DOMAIN.classes[f.cls].means)}">${f.hard ? "Invalid" : "Check"} · ${esc(Dom.DOMAIN.classes[f.cls].label)}</em> ` : "";
-    const li = f => `<li><b>${tag(f)}${esc(f.title)}</b><span>${esc(f.detail)}</span>${f.rule ? `<small class="rule print-hide">Rule: ${esc(f.rule)} To do: ${esc(f.todo)}</small>` : ""}${f.id && f.n ? `<button class="rec-link print-hide" type="button" data-find="${esc(f.id)}">Show ${fmtCount(f.n)} ${f.n === 1 ? "row" : "rows"}</button>` : ""}</li>`;
+    const li = f => `<li><b>${tag(f)}${esc(f.title)}</b><span>${esc(f.detail)}</span>${f.rule ? `<small class="rule print-hide">Rule: ${esc(f.rule)} To do: ${esc(f.todo)}</small>` : ""}${f.id && f.n ? `<button class="rec-link print-hide" type="button" data-find="${esc(f.id)}">Show ${fmtCount(f.n)} ${f.n === 1 ? "row" : "rows"}</button>` : ""}${f.merge && f.merge.n ? `<button class="rec-link print-hide" type="button" data-merge="${esc(f.id)}" title="Write each of these names the way shown, in the table. Undo in the table puts a cell back.">Merge ${fmtCount(f.merge.n)} ${f.merge.n === 1 ? "spelling" : "spellings"}</button>` : ""}</li>`;
     const listHTML = (fs, none) => fs.length ? `<ol class="finds">${fs.slice(0, 6).map(li).join("")}</ol>` : `<p class="calm">${none}</p>`;
     const worthHTML = (list, title, cls) => list.length ? `<section class="sh-worth ${cls}"><h3>${title} <span class="hint print-hide">Click one to find it in the table.</span></h3><ol class="worth">${list.map(w => `<li><button class="wrow" type="button" data-row="${w.ri}"><i class="sev ${w.sev}" aria-hidden="true">${w.sev === "fix" ? "×" : w.sev === "look" ? "!" : "·"}</i><span><b>${esc(w.title)}</b><span class="wreason">${esc(w.reason)}</span></span></button></li>`).join("")}</ol></section>` : "";
     const qaRows = new Set(sec.qa.findings.flatMap(f => f.rows || [])), insRows = new Set(sec.insights.findings.flatMap(f => f.rows || []));
@@ -798,7 +820,7 @@
       <section class="sh-cols"><h3>Columns</h3>${classRow}<table class="prof"><thead><tr><th>Column</th><th>Type · role</th><th>Filled</th></tr></thead><tbody>${prof}</tbody></table></section>
       <section>${nc}</section>
     </div>
-    <p class="hdr-note"><b>Header:</b> ${esc(a.hdr.note)}${a.hdr.titleRows.length ? ` Skipped: “${esc(a.hdr.titleRows[0])}”${a.hdr.titleRows.length > 1 ? ` and ${a.hdr.titleRows.length - 1} more` : ""}.` : ""} <span class="print-hide">Wrong? Change “First row” at the top.</span></p>
+    <p class="hdr-note${a.hdr.isHeader && a.hdr.conf !== "low" && !a.hdr.forced && !a.hdr.titleRows.length && !a.hdr.replaced.length ? " print-hide" : ""}"><b>Header:</b> ${esc(a.hdr.note)}${a.hdr.titleRows.length ? ` Skipped: “${esc(a.hdr.titleRows[0])}”${a.hdr.titleRows.length > 1 ? ` and ${a.hdr.titleRows.length - 1} more` : ""}.` : ""} <span class="print-hide">Wrong? Change “First row” at the top.</span></p>
   </section>
   ${ed && ed.n ? `<p class="print-only edit-note">${ed.n} edit${ed.n > 1 ? "s were" : " was"} made in this browser session${ed.cells !== ed.n ? ` (${ed.cells} cells changed, counting totals worked out again)` : ""}; the findings above are recalculated from the corrected values.</p>` : ""}
   <footer class="sh-foot"><div><span class="label">What I'd do next</span><p><b>${next[0]}</b>, ${next[1]} h × $${RATE} = $${(next[1] * RATE).toLocaleString("en-US")}: ${next[2]}. This page is an automatic first pass; that's the human one.</p></div>
@@ -880,6 +902,8 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   out.addEventListener("click", e => {
     if (e.target.closest("[data-print]")) window.print();
     if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
+    const mg = e.target.closest("[data-merge]");
+    if (mg && table && last && store) { const fd = (last.findingsList || []).find(x => x.id === mg.dataset.merge && x.merge); if (fd) { const n = Rec.mergeCells(store, fd.merge.ci, fd.merge.map); recompute(ms => `Merged ${n.toLocaleString("en-US")} cell${n === 1 ? "" : "s"} in ${fd.merge.col}. Findings recalculated in ${ms} ms; Undo in the table puts a cell back, one at a time.`); } return; }
     const f = e.target.closest("[data-find]"); if (f && table) table.showFinding(f.dataset.find);
     const sc = e.target.closest("[data-sec]"); if (sc && table) table.showSection(sc.dataset.sec);
     const qs = e.target.closest("[data-qs]");

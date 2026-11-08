@@ -335,6 +335,16 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     return `${m.ins.length} insights, ${m.qa.length} QA, ${m.fyi.length} FYI`;
   });
 
+  await check("names: Kroger once with its variants, 'written more than one way' is an FYI with a Merge button; Merge rewrites the cells as edits, the FYI goes away and the totals do not move", async () => {
+    await loadFx("ledger_header.csv");
+    const m = await js(`({ bars: [...document.querySelectorAll('.sh-insights svg.bars text.bl')].map(t => t.textContent), fyi: [...document.querySelectorAll('.sh-fyi .finds li')].map(l => l.textContent), merge: !!document.querySelector('[data-merge="variant"]'), out: document.querySelector('.sh-kpis div:nth-child(3) b').textContent })`);
+    assert(m.bars.includes("Kroger") && m.bars.filter(b => /kroger/i.test(b)).length === 1, m.bars.join()); assert(m.merge && m.fyi.some(t => /written more than one way/.test(t) && /Merge \d+ spellings/.test(t)), m.fyi.join(" | "));
+    await js(`document.querySelector('[data-merge="variant"]').click()`); await waitFor(`!document.querySelector('[data-merge="variant"]') && JAIReportDebug.store.edits.length > 20`);
+    const a = await js(`({ edits: JAIReportDebug.store.edits.length, cells: [...new Set(JAIReportDebug.store.rows.map(r => r[2]))].filter(v => /^NETFLIX\.COM$|^KROGER \d/.test(v)).length, out: document.querySelector('.sh-kpis div:nth-child(3) b').textContent, status: document.querySelector('#report-status').textContent })`);
+    assert.strictEqual(a.cells, 0); assert.strictEqual(a.out, m.out); assert(/^Merged \d+ cells? in Description/.test(a.status), a.status);
+    return `${a.edits} cells merged; money out ${a.out} before and after`;
+  });
+
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {
     await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") + "#sample" }); await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && document.querySelectorAll('.rec-tr').length > 0", 20000);
     assert.strictEqual(await js(`JAIReportDebug.engine`), "main"); assert.strictEqual(await js(`JAIReportDebug.store.rows.length`), 5000);

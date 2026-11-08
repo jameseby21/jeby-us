@@ -1,5 +1,5 @@
 /* JA Insights free report: the data the engine reads, in one place. DATA ONLY, no logic: edit a list here and the report changes (CONS-0070 to 0074).
-   Sections so far: HEADER (is the first row a header, and what are the columns called when it is not), ROLES (which numbers are labels, not quantities) and UNITS (which measure columns carry a unit a ratio may use) GATE (the checks every insight passes before it is shown) and LEDGER (what a bank or card statement looks like and what is asked of it). Name normalization (NORMALIZE) is added by CONS-0073.
+   Sections so far: HEADER (is the first row a header, and what are the columns called when it is not), ROLES (which numbers are labels, not quantities) and UNITS (which measure columns carry a unit a ratio may use) GATE (the checks every insight passes before it is shown) and LEDGER (what a bank or card statement looks like and what is asked of it). NORMALIZE (the merchant or name behind a description: prefixes, reference codes, store numbers, places).
    Runs in the page, the worker and Node (node _src/jai/tests/run.js). Nothing is uploaded. */
 (function (root) {
   "use strict";
@@ -82,6 +82,28 @@
     off: ["nominal", "ratio", "extremes", "repeat", "dupnear", "concentration"],   // checks that do not run on a ledger, by design
   };
 
-  const API = { HEADER, ROLES, UNITS, GATE, LEDGER };
+  // =====================================================================================================
+  // NORMALIZE (CONS-0073): the merchant or name behind a description like "SQ *BLUE BOTTLE COFFEE SAN FRANCISCO CA" or "KROGER 710 COLUMBUS IN 50910". One data block, edited here.
+  // The steps, in order: a peer-to-peer or marketplace alias on the raw text; processor prefixes; reference codes after a star; a trailing zip; a trailing state;
+  // everything from the first store number on; a trailing place; the alias again on what is left. What remains is the merchant. Case and punctuation are ignored when names are compared.
+  const NORMALIZE = {
+    aliases: [   // [pattern, name]: the first pattern to match the text sets the merchant, whatever follows it (a person's name after VENMO*, a code after AMZN Mktp)
+      [/^venmo\b/i, "Venmo"], [/^zelle\b/i, "Zelle"], [/^cash\s?app\b/i, "Cash App"],
+      [/^(amzn|amazon)\b/i, "Amazon"], [/^wal[\s-]?mart\b/i, "Walmart"], [/^mcdonald'?s\b/i, "McDonald's"],
+    ],
+    prefixes: [   // processors and payment-method words that come before the merchant
+      /^(sq|tst|sp|pp|cke|gpay|dd|fs|ic)\s*\*\s*/i, /^paypal\s*\*\s*/i,
+      /^(pos|ach|web|recurring)\s+(debit|credit|purchase|payment)\s+/i, /^(checkcard|debit card purchase|purchase authorized on \d{1,2}\/\d{1,2})\s+/i,
+    ],
+    referenceCode: /\*\s*[a-z0-9]*\d[a-z0-9]*/gi,   // "AMAZON.COM*2K4TT1": a star followed by a code with a digit in it
+    zip: /\s+\d{5}(-\d{4})?$/,
+    states: ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"],
+    storeNumber: [/^#\s*\d+$/, /^\d{3,}$/, /^(no|store|unit|loc)\.?#?\d+$/i, /^#$/],   // a token (never the first) that is a store number cuts the name there
+    places: ["new york", "los angeles", "chicago", "houston", "phoenix", "philadelphia", "san antonio", "san diego", "dallas", "san jose", "austin", "jacksonville", "fort worth", "columbus", "charlotte", "san francisco", "indianapolis", "seattle", "denver", "washington", "boston", "el paso", "nashville", "detroit", "portland", "las vegas", "memphis", "louisville", "baltimore", "milwaukee", "albuquerque", "tucson", "fresno", "sacramento", "atlanta", "miami", "oakland", "minneapolis", "tulsa", "cleveland", "tampa", "orlando", "pittsburgh", "cincinnati", "st louis", "kansas city", "raleigh"],
+    columns: /merchant|payee|vendor|description|memo|company|customer|client|supplier/i,   // a column with one of these in its name is compared by the name behind each value (the ledger's description always is)
+    learn: { minRows: 3, minNames: 2 },   // a one- or two-word run before a state that follows at least this many rows and this many different names is a place too
+  };
+
+  const API = { HEADER, ROLES, UNITS, GATE, LEDGER, NORMALIZE };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.JAIRules = API;
 })(typeof self !== "undefined" ? self : this);

@@ -109,13 +109,53 @@
   }
 
   // =====================================================================================================
+  // Names (CONS-0073). makeNormalizer(values) -> raw => { key, name, clean, alias }.
+  //   key: what two spellings of one merchant share (case, punctuation, store numbers, cities and processor prefixes gone); name: the best single spelling; clean: this row's cleaned text.
+  // The rules are data (rules.js, NORMALIZE). Places are those in the data plus any run of one or two words that sits before a state on several rows with different names.
+  const NZ = Rules.NORMALIZE, STATE = new Set(NZ.states), PLACES0 = new Set(NZ.places);
+  const compact = s => String(s).replace(/\s+/g, " ").trim();
+  const keyOfText = s => compact(String(s).toLowerCase().replace(/[^a-z0-9]+/g, " "));
+  const aliasOf = s => { const hit = NZ.aliases.find(([re]) => re.test(s)); return hit ? hit[1] : null; };
+  function stripTail(text) {   // zip and state off the end; returns { text, state }
+    let t = compact(text).replace(NZ.zip, ""); const m = t.match(/^(.*\S)\s+([A-Za-z]{2})$/);
+    if (m && STATE.has(m[2].toUpperCase()) && m[1].split(" ").length >= 1 && (m[2] === m[2].toUpperCase())) return { text: m[1], state: true };
+    return { text: t, state: false };
+  }
+  function learnPlaces(values) {
+    const seen = new Map();   // run of words -> { rows, names }
+    values.forEach(raw => { let t = compact(String(raw)); if (!t) return; t = t.replace(/^[a-z]{2,3}\s*\*\s*/i, ""); t = t.replace(NZ.referenceCode, ""); const tail = stripTail(t); if (!tail.state) return;
+      const w = tail.text.split(" "); [1, 2].forEach(n => { if (w.length <= n) return; const run = w.slice(-n).join(" ").toLowerCase(), lead = w.slice(0, -n).join(" ").toLowerCase().replace(/[^a-z]+/g, " ").trim(); const e = seen.get(run) || seen.set(run, { rows: 0, names: new Set() }).get(run); e.rows++; e.names.add(lead); }); });
+    const out = new Set(); seen.forEach((e, run) => { if (e.rows >= NZ.learn.minRows && e.names.size >= NZ.learn.minNames && !/\d/.test(run)) out.add(run); }); return out;
+  }
+  function makeNormalizer(values) {
+    const places = new Set([...PLACES0, ...learnPlaces(values || [])]), memo = new Map();
+    const clean = raw => {
+      let t = compact(raw); const first = aliasOf(t); if (first) return { text: first, alias: first };
+      let prev; do { prev = t; NZ.prefixes.forEach(re => { t = t.replace(re, ""); }); } while (t !== prev);
+      t = compact(t.replace(NZ.referenceCode, ""));
+      const tail = stripTail(t); t = tail.text;
+      const w = t.split(" "), cut = w.findIndex((tok, i) => i > 0 && NZ.storeNumber.some(re => re.test(tok)));
+      let hadStore = false; if (cut > 0) { t = w.slice(0, cut).join(" "); hadStore = true; }
+      if (!hadStore && tail.state) { const ws = t.split(" "); for (const n of [2, 1]) if (ws.length > n && places.has(ws.slice(-n).join(" ").toLowerCase())) { t = ws.slice(0, -n).join(" "); break; } }
+      t = compact(t.replace(/[\s*#-]+$/, ""));
+      const second = aliasOf(t); if (second) return { text: second, alias: second };
+      return { text: t || compact(raw), alias: null };
+    };
+    return raw => { const r = String(raw); if (memo.has(r)) return memo.get(r); const c = clean(r), key = keyOfText(c.text) || keyOfText(r) || r.toLowerCase().trim(), v = { key, name: c.alias || titleCase(c.text), clean: c.text, alias: c.alias }; memo.set(r, v); return v; };
+  }
+  // the best single spelling of a merchant across its variants: an alias; else the most common cleaned spelling that mixes upper and lower case; else title case
+  function canonicalName(cleans, alias) {
+    if (alias) return alias;
+    const sorted = [...cleans.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+    const mixed = sorted.find(([t]) => /[a-z]/.test(t) && /[A-Z]/.test(t)); return mixed ? mixed[0] : titleCase(sorted[0][0]);
+  }
+
+  // =====================================================================================================
   // Ledgers (CONS-0072). A date, a signed money column and a description, often with a type and a running balance, is a list of transactions.
   const LD = Rules.LEDGER, DAY = 864e5, MONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const NOT_AMOUNT = ["postal", "year", "code", "phone", "identifier", "coordinates", "unit"];
   const placeRole = c => ["address", "unit", "city", "state", "postal"].includes(c.role);
   const titleCase = s => s.toLowerCase().replace(/(^|[\s(/-])([a-z])/g, (_, a, b) => a + b.toUpperCase());
-  // the merchant behind a description. CONS-0073 replaces this with the rules in rules.js (prefixes, store numbers, places); until then: case, punctuation and bare numbers.
-  const normSimple = raw => String(raw).toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(t => t && !/^\d+$/.test(t)).join(" ") || String(raw).toLowerCase().trim();
 
   // cols: the profiled columns with their roles. Returns the columns of a ledger (as indexes), or null when the file is not one.
   function detectLedger(cols, body, T) {
@@ -145,7 +185,7 @@
   // names: a function raw -> { key, name } (the merchant behind a description); defaults to the simple one.
   function ledgerData(L, body, T, names) {
     const N = body.length, amtRaw = body.map(r => T.num(cellOf(r, L.amount))), flow = new Float64Array(N), tm = new Array(N);
-    const nameOf = names || (raw => ({ key: normSimple(raw), name: titleCase(String(raw).trim()) }));
+    const nameOf = names || makeNormalizer(body.map(r => cellOf(r, L.desc)));
     const typeOut = ri => L.type != null && LD.directionWords.out.test(cellOf(body[ri], L.type)), typeIn = ri => L.type != null && LD.directionWords.in.test(cellOf(body[ri], L.type));
     for (let ri = 0; ri < N; ri++) { const a = amtRaw[ri]; tm[ri] = T.dt(cellOf(body[ri], L.date));
       flow[ri] = isNaN(a) ? NaN : L.dirByType ? (typeOut(ri) ? -Math.abs(a) : typeIn(ri) ? Math.abs(a) : a) : a; }
@@ -160,8 +200,8 @@
     const monthList = [...months.values()].sort((a, b) => a.k - b.k).map(m => ({ ...m, label: `${MONS[m.k % 12]} ${Math.floor(m.k / 12)}`, partial: (partialFirst && m.k === mk(first)) || (partialLast && m.k === mk(last)) }));
     // merchants (outflow), under one canonical name each
     const mer = new Map();
-    out.forEach(i => { const w = who[i], m = mer.get(w.key) || mer.set(w.key, { key: w.key, name: w.name, out: 0, n: 0, rows: [], variants: new Map() }).get(w.key); m.out += -flow[i]; m.n++; m.rows.push(i); const raw = cellOf(body[i], L.desc); m.variants.set(raw, (m.variants.get(raw) || 0) + 1); });
-    const merchants = [...mer.values()].sort((a, b) => b.out - a.out || (a.name < b.name ? -1 : 1)).map(m => ({ key: m.key, name: m.name, out: m.out, n: m.n, rows: m.rows, variants: [...m.variants.entries()].sort((a, b) => b[1] - a[1]) }));
+    out.forEach(i => { const w = who[i], m = mer.get(w.key) || mer.set(w.key, { key: w.key, alias: w.alias, out: 0, n: 0, rows: [], variants: new Map(), cleans: new Map() }).get(w.key); m.out += -flow[i]; m.n++; m.rows.push(i); const raw = cellOf(body[i], L.desc); m.variants.set(raw, (m.variants.get(raw) || 0) + 1); m.cleans.set(w.clean, (m.cleans.get(w.clean) || 0) + 1); });
+    const merchants = [...mer.values()].map(m => ({ ...m, name: canonicalName(m.cleans, m.alias) })).sort((a, b) => b.out - a.out || (a.name < b.name ? -1 : 1)).map(m => ({ key: m.key, name: m.name, out: m.out, n: m.n, rows: m.rows, variants: [...m.variants.entries()].sort((a, b) => b[1] - a[1]) }));
     // recurring: same merchant, same amount, a regular interval
     const R = LD.recurring, recurring = [];
     merchants.forEach(m => { const byAmt = new Map(); m.rows.forEach(i => { const k = Math.round(-flow[i] * 100); (byAmt.get(k) || byAmt.set(k, []).get(k)).push(i); });
@@ -173,7 +213,7 @@
         recurring.push({ name: m.name, key: m.key, amount: k / 100, every: Math.round(g), monthly, n: rows.length, rows, last: lastT, next, perMonth: (k / 100) * 30.44 / g }); }); });
     recurring.sort((a, b) => b.perMonth - a.perMonth);
     // the biggest single items and the weekday pattern
-    const largest = [...out].sort((a, b) => flow[a] - flow[b] || a - b).slice(0, LD.largest).map(i => ({ ri: i, amount: -flow[i], date: tm[i], name: who[i].name }));
+    const nameByKey = new Map(merchants.map(m => [m.key, m.name])), largest = [...out].sort((a, b) => flow[a] - flow[b] || a - b).slice(0, LD.largest).map(i => ({ ri: i, amount: -flow[i], date: tm[i], name: nameByKey.get(who[i].key) }));
     const wd = new Array(7).fill(0); out.forEach(i => { wd[new Date(tm[i]).getUTCDay()] += -flow[i]; });
     const weeks = (last - first) / (7 * DAY), wdMax = wd.indexOf(Math.max(...wd));
     const weekday = { weeks, n: out.length, totals: wd, top: wdMax, share: outflow ? wd[wdMax] / outflow : 0, standsOut: outflow ? wd[wdMax] / outflow >= LD.weekday.standsOut / 7 : false, names: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] };
@@ -247,9 +287,9 @@
     }
 
     // QA: the checks a statement can fail
-    if (D.dupPairs.length) { const cells = []; D.dupPairs.forEach(([x, y]) => { cells.push({ ri: y, ci: L.desc, sev: "fix", why: `<b>Duplicate of row ${x + RB}.</b> Same date, amount and description.`, eff: Math.abs(D.flow[y]) }); cells.push({ ri: x, ci: L.desc, sev: "fix", why: `<b>Has a duplicate in row ${y + RB}.</b> Same date, amount and description.`, eff: 0 }); });
+    if (D.dupPairs.length) { const cells = []; D.dupPairs.forEach(([x, y]) => { cells.push({ ri: y, ci: L.desc, sev: "fix", why: `<b>Duplicate of row ${x + RB}.</b> Same date, amount and merchant.`, eff: Math.abs(D.flow[y]) }); cells.push({ ri: x, ci: L.desc, sev: "fix", why: `<b>Has a duplicate in row ${y + RB}.</b> Same date, amount and merchant.`, eff: 0 }); });
       cells.sort((a, b) => a.ri - b.ri); const sum = D.dupPairs.reduce((a, [, y]) => a + Math.abs(D.flow[y]), 0), ex = D.dupPairs[0];
-      add({ id: "dup", kind: "qa", cls: "duplicate", sev: "fix", score: 93, title: `${plural(D.dupPairs.length, "duplicate row")}`, detail: `Same ${dateName}, ${amtName} and ${descName} (rows ${ex[0] + RB} and ${ex[1] + RB}, for example). Together the extra copies are ${usd2(sum)}. A refund of the same amount on the same day is not a duplicate: it has the opposite sign.`,
+      add({ id: "dup", kind: "qa", cls: "duplicate", sev: "fix", score: 93, title: `${plural(D.dupPairs.length, "duplicate row")}`, detail: `Same ${dateName}, ${amtName} and merchant (rows ${ex[0] + RB} and ${ex[1] + RB}, for example). Together the extra copies are ${usd2(sum)}. A refund of the same amount on the same day is not a duplicate: it has the opposite sign.`,
         rule: "Rows with the same date, the same signed amount and the same merchant are one transaction entered twice; a refund has the opposite sign, so it never matches.", todo: "Delete the extra row, or keep both if you really paid twice.", crumb: "Duplicate rows", cells }); }
     if (D.balanceBreaks && D.balanceBreaks.length) { const b = D.balanceBreaks, cells = b.map(x => ({ ri: x.ri, ci: L.balance, sev: "fix", eff: Math.abs(x.found - x.expected),
         why: x.kind === "cell" ? `<b>The balance is ${usd2(x.found)}; the row before plus this amount makes ${usd2(x.expected)}.</b> The next row agrees with the one before, so this balance looks mistyped.` : `<b>The balance jumps ${usd2(x.found - x.expected)} here.</b> The row before plus this amount makes ${usd2(x.expected)}; the file says ${usd2(x.found)}. A transaction may be missing.` }));
@@ -268,6 +308,6 @@
     return { items, held };
   }
 
-  const API = { frame, detectHeader, nameByRole, leadSkip, looksLikeValue, balanceLink, detectLedger, ledgerData, ledgerItems, normSimple, titleCase, usd0, usd2, dlong };
+  const API = { frame, detectHeader, nameByRole, leadSkip, looksLikeValue, balanceLink, detectLedger, ledgerData, ledgerItems, makeNormalizer, canonicalName, titleCase, usd0, usd2, dlong };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.JAIShape = API;
 })(typeof self !== "undefined" ? self : this);

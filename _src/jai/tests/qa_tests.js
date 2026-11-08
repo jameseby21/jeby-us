@@ -87,9 +87,9 @@ module.exports = function (h) {
   console.log("Insights and QA (CONS-0062)");
   const nC = R.pickNotable(aC, R.makeStore(county, aC)), secC = R.sections(aC, nC);
   test("every finding carries a kind and renders in exactly one section", () => {
-    [aC, aP, cafeA, aV].forEach(a => { a.findingsList.forEach(f => assert(f.kind === "insight" || f.kind === "qa", "kind of " + f.title));
-      const s = R.sections(a, []), ins = new Set(s.insights.findings), qa = new Set(s.qa.findings);
-      a.findingsList.forEach(f => assert((ins.has(f) ? 1 : 0) + (qa.has(f) ? 1 : 0) === 1, "section membership of " + f.title)); assert.strictEqual(ins.size + qa.size, a.findingsList.length); });
+    [aC, aP, cafeA, aV].forEach(a => { a.findingsList.forEach(f => assert(["insight", "qa", "fyi"].includes(f.kind), "kind of " + f.title));   // fyi (CONS-0073) is the third kind: true and useful, not a defect
+      const s = R.sections(a, []), ins = new Set(s.insights.findings), qa = new Set(s.qa.findings), fyi = new Set(s.fyi.findings);
+      a.findingsList.forEach(f => assert((ins.has(f) ? 1 : 0) + (qa.has(f) ? 1 : 0) + (fyi.has(f) ? 1 : 0) === 1, "section membership of " + f.title)); assert.strictEqual(ins.size + qa.size + fyi.size, a.findingsList.length); });
   });
   test("county sales: Insights hold repeat occurrences, top and bottom by ratio and the timeline findings; QA holds nominal, duplicates, outliers", () => {
     const ins = secC.insights.findings.map(f => f.id).filter(Boolean), qa = secC.qa.findings.map(f => f.id).filter(Boolean);

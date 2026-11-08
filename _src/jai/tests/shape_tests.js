@@ -3,7 +3,7 @@
 "use strict";
 module.exports = function (h) {
   const { test, assert, R, Rec, Dom, load, truth, plain, read, outFlags } = h;
-  const Shape = require("../src/shape.js"), T = { num: R.num, dt: R.dt, profileCol: R.profileCol };
+  const fs = require("fs"), path = require("path"), FX = path.join(__dirname, "fixtures"), Shape = require("../src/shape.js"), T = { num: R.num, dt: R.dt, profileCol: R.profileCol };
   const everyText = (a, d) => [...a.findingsAll.flatMap(f => [f.title, f.detail]), ...[...a.flags.values()].map(f => f.why), ...R.pickNotable(a, R.makeStore(d, a)).map(w => w.reason + " " + w.title)].map(plain);
 
   // ---------- CONS-0071
@@ -220,5 +220,60 @@ module.exports = function (h) {
   test("a ledger's worth-a-look list and flags use the file's own row numbers and never include an FYI", () => {
     const w = R.pickNotable(aNone, R.makeStore(LH, aNone)); assert(w.length >= 3 && w.length <= 10, w.length); assert(w.every(x => x.kind !== "fyi"));
     assert.strictEqual(aNone.findingsAll.find(f => f.id === "dup").rows.map(r => r + aNone.rowBase).join(), LG.duplicate_rows.map(r => r + 1).join());
+  });
+
+  // ---------- CONS-0073
+  console.log("names behind descriptions: one merchant, one name (CONS-0073)");
+  const norm = Shape.makeNormalizer([]), nameOf = raw => norm(raw).name;
+  test("normalization cases: store numbers, cities, states, zips, processor prefixes, reference codes, aliases; digits alone and a leading number stay", () => {
+    const cases = [["KROGER 710 COLUMBUS IN 50910", "Kroger"], ["Kroger #710", "Kroger"], ["KROGER", "Kroger"], ["NETFLIX.COM", "Netflix.com"], ["SHELL OIL 574446 CHICAGO IL", "Shell Oil"], ["BEST BUY 000123 COLUMBUS IN", "Best Buy"],
+      ["SQ *BLUE BOTTLE COFFEE SAN FRANCISCO CA", "Blue Bottle Coffee"], ["SQ *BLUE BOTTLE COFFEE", "Blue Bottle Coffee"], ["TST* TACO PLACE 0042 COLUMBUS IN", "Taco Place"], ["PAYPAL *EBAY", "Ebay"],
+      ["VENMO*PAYMENT", "Venmo"], ["VENMO* JORDAN", "Venmo"], ["AMZN Mktp US*1A2B3", "Amazon"], ["AMAZON.COM*2K4TT1 SEATTLE WA", "Amazon"], ["WAL-MART #1234", "Walmart"],
+      ["7-ELEVEN 23456", "7-Eleven"], ["Studio 54 Bar", "Studio 54 Bar"], ["12345", "12345"]];
+    cases.forEach(([raw, want]) => assert.strictEqual(nameOf(raw), want, raw));
+    assert.strictEqual(norm("NETFLIX.COM").key, norm("Netflix.com").key); assert.notStrictEqual(norm("KROGER").key, norm("SHELL OIL").key);
+  });
+  test("the rules are one data file: prefixes, suffixes, store-number patterns, places and aliases are in rules.js and no merchant is named anywhere else in the code", () => {
+    const N = require("../src/rules.js").NORMALIZE; ["aliases", "prefixes", "referenceCode", "zip", "states", "storeNumber", "places", "columns", "learn"].forEach(k => assert(N[k] !== undefined, "rules.js NORMALIZE." + k));
+    const dir = path.join(FX, "..", "..", "src"); fs.readdirSync(dir).filter(f => /\.js$/.test(f) && f !== "rules.js").forEach(f => { const t = fs.readFileSync(path.join(dir, f), "utf8"); assert(!/kroger|netflix|venmo|walmart|wal-mart|amazon|starbucks/i.test(t), f + " names a merchant: " + (t.match(/.{20}(kroger|netflix|venmo|walmart|wal-mart|amazon|starbucks).{20}/i) || [""])[0]); });
+  });
+  test("a place that follows a state on several rows with different names is learned from the file", () => {
+    const vals = ["TRADER JOES CORAL GABLES FL", "PUBLIX CORAL GABLES FL", "CVS CORAL GABLES FL", "TRADER JOES CORAL GABLES FL"], n = Shape.makeNormalizer(vals);
+    assert.strictEqual(n("TRADER JOES CORAL GABLES FL").name, "Trader Joes"); assert.strictEqual(Shape.makeNormalizer([])("TRADER JOES CORAL GABLES FL").name, "Trader Joes Coral Gables");
+  });
+  test("grouping uses the canonical name: the ledger's top merchants show Kroger once with its variants under it, and Netflix, Amazon, Venmo and Walmart once each", () => {
+    const m = aHead.ledger.merchants, names = m.map(x => x.name); assert.strictEqual(new Set(names).size, names.length, names.join());
+    const k = m.find(x => x.name === "Kroger"); assert(k && k.variants.length >= 4 && k.n >= 40, JSON.stringify(k && [k.n, k.variants.length]));
+    assert(k.variants.some(v => v[0] === "KROGER 4005 COLUMBUS IN 50910") || k.variants.some(v => /^KROGER \d+ COLUMBUS IN 50910$/.test(v[0])), "a raw variant is listed under the name"); assert(k.variants.some(v => /^Kroger #\d+$/.test(v[0])));
+    ["Netflix.com", "Amazon", "Venmo", "Walmart", "Blue Bottle Coffee", "Taco Place"].forEach(n => assert(names.includes(n), n + " in " + names.join()));
+    const t = byId(aHead, "ledger-merchants"); assert.strictEqual((t.detail.match(/Kroger/g) || []).length, 1, t.detail); assert(/^Kroger is the biggest merchant/.test(t.title), t.title);
+    assert.strictEqual(aHead.ledger.merchants[0].name, "Kroger"); assert(aHead.breakdown.items.some(i => i[0] === "Kroger"));
+  });
+  test("'spelled more than one way' is an FYI with a Merge, not a defect: no Fix, no class count, no QA check, for the ledger's merchants including Netflix.com and NETFLIX.COM", () => {
+    const v = byId(aHead, "variant"); assert(v && v.kind === "fyi" && !v.hard && /written more than one way/.test(v.title), v && v.title);
+    assert(v.merge && v.merge.n >= 20 && v.merge.col === "Description" && v.merge.map.some(p => p[0] === "NETFLIX.COM" && p[1] === "Netflix.com"), JSON.stringify(v.merge && v.merge.map.slice(0, 3)));
+    assert(!aHead.classCounts.some(c => c.cls === "source-conflict"), JSON.stringify(aHead.classCounts)); assert(!aHead.checks.some(c => c.sev !== "ok" && /spelled|spelling/i.test(c.title)));
+    assert(!R.sections(aHead, []).qa.findings.some(f => f.id === "variant")); assert(R.sections(aHead, []).fyi.findings.some(f => f.id === "variant"));
+    assert(!R.pickNotable(aHead, R.makeStore(LD, aHead)).some(w => w.id === "variant"), "an FYI is not a record to read");
+  });
+  test("Merge writes the canonical name in the table as edits (logged, undoable) and the report is clean afterwards", () => {
+    const s = R.makeStore(LD, aHead), v = byId(aHead, "variant"), ci = v.merge.ci, n = Rec.mergeCells(s, ci, v.merge.map);
+    assert(n >= 20 && s.edits.length === n, n + " vs " + s.edits.length);
+    assert(s.rows.every(r => !/^NETFLIX\.COM$/.test(r[ci]))); assert(s.rows.some(r => r[ci] === "Netflix.com") && s.rows.some(r => r[ci] === "Kroger"));
+    const again = R.analyse({ name: "m", rows: [LD.rows[0], ...s.rows] }); assert(!again.findingsAll.some(f => f.id === "variant"), "no variants left: " + (byId(again, "variant") || {}).title);
+    assert.strictEqual(money(again.ledger.outflow), money(aHead.ledger.outflow), "the totals do not move"); assert.strictEqual(again.ledger.merchants.length > 0, true);
+    const log = R.parseDelimited(Rec.changeLogCSV(s)); assert.strictEqual(log.length, n + 1); Rec.undoEdit(s); assert.strictEqual(s.edits.length, n - 1);
+  });
+  test("QA only when the variants change a group's rank in the top ten: Boston and 'boston ' do; a one-row stray 'eugene ' does not", () => {
+    const city = (spec) => { const rows = [["id", "city"]]; let i = 0; spec.forEach(([v, k]) => { for (let j = 0; j < k; j++) rows.push(["r" + i++, v]); }); return R.analyse({ name: "c", rows }); };
+    const moves = city([["Austin", 30], ["Boston", 25], ["boston ", 10], ["Denver", 20], ["Eugene", 15]]), v1 = byId(moves, "variant");
+    assert(v1 && v1.kind === "qa" && v1.cls === "source-conflict" && /spelled more than one way/.test(v1.title), v1 && v1.kind);
+    const stays = city([["Austin", 30], ["Boston", 25], ["Denver", 20], ["Eugene", 15], ["eugene ", 1]]), v2 = byId(stays, "variant");
+    assert(v2 && v2.kind === "fyi" && v2.merge && v2.merge.n === 1 && !/Fix|Check/.test(v2.cls || ""), v2 && v2.kind);
+    assert(R.analyse({ name: "c", rows: R.cafeSample() }).findingsList.find(f => f.id === "variant").kind === "fyi", "the café's 'Coral gables' does not change a rank");
+  });
+  test("a description-like column outside a ledger is compared by the name behind it too (vendor): store numbers and cities are one vendor, an FYI", () => {
+    const rows = [["id", "vendor", "amount"]]; ["STAPLES 0123 MIAMI FL 33101", "Staples #55", "staples", "OFFICE DEPOT 4411 DORAL FL", "OFFICE DEPOT 4412 DORAL FL", "Office Depot"].forEach((v, i) => { for (let k = 0; k < 8; k++) rows.push(["r" + i + "_" + k, v, String(10 + k)]); });
+    const a = R.analyse({ name: "v", rows }), f = byId(a, "variant"); assert(f && f.kind === "fyi" && /Staples/.test(f.detail) && /Office Depot/.test(f.detail), f && f.detail);
   });
 };

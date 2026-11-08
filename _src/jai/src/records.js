@@ -47,6 +47,12 @@
     s.edits.push({ ri, ci, before, after: v, at: at.toISOString(), derived }); s.rev++;
     return { ok: true, changed: true };
   }
+  // Merge (CONS-0073): write each spelling in the map the way the map says, in one column. Every cell is an edit of its own, so the change log shows it and Undo takes it back.
+  function mergeCells(s, ci, pairs) {
+    const m = new Map(pairs), at = new Date(); let n = 0;
+    for (let ri = 0; ri < s.rows.length; ri++) { const to = m.get(s.rows[ri][ci]); if (to != null && to !== s.rows[ri][ci] && commitEdit(s, ri, ci, to, at).changed) n++; }
+    return n;
+  }
   function undoEdit(s) {
     const e = s.edits.pop(); if (!e) return null;
     const row = s.rows[e.ri]; row[e.ci] = e.before; s.hay[e.ri] = null; syncEdited(s, e.ri, e.ci);
@@ -97,7 +103,7 @@
     return rowsToCSV([head, ...rows], { delim: ",", eol: "\n" });
   }
 
-  const api = { qaSampleCSV, rowsToCSV, createStore, commitEdit, undoEdit, computeView, visibleRange, exportCSV, changeLogCSV };
+  const api = { qaSampleCSV, rowsToCSV, createStore, commitEdit, mergeCells, undoEdit, computeView, visibleRange, exportCSV, changeLogCSV };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.JAIRecords = api;
   if (typeof document === "undefined") return;
 
