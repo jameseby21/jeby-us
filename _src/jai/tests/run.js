@@ -240,6 +240,7 @@ test("recalculates after an edit: fixing a record removes it from the list", () 
 // the round 4 modules run first: their many analyses must not count against the timing test in qa_tests.js, which waits on the event loop
 require("./screen_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
 require("./round4_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
+require("./slice_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });   // CONS-0051
 
 // ---------- CONS-0058, 0059, 0062, 0060, 0061, 0063 live in qa_tests.js (same helpers)
 require("./qa_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });

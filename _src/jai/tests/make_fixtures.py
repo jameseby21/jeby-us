@@ -263,5 +263,25 @@ def sales_roles():
         rows.append([f"{100000 + i * 7 + r.randrange(0, 5)}", (datetime.date(2024, 1, 1) + datetime.timedelta(days=r.randrange(0, 500))).isoformat(), city, zc, yb, area, r.randrange(1, 6), price, 1])
     return rows
 write_raw("sales_roles.csv", ["Parcel", "Sale date", "City", "Zip", "Year built", "Living area sqft", "Beds", "Sale price", "Sales (#)"], sales_roles())
+
+# ---------- sale observations across four states (CONS-0051): the one problem that only shows in CA is the four prices with an extra zero, so a slice for CA has findings the whole file does not
+def sales_states():
+    r = random.Random(5151); rows = []
+    st = {"CA": (["Los Angeles", "San Diego", "Fresno"], 620), "FL": (["Miami", "Tampa", "Orlando"], 330), "TX": (["Austin", "Dallas", "Houston"], 260), "NY": (["Albany", "Buffalo", "Ithaca"], 280)}
+    keys = list(st); w = [30, 30, 25, 15]
+    for i in range(800):
+        s = r.choices(keys, w)[0]; city = r.choice(st[s][0]); ptype = r.choices(list(TYPES), [50, 35, 15])[0]
+        area = int(min(6000, max(500, math.exp(r.gauss(math.log(1500), 0.28))))); price = int(round(area * st[s][1] * TYPES[ptype] * math.exp(r.gauss(0, 0.15)), -3))
+        d = datetime.date(2024, 1, 1) + datetime.timedelta(days=r.randrange(0, 700))
+        rows.append([f"SO-{300000 + i}", price, d.isoformat(), city, s, f"{r.randrange(100, 9900)} {r.choice(STREETS)}", area, max(1, min(7, round(area / 520 + r.gauss(0, 0.6)))), max(1, min(6, round(area / 700 + r.gauss(0, 0.5)))), "" if ptype == "Condo" else int(area * r.uniform(2.5, 6)), ptype, r.choices(SOURCES, [70, 20, 10])[0]])
+    ca = [i for i, x in enumerate(rows) if x[4] == "CA"]; pick = r.sample(ca, 4)
+    for i in pick: rows[i][1] *= 10
+    fl = [i for i, x in enumerate(rows) if x[4] == "FL" and i not in pick]; dup = r.sample(fl, 3)
+    for i in dup: rows.append(rows[i][:])
+    return rows, {"ca_x10": pick, "fl_copied": dup, "ca_rows": ca}
+SS_H = ["observation_id", "sale_price", "sale_date", "city", "state", "address", "living_area_sqft", "beds", "baths", "lot_size_sqft", "property_type", "source"]
+ss, ss_truth = sales_states()
+write("sales_states.csv", SS_H, ss)
+(OUT / "sales_states.truth.json").write_text(json.dumps(ss_truth, indent=1), encoding="utf-8")
 print("fixtures written to", OUT)
 

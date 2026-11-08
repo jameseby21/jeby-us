@@ -63,7 +63,7 @@
   function computeView(s, f = {}) {
     let idx;
     if (f.rows) { idx = [...f.rows].sort((a, b) => a - b); } else { idx = new Array(s.rows.length); for (let i = 0; i < idx.length; i++) idx[i] = i; }
-    if (f.group) idx = idx.filter(i => (s.rows[i][f.group.col].trim() || "(blank)") === f.group.val);
+    if (f.group) { const G = f.group, key = (i, c) => s.rows[i][c].trim() || "(blank)"; idx = idx.filter(i => key(i, G.col) === G.val && (G.col2 == null || key(i, G.col2) === G.val2)); }
     if (f.q) {
       const q = f.q.toLowerCase(), hay = s.hay;
       idx = idx.filter(i => (hay[i] || (hay[i] = s.rows[i].join("\u0001").toLowerCase())).indexOf(q) >= 0);

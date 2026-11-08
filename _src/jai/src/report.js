@@ -238,7 +238,7 @@
   const spanUnit = days => (days > 1460 ? "year" : days > 150 ? "month" : days > 28 ? "week" : "day");
   function analyse(data, choice = {}) {
     const rows = data.rows; if (rows.length < 2) throw new Error("That file needs at least two rows: a header and a row of data, or two rows of data.");
-    const frm = Shape.frame(rows, choice, { num, dt, profileCol }), piece = data.piece || choice.pieceCarry || null, RB = frm.bodyStart + 1 + (piece ? piece.offset : 0);   // RB: the row of the file where the first row of data sits (1 when there is no header; 3 with a title row and a header; further down in a later piece)
+    const frm = Shape.frame(rows, choice, { num, dt, profileCol }), piece = data.piece || choice.pieceCarry || null, RB = frm.bodyStart + 1 + (piece ? piece.offset : 0); const sm = choice.sliceMap || null, RN = i => (sm ? sm[i] : i) + RB;   // RB: the row of the file where the first row of data sits (1 when there is no header; 3 with a title row and a header; further down in a later piece)
     const allRows = piece ? piece.total : rows.length - frm.bodyStart;
     // screening (CONS-0045): before any value enters the report, columns that must not be processed are found and left out. choice.carry is the answer from the first pass of this file, so a recalculation of trimmed rows keeps it.
     const scr = choice.carry || Screening.screen(frm.names, rows.slice(frm.bodyStart, frm.bodyStart + MAXR), { confirm: choice.confirm, carry: choice.pieceScreen });   // pieceScreen: what earlier pieces of this file flagged, which stays out of the others
@@ -266,7 +266,7 @@
     const sumAbs = c => body.reduce((a, r) => a + Math.abs(num(r[c.i]) || 0), 0);
     const measure = ledger ? null : ((choice.measure && cols.find(c => c.name === choice.measure)) || measureCands.find(c => /total|amount|revenue|sales/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name) && !/qty|quantity|units/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name)) || [...measureCands].sort((a, b) => sumAbs(b) - sumAbs(a))[0] || null);
     const dateCol = ledger && !choice.date ? cols[ledgerCols.date] : pick(cols.filter(c => c.type === "date"), DATE_RE, choice.date);
-    const catCands = cols.filter(c => c.type === "category" && c.distinct >= 2);
+    const catCands = cols.filter(c => c.type === "category" && (c.distinct >= 2 || (sm && (c.name === choice.cat || c.name === choice.cat2) && c.distinct >= 1)));   // in a slice the column it was cut by has one value, and the visitor still sees it as the one group
     const cat = choice.cat === "" ? null : pick(catCands, CAT_RE, choice.cat);
 
     // quantity x price = total, when the file has those three columns and the rule holds for nearly every row
@@ -287,40 +287,40 @@
     const idCols = cols.filter(c => c.type === "id"), firstCol = idCols[0] ? idCols[0].i : 0;
 
     // duplicates (CONS-0059): rows equal on every place field plus date and money; identifiers are never a matching column
-    const dctx = { body, cols, num, dt, dateCol, measure, nominal, calc, rowBase: RB }, dups = Dom.duplicates(dctx), meta = new Map();
+    const dctx = { body, cols, num, dt, dateCol, measure, nominal, calc, rowBase: RB, rowNo: RN }, dups = Dom.duplicates(dctx), meta = new Map();
     let dupRows = 0, dupValue = 0, nearDup = 0, dupPlace = 0;
     const pd = !ledger && dups.mode !== "place" ? Dom.placeDuplicates({ body, cols }) : null;   // one place written several ways: same name at the same address (CONS-0040)
     if (ledger) { /* duplicates, balance, gaps and the rest come from ledgerItems below */ }
     else if (dups.mode === "place") {
       const addrC = Dom.byRole(cols, "address")[0], ids = dups.ids, same = Dom.listWords(dups.fields), diff = ids.length ? `; different ${Dom.listWords(ids.map(c => c.name))}` : "";
       dups.exactPairs.forEach(([x, y]) => { dupRows++; if (measure) dupValue += num(body[y][measure.i]) || 0; const v = Math.abs(mval(y)) || 0;
-        link("dup", y, addrC.i, "fix", `<b>Duplicate of row ${x + RB}.</b> Same ${esc(same)}${esc(diff)}.`, "", v); link("dup", x, addrC.i, "fix", `<b>Has a duplicate in row ${y + RB}.</b> Same ${esc(same)}${esc(diff)}.`, "", 0); });
+        link("dup", y, addrC.i, "fix", `<b>Duplicate of row ${RN(x)}.</b> Same ${esc(same)}${esc(diff)}.`, "", v); link("dup", x, addrC.i, "fix", `<b>Has a duplicate in row ${RN(y)}.</b> Same ${esc(same)}${esc(diff)}.`, "", 0); });
       dups.nearPairs.forEach(([x, y]) => { nearDup++; const v = Math.abs(mval(y)) || 0;
-        link("dupnear", y, addrC.i, "fix", `<b>Probably a duplicate of row ${x + RB}.</b> The address matches once case, punctuation, St and Street and unit formats are written the same way; same ${esc(Dom.listWords(dups.fields.filter(f => f !== addrC.name)))}${esc(diff)}.`, "", v);
-        link("dupnear", x, addrC.i, "fix", `<b>Probably has a duplicate in row ${y + RB}.</b> The address matches after normalizing it.`, "", 0); });
-      const ex = p => `rows ${p[0] + RB} and ${p[1] + RB}`;
+        link("dupnear", y, addrC.i, "fix", `<b>Probably a duplicate of row ${RN(x)}.</b> The address matches once case, punctuation, St and Street and unit formats are written the same way; same ${esc(Dom.listWords(dups.fields.filter(f => f !== addrC.name)))}${esc(diff)}.`, "", v);
+        link("dupnear", x, addrC.i, "fix", `<b>Probably has a duplicate in row ${RN(y)}.</b> The address matches after normalizing it.`, "", 0); });
+      const ex = p => `rows ${RN(p[0])} and ${RN(p[1])}`;
       if (dupRows) add("fix", `${dupRows.toLocaleString("en-US")} duplicate row${dupRows > 1 ? "s" : ""}`, `Same ${same}${diff} (${ex(dups.exactPairs[0])}, for example).${measure && total ? ` Together they add ${full(dupValue)} to ${measure.name}, ${pct(dupValue, total).toFixed(1)}% of the total.` : ""}`, 93, true, "dup", "Duplicate rows");
       if (nearDup) add("fix", `${nearDup.toLocaleString("en-US")} likely duplicate${nearDup > 1 ? "s" : ""} after writing the address the same way`, `Same ${same} once case, punctuation, St and Street and unit formats are normalized${diff} (${ex(dups.nearPairs[0])}, for example).`, 91, true, "dupnear", "Likely duplicates");
       if (!dupRows && !nearDup) add("ok", "No duplicate rows", `No two rows share ${same}.`);
     } else {
       const seen = new Map(); let nearExample = null;
       body.forEach((r, ri) => { const k = r.join("\u0001"); if (seen.has(k)) { dupRows++; if (measure) dupValue += num(r[measure.i]) || 0; const first = seen.get(k), v = Math.abs(mval(ri)) || 0;
-          link("dup", ri, firstCol, "fix", `<b>Exact copy of row ${first + RB}.</b> Entered twice.`, "", v); link("dup", first, firstCol, "fix", `<b>Has an exact copy in row ${ri + RB}.</b> Entered twice.`, "", 0); } else seen.set(k, ri); });
+          link("dup", ri, firstCol, "fix", `<b>Exact copy of row ${RN(first)}.</b> Entered twice.`, "", v); link("dup", first, firstCol, "fix", `<b>Has an exact copy in row ${RN(ri)}.</b> Entered twice.`, "", 0); } else seen.set(k, ri); });
       if (idCols.length) {
         const m2 = new Map(), near = [];
         body.forEach((r, ri) => { const k = r.filter((_, i) => !idCols.some(c => c.i === i)).join("\u0001"); if (m2.has(k)) { near.push([m2.get(k), ri]); if (!nearExample) nearExample = [m2.get(k), ri]; } else m2.set(k, ri); });
         nearDup = Math.max(0, near.length - dupRows);
         if (near.length > N * .02 || nearDup === 0) { nearDup = 0; nearExample = null; }   // so many matches that they are chance, not double entry
-        else near.forEach(([a, b]) => { if (body[a].join("\u0001") !== body[b].join("\u0001")) link("dup", b, firstCol, "fix", `<b>Matches row ${a + RB} on every column except ${idCols.map(c => esc(c.name)).join(", ")}.</b> The same record under a new ID.`, "", Math.abs(mval(b)) || 0); });
+        else near.forEach(([a, b]) => { if (body[a].join("\u0001") !== body[b].join("\u0001")) link("dup", b, firstCol, "fix", `<b>Matches row ${RN(a)} on every column except ${idCols.map(c => esc(c.name)).join(", ")}.</b> The same record under a new ID.`, "", Math.abs(mval(b)) || 0); });
       }
       if (pd) { let dpEx = null; const nm = pd.nameC.name;
         pd.groups.forEach(rows => { const f0 = rows[0]; rows.slice(1).forEach(ri => { if (body[ri].join("\u0001") === body[f0].join("\u0001")) return;   // an exact copy is counted above
           dupPlace++; dpEx = dpEx || [f0, ri];
-          link("dupplace", ri, pd.nameC.i, "fix", `<b>Duplicate of row ${f0 + RB}.</b> The same ${esc(nm)} (capitals, spacing and punctuation ignored) at the same ${pd.by}.`, "", 0);
-          link("dupplace", f0, pd.nameC.i, "fix", `<b>Has a duplicate in row ${ri + RB}.</b> The same ${esc(nm)} (capitals, spacing and punctuation ignored) at the same ${pd.by}.`, "", 0); }); });
-        if (dupPlace) { add("fix", `${dupPlace.toLocaleString("en-US")} duplicate place${dupPlace > 1 ? "s" : ""}`, `Same name (capitals, spacing and punctuation ignored, or one name written inside the other) at the same ${pd.by}, rows ${dpEx[0] + RB} and ${dpEx[1] + RB} for example. ${Dom.listWords(pd.idCols.map(c => c.name))} decide where a place is; identifier columns do not. The same name at different places is a spelling variant instead.`, 92, true, "dupplace", "Duplicate places");
+          link("dupplace", ri, pd.nameC.i, "fix", `<b>Duplicate of row ${RN(f0)}.</b> The same ${esc(nm)} (capitals, spacing and punctuation ignored) at the same ${pd.by}.`, "", 0);
+          link("dupplace", f0, pd.nameC.i, "fix", `<b>Has a duplicate in row ${RN(ri)}.</b> The same ${esc(nm)} (capitals, spacing and punctuation ignored) at the same ${pd.by}.`, "", 0); }); });
+        if (dupPlace) { add("fix", `${dupPlace.toLocaleString("en-US")} duplicate place${dupPlace > 1 ? "s" : ""}`, `Same name (capitals, spacing and punctuation ignored, or one name written inside the other) at the same ${pd.by}, rows ${RN(dpEx[0])} and ${RN(dpEx[1])} for example. ${Dom.listWords(pd.idCols.map(c => c.name))} decide where a place is; identifier columns do not. The same name at different places is a spelling variant instead.`, 92, true, "dupplace", "Duplicate places");
           meta.set("dupplace", { cls: "duplicate", rule: Dom.CHK.dupplace.rule, todo: Dom.CHK.dupplace.todo }); } }
-      const both = dupRows && nearDup, ex = nearExample ? ` (rows ${nearExample[0] + RB} and ${nearExample[1] + RB}, for example)` : "";
+      const both = dupRows && nearDup, ex = nearExample ? ` (rows ${RN(nearExample[0])} and ${RN(nearExample[1])}, for example)` : "";
       if (dupRows) add("fix", `${dupRows} row${dupRows > 1 ? "s appear" : " appears"} twice`, `Identical in every column.${measure && total ? ` Together they add ${full(dupValue)} to ${measure.name}, ${pct(dupValue, total).toFixed(1)}% of the total.` : ""}`, 90, !both, "dup", "Rows entered twice");
       if (nearDup) add("fix", `${nearDup} likely double entr${nearDup > 1 ? "ies" : "y"}`, `Rows that match on every column except ${idCols.map(c => c.name).join(", ")}${ex}. Same record, two IDs.`, 95, !both, "dup", "Rows entered twice");
       if (both) findings.push({ id: "dup", sev: "fix", title: `${dupRows + nearDup} rows look entered twice`, detail: `${dupRows} are exact copies. ${nearDup} more match on every column except ${idCols.map(c => c.name).join(", ")}${ex}: the same record under a new ID.`, score: 95, crumb: "Rows entered twice" });
@@ -392,7 +392,7 @@
     // quantity x price = total
     if (calc) { const bad2 = []; body.forEach((r, ri) => { const q = num(r[calc.qty]), p = num(r[calc.price]), t = num(r[calc.total]);
         if (![q, p, t].some(isNaN) && Math.abs(q * p - t) > .0051) { bad2.push(ri); link("sum", ri, calc.total, "fix", `<b>Qty × price is ${money(q * p)}, but the total says ${money(t)}.</b>`, "", Math.abs(t - q * p)); } });
-      if (bad2.length) add("fix", `${bad2.length} total${bad2.length > 1 ? "s don't" : " doesn't"} add up`, `${cols[calc.qty].name} × ${cols[calc.price].name} differs from ${cols[calc.total].name}${bad2.length ? ` (row${bad2.length > 1 ? "s" : ""} ${bad2.slice(0, 3).map(i => i + RB).join(", ")}${bad2.length > 3 ? " and more" : ""})` : ""}.`, 88, true, "sum", "Totals that don't add up"); }
+      if (bad2.length) add("fix", `${bad2.length} total${bad2.length > 1 ? "s don't" : " doesn't"} add up`, `${cols[calc.qty].name} × ${cols[calc.price].name} differs from ${cols[calc.total].name}${bad2.length ? ` (row${bad2.length > 1 ? "s" : ""} ${bad2.slice(0, 3).map(i => RN(i)).join(", ")}${bad2.length > 3 ? " and more" : ""})` : ""}.`, 88, true, "sum", "Totals that don't add up"); }
 
     // negatives
     let negNote = false;
@@ -440,7 +440,7 @@
     const items = ledger ? new Map() : detectOutliers(body, cols, { calc, measure, nominal });
     const outItems = [...items.values()];
     outItems.forEach(it => {
-      const fix = it.cells.some(c => c.sev === "fix"), n = it.cells.length, ex = it.cells[0], rowsTxt = it.cells.slice(0, 3).map(c => c.ri + RB).join(", ") + (n > 3 ? ` and ${n - 3} more` : "");
+      const fix = it.cells.some(c => c.sev === "fix"), n = it.cells.length, ex = it.cells[0], rowsTxt = it.cells.slice(0, 3).map(c => RN(c.ri)).join(", ") + (n > 3 ? ` and ${n - 3} more` : "");
       it.cells.forEach(c => link(it.id, c.ri, c.ci, c.sev, c.why, "out", c.eff));
       const via = it.via.size ? ` Found through ${[...it.via].map(v => (it.basis && it.basis[v] ? `${v} (${it.basis[v]})` : v)).join(" and ")}.` : "", name = human(it.col.name);
       let title, detail, score, crumb;
@@ -454,11 +454,11 @@
         const kk = Math.round(Math.log10(ex.r)), big = ex.r >= 1;
         const ks = new Set(it.cells.map(c => c.k)), mult = ks.size === 1 ? (Math.abs(kk) === 1 ? "10x" : `${["", "", "two", "three"][Math.abs(kk)]} digits`) : "one to three digits";
         title = `${n} ${name} value${n > 1 ? "s" : ""} look ${mult} too ${big ? "large" : "small"}`;
-        detail = `For example row ${ex.ri + RB}: ${plain(ex.why)}${via} Rows ${rowsTxt}.`; score = 94; crumb = `${name} off by a factor of ten`;
+        detail = `For example row ${RN(ex.ri)}: ${plain(ex.why)}${via} Rows ${rowsTxt}.`; score = 94; crumb = `${name} off by a factor of ten`;
       } else if (it.kind === "ratio") {
-        title = `${n} record${n > 1 ? "s" : ""} with an unusual ${it.via.size ? [...it.via][0] : name}`; detail = `For example row ${ex.ri + RB}: ${plain(ex.why)} Rows ${rowsTxt}.`; score = fix ? 90 : 72; crumb = `Unusual ${[...it.via][0] || name}`;
+        title = `${n} record${n > 1 ? "s" : ""} with an unusual ${it.via.size ? [...it.via][0] : name}`; detail = `For example row ${RN(ex.ri)}: ${plain(ex.why)} Rows ${rowsTxt}.`; score = fix ? 90 : 72; crumb = `Unusual ${[...it.via][0] || name}`;
       } else {
-        const big = ex.r >= 1; title = `${n} unusually ${big ? "large" : "small"} ${name} value${n > 1 ? "s" : ""}`; detail = `For example row ${ex.ri + RB}: ${plain(ex.why)} Rows ${rowsTxt}.`; score = fix ? 86 : 72; crumb = `${name[0].toUpperCase() + name.slice(1)} far from the usual`;
+        const big = ex.r >= 1; title = `${n} unusually ${big ? "large" : "small"} ${name} value${n > 1 ? "s" : ""}`; detail = `For example row ${RN(ex.ri)}: ${plain(ex.why)} Rows ${rowsTxt}.`; score = fix ? 86 : 72; crumb = `${name[0].toUpperCase() + name.slice(1)} far from the usual`;
       }
       add(fix ? "fix" : "look", title, detail, score, true, it.id, crumb, true);
     });
@@ -528,15 +528,16 @@
         if (passes(c)) findings.push(c); }
     }
 
+    const flagRows = new Set(); flags.forEach((_, k) => flagRows.add(+k.split(":", 1)[0]));   // rows with at least one marked cell: the hover on a bar says how many of its rows are flagged (CONS-0051)
     // breakdown
     let breakdown = null;
     if (ledger) { const top = LD_.merchants.slice(0, 7).map(m => [m.name, m.out, false, m.n]), rest = LD_.merchants.slice(7);
       if (rest.length) top.push([`Other (${rest.length})`, rest.reduce((a, m) => a + m.out, 0), true, rest.reduce((a, m) => a + m.n, 0)]);
       breakdown = { col: "merchant", ci: ledgerCols.desc, items: top, total: LD_.outflow, noPick: true }; }
     else if (cat) {
-      const g = new Map(); body.forEach(r => { const k = r[cat.i].trim() || "(blank)", e = g.get(k) || [0, 0]; e[0] += measure ? (num(r[measure.i]) || 0) : 1; e[1]++; g.set(k, e); });
-      let items2 = [...g.entries()].sort((a, b) => b[1][0] - a[1][0]); const top = items2.slice(0, 7).map(([k, e]) => [k, e[0], false, e[1]]), rest = items2.slice(7);
-      if (rest.length) top.push([`Other (${rest.length})`, rest.reduce((a, x) => a + x[1][0], 0), true, rest.reduce((a, x) => a + x[1][1], 0)]);
+      const g = new Map(); body.forEach((r, ri) => { const k = r[cat.i].trim() || "(blank)", e = g.get(k) || [0, 0, 0]; e[0] += measure ? (num(r[measure.i]) || 0) : 1; e[1]++; if (flagRows.has(ri)) e[2]++; g.set(k, e); });
+      let items2 = [...g.entries()].sort((a, b) => b[1][0] - a[1][0]); const top = items2.slice(0, 7).map(([k, e]) => [k, e[0], false, e[1], e[2]]), rest = items2.slice(7);
+      if (rest.length) top.push([`Other (${rest.length})`, rest.reduce((a, x) => a + x[1][0], 0), true, rest.reduce((a, x) => a + x[1][1], 0), rest.reduce((a, x) => a + x[1][2], 0)]);
       breakdown = { col: cat.name, ci: cat.i, items: top, total: items2.reduce((a, x) => a + x[1][0], 0) };
       if (items2.length > 1 && items2[0][1][0] / breakdown.total >= .5) { const c = { id: null, kind: "insight", sev: "look", title: `${items2[0][0]} is ${pct(items2[0][1][0], breakdown.total).toFixed(0)}% of ${measure ? "total " + measure.name : "rows"}`, detail: `One ${cat.name} carries most of the total. Good to know before you plan around averages.`, score: 40,
           why: { method: "share of the largest group", kind: "share", groups: items2.length, n: N, names: [cat.name, ...(measure ? [measure.name] : [])], roles: ["category", measure ? measure.role : "rows"], valueKind: measure ? (measureMoney ? "money" : "measure") : "count", aggregate: measure ? "sum" : "count" } };
@@ -550,14 +551,14 @@
       const topN = Math.max(1, Math.min(50, Math.round(+choice.topN) || 7)), cat2 = choice.cat2 && choice.cat2 !== cat.name ? catCands.find(c => c.name === choice.cat2) || null : null;
       const dcol = choice.distinct ? distinctCands.find(c => c.name === choice.distinct) || null : null, m2 = choice.measure2 && !(measure && choice.measure2 === measure.name) ? m2Cands.find(c => c.name === choice.measure2) || null : null;
       const agg = dcol ? "distinct" : measure ? "sum" : "rows", blank = v => v.trim() || "(blank)";
-      const mk = () => ({ n: 0, sum: 0, v2: 0, set: dcol ? new Set() : null, kids: cat2 ? new Map() : null });
-      const add1 = (e, r) => { e.n++; if (measure) e.sum += num(r[measure.i]) || 0; if (m2) e.v2 += num(r[m2.i]) || 0; if (dcol) { const x = r[dcol.i].trim(); if (x) e.set.add(x); } };
+      const mk = () => ({ n: 0, sum: 0, v2: 0, fl: 0, set: dcol ? new Set() : null, kids: cat2 ? new Map() : null });
+      const add1 = (e, r, ri) => { e.n++; if (flagRows.has(ri)) e.fl++; if (measure) e.sum += num(r[measure.i]) || 0; if (m2) e.v2 += num(r[m2.i]) || 0; if (dcol) { const x = r[dcol.i].trim(); if (x) e.set.add(x); } };
       const all = new Map(), whole = mk();
-      body.forEach(r => { const k = blank(r[cat.i]), e = all.get(k) || all.set(k, mk()).get(k); add1(e, r); add1(whole, r); if (cat2) { const k2 = blank(r[cat2.i]), c = e.kids.get(k2) || e.kids.set(k2, mk()).get(k2); add1(c, r); } });
+      body.forEach((r, ri) => { const k = blank(r[cat.i]), e = all.get(k) || all.set(k, mk()).get(k); add1(e, r, ri); add1(whole, r, ri); if (cat2) { const k2 = blank(r[cat2.i]), c = e.kids.get(k2) || e.kids.set(k2, mk()).get(k2); add1(c, r, ri); } });
       const val = e => (agg === "distinct" ? e.set.size : agg === "sum" ? e.sum : e.n), total = val(whole);
       const order = m => [...m.entries()].sort((x, y) => val(y[1]) - val(x[1]) || y[1].n - x[1].n || (x[0] < y[0] ? -1 : 1));
-      const merge = list => { const o = mk(); list.forEach(([, e]) => { o.n += e.n; o.sum += e.sum; o.v2 += e.v2; if (dcol) e.set.forEach(x => o.set.add(x)); }); return o; };
-      const row = (k, e, other, parent) => ({ k, v: val(e), n: e.n, share: total ? val(e) / total : 0, mean: agg === "sum" && e.n ? e.sum / e.n : null, v2: m2 ? e.v2 : null, other: !!other, within: parent ? (val(parent) ? val(e) / val(parent) : 0) : null });
+      const merge = list => { const o = mk(); list.forEach(([, e]) => { o.n += e.n; o.fl += e.fl; o.sum += e.sum; o.v2 += e.v2; if (dcol) e.set.forEach(x => o.set.add(x)); }); return o; };
+      const row = (k, e, other, parent) => ({ k, v: val(e), n: e.n, flagged: e.fl, share: total ? val(e) / total : 0, mean: agg === "sum" && e.n ? e.sum / e.n : null, v2: m2 ? e.v2 : null, other: !!other, within: parent ? (val(parent) ? val(e) / val(parent) : 0) : null });
       const ranked = order(all), top = ranked.slice(0, topN), rest = ranked.slice(topN), rows = top.map(([k, e]) => ({ ...row(k, e, false), kids: cat2 ? (() => { const kr = order(e.kids), kt = kr.slice(0, 3), kx = kr.slice(3); return [...kt.map(([k2, c]) => row(k2, c, false, e)), ...(kx.length ? [row(`Other (${kx.length})`, merge(kx), true, e)] : [])]; })() : [] }));
       if (rest.length) rows.push({ ...row(`Other (${rest.length})`, merge(rest), true), kids: [] });
       grouping = { cat: cat.name, ci: cat.i, cat2: cat2 ? cat2.name : null, ci2: cat2 ? cat2.i : null, topN, agg, measureName: agg === "distinct" ? `Distinct ${dcol.name}` : agg === "sum" ? measure.name : "Rows", measure2Name: m2 ? m2.name : null, total, nTotal: N, rows, distinctOf: dcol ? dcol.name : null };
@@ -574,7 +575,7 @@
     const rank = { fix: 0, look: 1, ok: 2 }; checks.sort((a, b) => rank[a.sev] - rank[b.sev]);
     const needsCleanup = checks.some(c => c.sev === "fix");
     const qaSample = N >= 10 ? qaSampleOf({ N, header, cat, flags, findingsList: findings }, body, choice.seed) : null;
-    const res = { name: data.name, sheet: data.sheet, N, keep, piece, screen: { flagged: scr.flagged.map(({ i, name, cls, label, never, why, by, rule, excluded, confirmed }) => ({ i, name, cls, label, never, why, by, rule, excluded, confirmed })), excluded: scr.excluded, confirmed: scr.confirmed, excludedIdx: scr.excludedIdx }, hdr: { isHeader: frm.isHeader, detected: frm.detected, forced: frm.forced, conf: frm.conf, why: frm.why, note: frm.note, titleRows: frm.titleRows, bodyStart: frm.bodyStart, replaced: frm.replaced }, rowBase: RB, notShown, measureMoney, measureName, kind: ledger ? "transactions" : "records",
+    const res = { name: data.name, sheet: data.sheet, N, keep, piece, screen: { flagged: scr.flagged.map(({ i, name, cls, label, never, why, by, rule, excluded, confirmed }) => ({ i, name, cls, label, never, why, by, rule, excluded, confirmed })), excluded: scr.excluded, confirmed: scr.confirmed, excludedIdx: scr.excludedIdx }, hdr: { isHeader: frm.isHeader, detected: frm.detected, forced: frm.forced, conf: frm.conf, why: frm.why, note: frm.note, titleRows: frm.titleRows, bodyStart: frm.bodyStart, replaced: frm.replaced }, rowBase: RB, sliceMap: sm, notShown, measureMoney, measureName, kind: ledger ? "transactions" : "records",
       ledger: ledger ? { cols: { date: header[ledgerCols.date], amount: header[ledgerCols.amount], description: header[ledgerCols.desc], type: ledgerCols.type != null ? header[ledgerCols.type] : null, balance: ledgerCols.balance != null ? header[ledgerCols.balance] : null }, signedBy: ledgerCols.dirByType ? "type" : "sign", order: ledgerCols.order,
         outflow: LD_.outflow, inflow: LD_.inflow, net: LD_.net, nOut: LD_.nOut, nIn: LD_.nIn, first: LD_.first, last: LD_.last, months: LD_.months, merchantCount: LD_.merchants.length,
         merchants: LD_.merchants.slice(0, Rules.LEDGER.topMerchants).map(m => ({ name: m.name, out: m.out, n: m.n, variants: m.variants.slice(0, 6) })), recurring: LD_.recurring.map(({ rows, ...r }) => ({ ...r, nRows: rows.length })),
@@ -708,7 +709,7 @@
     const out = [], used = new Map(), picked = new Set();
     const where = ri => a.cat ? ` · ${rows[ri][a.cat.i].trim() || "(blank)"}` : "";
     const kindOf = id => { const f = a.findingsList && a.findingsList.find(x => x.id === id); return f ? f.kind : (id === "rank" || id === "largest" || id === "recent") ? "insight" : "qa"; };
-    const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, pri: c.pri || sev, kind: kindOf(c.id), id: c.id || null, title: `Row ${(c.ri + a.rowBase).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason: reason + (oneOf(c.id) > 1 ? ` One of ${oneOf(c.id).toLocaleString("en-US")} rows with this problem.` : "") });
+    const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, pri: c.pri || sev, kind: kindOf(c.id), id: c.id || null, title: `Row ${((a.sliceMap ? a.sliceMap[c.ri] : c.ri) + a.rowBase).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason: reason + (oneOf(c.id) > 1 ? ` One of ${oneOf(c.id).toLocaleString("en-US")} rows with this problem.` : "") });
     const oneOf = id => { const f = a.findingsAll.find(x => x.id === id); return f ? f.n : 0; };   // a list of ten cannot hold every row of a big finding, so each entry says how many there are
     const qaCap = 7, nIn = k => out.filter(w => w.kind === k).length;
     for (const c of cand) { if (out.length >= 10) break; if (kindOf(c.id) === "qa" && nIn("qa") >= qaCap) continue; if (kindOf(c.id) === "insight" && nIn("insight") >= 10 - qaCap) continue; if (kindOf(c.id) === "fyi") continue; if (c.id === "gaps") continue; /* a blank cell is a column-wide matter, not a record to read */ if ((used.get(c.id) || 0) >= PER_FINDING) continue; used.set(c.id, (used.get(c.id) || 0) + 1); picked.add(c.ri); out.push(entry(c, plain(c.why), c.sev)); }
@@ -779,6 +780,7 @@
     if (m.op === "warm") { try { await loadXLSX(); } catch (e) {} return { warm: true }; }
     let data;
     if (m.op === "read") data = await readFile(m.file); else data = { name: m.name, sheet: m.sheet, rows: m.rows };
+    if (m.slice) { const r = analyseSlice(data, m.slice.map, m.slice.lead, m.choice || {}); return { a: cleanA(r.a), notable: r.notable }; }   // the visitor's slice (CONS-0051)
     data = slicePiece(data, m.piece, m.choice);
     const a = analyse(data, m.choice || {}), notable = pickNotable(a, makeStore(data, a));
     const out = { a: cleanA(a), notable };
@@ -790,7 +792,57 @@
     scope.postMessage({ ready: true });
   }
 
-  const API = { PIECE_NOTE, pieceLabel, handle, serve, hydrate, cleanA, labelFor, parseDelimited, num, dt, profileCol, analyse, detectOutliers, pickNotable, sections, qaSampleOf, classOfFinding, makeStore, cafeSample, setLimits };
+
+  // ---------- slices (CONS-0051): the report worked out again for some of the rows. The rows are chosen by index in the table's store; the analysis runs on those rows alone,
+  // then every row index it holds is turned back into the row's place in the whole file, so a click in a slice reaches the same row in the table.
+  function remapSlice(a, notable, map) {
+    const mp = i => map[i], seen = new Set();
+    [a.findings, a.findingsList, a.findingsAll].forEach(list => (list || []).forEach(f => { if (seen.has(f) || !f.rows) return; seen.add(f); f.rows = f.rows.map(mp); }));
+    a.flags = new Map([...a.flags].map(([k, v]) => { const j = k.indexOf(":"); return [map[+k.slice(0, j)] + k.slice(j), v]; }));
+    if (a.qaSample) { a.qaSample.rows = a.qaSample.rows.map(mp); a.qaSample.info = new Map([...a.qaSample.info].map(([k, v]) => [map[k], v])); }
+    if (a.worth) a.worth.items.forEach(x => { x.ri = mp(x.ri); });
+    notable.forEach(w => { w.ri = mp(w.ri); });
+    delete a.sliceMap; a.sliced = map.length; return { a, notable };
+  }
+  // data.rows: the header and title rows (lead of them) then the data rows; map: ascending indexes of the data rows to keep
+  function analyseSlice(data, map, lead, choice = {}) {
+    const rows = data.rows, sub = rows.slice(0, lead); map.forEach(i => sub.push(rows[lead + i]));
+    const d = { ...data, rows: sub }, a = analyse(d, { ...choice, sliceMap: map }), notable = pickNotable(a, makeStore(d, a));
+    return remapSlice(a, notable, map);
+  }
+  // Compare: for each row of the whole file's grouping table, what the slice holds of it (same measure, same Other bucket)
+  function compareGroups(base, storeRows, idxs) {
+    const g = base.grouping; if (!g) return null;
+    const mi = base.measure ? base.measure.i : -1, dc = g.distinctOf ? base.cols.find(c => c.name === g.distinctOf) : null, listed = new Set(g.rows.filter(r => !r.other).map(r => r.k)), acc = new Map();
+    idxs.forEach(ri => { const r = storeRows[ri], k = (r[g.ci] || "").trim() || "(blank)", key = listed.has(k) ? k : "\u0000other", e = acc.get(key) || acc.set(key, { n: 0, sum: 0, set: new Set() }).get(key);
+      e.n++; if (mi >= 0) e.sum += num(r[mi]) || 0; if (dc) { const x = (r[dc.i] || "").trim(); if (x) e.set.add(x); } });
+    return g.rows.map(r => { const e = acc.get(r.other ? "\u0000other" : r.k); return { k: r.k, n: e ? e.n : 0, v: !e ? 0 : g.agg === "distinct" ? e.set.size : g.agg === "sum" ? e.sum : e.n }; });
+  }
+
+  // ---------- the view in the URL hash (CONS-0051). Only names the visitor chose (columns, findings) and values they clicked or typed in the search box are written; never a row, never a file.
+  // A filter that is a list of rows (the QA sample, the worth-a-look rows) is not written: it names rows, and a link must not.
+  const PICK_KEYS = { measure: "m", date: "dt", cat: "by", cat2: "by2", topN: "top", measure2: "m2", split: "sp", distinct: "ds" }, MAXV = 120;
+  const shareable = id => !!id && !/^(rows|find):/.test(id);
+  function encodeView(v = {}, sample = false) {
+    const parts = sample ? ["sample"] : [], put = (k, x) => { if (x != null && x !== "") parts.push(k + "=" + encodeURIComponent(String(x).slice(0, MAXV))); };
+    if (shareable(v.f)) put("f", v.f);
+    if (v.g && v.g.col != null && v.g.val != null) { put("g", v.g.col); put("gv", v.g.val); if (v.g.col2 != null && v.g.val2 != null) { put("g2", v.g.col2); put("gv2", v.g.val2); } }
+    put("q", v.q); if (v.s && v.s.col != null) { put("s", v.s.col); put("sd", v.s.dir < 0 ? -1 : 1); } if (v.cmp) put("cmp", 1);
+    const c = v.choice || {}; Object.keys(PICK_KEYS).forEach(k => { if (c[k] != null && c[k] !== "") put(PICK_KEYS[k], c[k]); });
+    return parts.join("&");
+  }
+  function decodeView(hash) {
+    const out = { sample: false, view: {} }, dec = x => { try { return decodeURIComponent(x); } catch (e) { return null; } }, kv = {};
+    String(hash || "").replace(/^#/, "").split("&").forEach(p => { if (!p) return; const i = p.indexOf("="), k = i < 0 ? p : p.slice(0, i), x = i < 0 ? "" : dec(p.slice(i + 1)); if (k === "sample" && i < 0) out.sample = true; else if (i >= 0 && x != null) kv[k] = x.slice(0, MAXV); });
+    const v = out.view;
+    if (kv.f && shareable(kv.f)) v.f = kv.f;
+    if (kv.g != null && kv.gv != null && kv.g !== "") { v.g = { col: kv.g, val: kv.gv }; if (kv.g2 && kv.gv2 != null) { v.g.col2 = kv.g2; v.g.val2 = kv.gv2; } }
+    if (kv.q) v.q = kv.q; if (kv.s) v.s = { col: kv.s, dir: +kv.sd < 0 ? -1 : 1 }; if (kv.cmp === "1") v.cmp = true;
+    Object.keys(PICK_KEYS).forEach(k => { const x = kv[PICK_KEYS[k]]; if (x == null || x === "") return; if (k === "topN") { const n = Math.round(+x); if (n >= 1 && n <= 50) (v.choice || (v.choice = {})).topN = n; } else (v.choice || (v.choice = {}))[k] = x; });
+    return out;
+  }
+
+  const API = { analyseSlice, remapSlice, compareGroups, encodeView, decodeView, PIECE_NOTE, pieceLabel, handle, serve, hydrate, cleanA, labelFor, parseDelimited, num, dt, profileCol, analyse, detectOutliers, pickNotable, sections, qaSampleOf, classOfFinding, makeStore, cafeSample, setLimits };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else if (typeof self !== "undefined") self.JAIReport = API;
   if (!root) return;
 
