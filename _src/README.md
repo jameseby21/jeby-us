@@ -38,7 +38,7 @@ The Lab projects in `jeby/src/content.py` feed both sites: the free edition on j
 - `PREVIEW_SLOTS` in `jeby/src/content.py`: `True` shows empty draft slots and unconfigured sponsor buttons, for previews only. Keep `False` for anything published.
 - `CONFIG["booking"]` on both sites: `email` until a Cal.com (or Calendly, or form) link exists.
 - `SUPPORT["providers"]`: a sponsor button appears once its URL is filled in.
-- `CONFIG["report_rows"]` and `CONFIG["report_cols"]` in `jai/src/jai_content.py`: the free report's limits.
+- `CONFIG["report_rows"]` and `CONFIG["report_cols"]` in `jai/src/jai_content.py`: the free report's limits. A file over `report_rows` is not cut: the report reads it as pieces of that size (piece 1 of N, Next and Previous piece), screening each piece and keeping what an earlier piece flagged out of the later ones; only the header and one piece are held in the page, and the next piece is read from the file the visitor already chose (`slicePiece` in `report.js`).
 
 ## jainsights.com
 

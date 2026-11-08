@@ -540,3 +540,10 @@ body.print-fit .worth.news{grid-template-columns:repeat(2,minmax(0,1fr))}body.pr
   .rec-td{cursor:pointer}
 }
 @media print{.rec-sheet{display:none!important}}
+
+/* pieces (CONS-0053): a file over the limit is read one piece at a time */
+.sh-pieces{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--paper-2);border-left:3px solid var(--red)}
+.sh-pieces .pc-count{margin:0;font-size:16px}.sh-pieces .pc-note{margin:4px 0 0;font-size:14px;line-height:1.5;color:var(--ink-2);max-width:68ch}
+.pc-btns{display:flex;gap:8px;flex-wrap:wrap}.pc-btns .btn[disabled]{opacity:.45;cursor:default}
+.piece-note{margin:0;font-size:12px;line-height:1.45;color:var(--ink-2)}
+@media (max-width:760px){.pc-btns{width:100%}.pc-btns .btn{flex:1;min-height:44px;justify-content:center}}

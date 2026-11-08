@@ -178,7 +178,7 @@ page("report", "Free one-page report · JA Insights", "Add a spreadsheet and get
 <div class="intake" id="report-intake">
   <label class="drop" id="report-drop" for="report-file"><input type="file" id="report-file" class="sr-only" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls">
     <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M12 4h17l9 9v31H12z" fill="#fff" stroke="currentColor" stroke-width="2"/><path d="M29 4v9h9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M17 22h16M17 28h16M17 34h10" stroke="currentColor" stroke-width="2"/></svg>
-    <b>Drop a CSV or Excel file here</b><span>or click to choose one · free for up to {J.CONFIG["report_rows"]:,} rows and {J.CONFIG["report_cols"]} columns</span></label>
+    <b>Drop a CSV or Excel file here</b><span>or click to choose one · free for up to {J.CONFIG["report_rows"]:,} rows and {J.CONFIG["report_cols"]} columns at a time; a bigger file is read in pieces</span></label>
   <div class="intake-side"><button class="btn" type="button" id="report-sample">Try it on a made-up café's sales {ARROW}</button>
     <div class="private"><span class="label"><b>●</b> Private by design</span><ul><li>Your file is read by code on this page, on your device.</li><li>Nothing is uploaded, stored or logged, and this site has no analytics.</li><li>Close the tab and it's gone.</li></ul>
     <p class="meta">Check it yourself: load this page, turn off Wi-Fi, then add your file. It still works.</p></div></div>

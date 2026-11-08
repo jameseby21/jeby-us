@@ -249,7 +249,7 @@
     function setTab(t) {
       tab = t; host.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
       const full = text(t), lines = full.split("\n"); $("pre").textContent = lines.length > 60 ? lines.slice(0, 60).join("\n") + `\n… ${lines.length - 60} more lines in the download` : full;
-      $("note").textContent = t === "csv" ? `${base()}-corrected.csv · ${s.rows.length.toLocaleString("en-US")} rows in your original column order and quoting${o.truncated ? " · the rows beyond the free limit were not read, so they are not in this file" : ""}` : `${base()}-change-log.csv · row, column, before, after, edited_at (row 1 is the header)`;
+      $("note").textContent = t === "csv" ? `${base()}-corrected.csv · ${s.rows.length.toLocaleString("en-US")} rows in your original column order and quoting${o.piece ? ` · piece ${o.piece.k} of ${o.piece.n} only: the rows in the other pieces are not in this file` : o.truncated ? " · the columns beyond the free limit were not read, so they are not in this file" : ""}` : `${base()}-change-log.csv · row, column, before, after, edited_at (row 1 is the header)`;
     }
     function openExport() { modal.hidden = false; setTab("csv"); modal.querySelector("[data-close]").focus(); }
     const closeExport = () => { modal.hidden = true; };

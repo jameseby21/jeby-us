@@ -269,8 +269,8 @@ module.exports = function (h) {
     assert.strictEqual(r.a.N, 10000); assert.strictEqual(r.a.cols.length, 12); assert.strictEqual(r.rows.length, 10001); assert.strictEqual(r.fmt.delim, ","); assert(r.mask && r.mask.length === 10001); assert(ms < 3000, ms + " ms");
     const t = structuredClone(r); assert.strictEqual(t.rows.length, 10001);
   });
-  test("a file over the limit is cut to 10,000 rows and says so", async () => {
+  test("a file over the limit is read in pieces of 10,000 rows, not cut: piece 1 of 2 first (changed on purpose, CONS-0053)", async () => {
     const rows = R.cafeSample(10500), r = await R.handle({ op: "analyse", name: "over", rows, choice: {}, maxRows: 10000, maxCols: 12 });
-    assert.strictEqual(r.a.N, 10000); assert.strictEqual(r.a.truncated, true); assert.strictEqual(r.a.allRows, 10500);
+    assert.strictEqual(r.a.N, 10000); assert.strictEqual(r.a.truncated, false); assert.strictEqual(r.a.allRows, 10500); assert.strictEqual(r.a.piece.k, 1); assert.strictEqual(r.a.piece.n, 2);
   });
 };

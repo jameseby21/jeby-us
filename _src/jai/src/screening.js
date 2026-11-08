@@ -95,6 +95,8 @@
     SCREEN.patterns.filter(p => p.values && !p.name).forEach(p => { names.forEach((_, i) => { if (flaggedAt.has(i)) return; if (p.values === "secret") return; if (VALUE_TESTS[p.values](sample(i))) add(i, p, "values"); }); });
     const secretP = SCREEN.patterns.find(p => p.values === "secret");
     if (secretP) { const n = Math.min(rows.length, SCREEN.secretScan); for (let r = 0; r < n; r++) { const row = rows[r]; for (let i = 0; i < names.length; i++) { if (flaggedAt.has(i)) continue; const v = row[i]; if (v && v.length >= 16 && VALUE_TESTS.secret([String(v).trim()])) add(i, secretP, "values"); } } }
+    // 2b. what earlier pieces of the same file flagged stays flagged (CONS-0053)
+    (opts.carry || []).forEach(f => { const i = names.indexOf(f.name); if (i >= 0 && !flaggedAt.has(i)) { flaggedAt.add(i); flagged.push({ i, name: f.name, cls: f.cls, label: f.label, never: f.never, why: f.why, rule: f.rule, by: "an earlier piece" }); } });
     // 3. the names beside a minor's age or grade are left out with it
     if (flagged.some(f => f.cls === "minor")) { const p = SCREEN.patterns.find(x => x.id === "minor-word"); nameCols.forEach(i => add(i, p, "names", "A name beside a child's age or grade identifies the child.")); }
     flagged.sort((a, b) => a.i - b.i);

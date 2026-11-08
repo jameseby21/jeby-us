@@ -18,7 +18,7 @@ if (typeof WebSocket === "undefined") { console.log("NOT RUN: this Node has no W
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const freePort = () => new Promise(res => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => res(p)); }); });
-let child = null, profile = null, tmpCsv = null, tmpScreen = null, server = null, BASE = "";
+let child = null, profile = null, tmpCsv = null, tmpScreen = null, tmpPieces = null, server = null, BASE = "";
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png" };
 const OUT = path.dirname(PAGE);
 function startServer() {   // serves only _src/jai/out, on 127.0.0.1 and a free port; closed in cleanup
@@ -40,7 +40,7 @@ function stopBrowser() {
 function cleanup() {
   try { if (server) server.close(); } catch (e) {} server = null;
   stopBrowser();
-  for (const p of [profile, tmpCsv, tmpScreen]) { try { if (p) fs.rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {} }
+  for (const p of [profile, tmpCsv, tmpScreen, tmpPieces]) { try { if (p) fs.rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {} }
 }
 process.on("exit", cleanup); process.on("SIGINT", () => { cleanup(); process.exit(130); });
 
@@ -473,6 +473,24 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
       await overflow("after editing");
     } finally { await send("Emulation.clearDeviceMetricsOverride"); }
     return out.join(", ") + "; Row column pinned; cards; the editor opens one field in a bottom sheet";
+  });
+
+  await check("CONS-0053: a 23,000-row file is read as piece 1 of 3 with Next and Previous piece; each piece is reported on its own, only one piece is held, a column flagged in piece 1 stays out, and the print says which piece it is", async () => {
+    tmpPieces = path.join(os.tmpdir(), `jai-pieces-${process.pid}.csv`);
+    const rows23 = R.cafeSample(23000).map((r, i) => [...r, i === 0 ? "ref" : i <= 10000 ? `${100 + (i % 800)}-45-${1000 + (i % 8000)}` : "plain"]); fs.writeFileSync(tmpPieces, Rec.rowsToCSV(rows23, { delim: ",", eol: "\n" }));
+    const state = () => js(`({ bar: (document.querySelector('.sh-pieces') || {}).textContent, k: JAIReportDebug.analysis.piece && JAIReportDebug.analysis.piece.k, held: JAIReportDebug.store.rows.length, base: JAIReportDebug.analysis.rowBase, hasRef: JAIReportDebug.analysis.header.includes('ref'), excluded: JAIReportDebug.analysis.screen.excluded.map(x => x.name).join(), prevOff: document.querySelector('[data-piece="prev"]').disabled, nextOff: document.querySelector('[data-piece="next"]').disabled, qa: [...document.querySelectorAll('.sh-qa .finds li b')].map(b => b.textContent).join('|'), meta: document.querySelector('.sh-meta').textContent })`);
+    await loadFx(tmpPieces); const p1 = await state();
+    assert(/^Piece 1 of 3 . rows 1 to 10,000 of 23,000/.test(p1.bar), p1.bar); assert(/all pieces at once/.test(p1.bar), "the one-line paid note"); assert.strictEqual(p1.held, 10000, "one piece in memory"); assert(p1.prevOff && !p1.nextOff); assert(!p1.hasRef && /ref/.test(p1.excluded), "screening ran on piece 1: " + p1.excluded); assert(/piece 1 of 3/.test(p1.meta));
+    await js(`document.querySelector('[data-piece="next"]').click()`); await waitFor(`JAIReportDebug.analysis.piece && JAIReportDebug.analysis.piece.k === 2 && !!document.querySelector('.rec-tr')`, 60000); const p2 = await state();
+    assert(/^Piece 2 of 3 . rows 10,001 to 20,000 of 23,000/.test(p2.bar), p2.bar); assert.strictEqual(p2.held, 10000); assert.strictEqual(p2.base, 10002, "row numbers are the file's own"); assert(!p2.hasRef && /ref/.test(p2.excluded), "a column flagged in piece 1 stays out of piece 2: " + p2.excluded); assert.notStrictEqual(p2.qa, p1.qa, "piece 2 has different findings");
+    assert(!p2.prevOff && !p2.nextOff); assert(await js(`document.querySelector('.rec-tr .rec-td.first').textContent.replace(/,/g, '').trim() === '10002'`), "the table's first row number");
+    await send("Emulation.setEmulatedMedia", { media: "print" }); const pn = await js(`(() => { const e = document.querySelector('.piece-note'); return { shown: e.getClientRects().length > 0, text: e.textContent, bar: document.querySelector('.sh-pieces').getClientRects().length }; })()`); await send("Emulation.setEmulatedMedia", { media: "" });
+    assert(pn.shown && /piece 2 of 3/.test(pn.text) && /The paid edition reports across all pieces at once\./.test(pn.text) && pn.bar === 0, JSON.stringify(pn));
+    const pdf = await send("Page.printToPDF", { preferCSSPageSize: true, printBackground: true }), pages = (Buffer.from(pdf.data, "base64").toString("latin1").match(/\/Type\s*\/Page[^s]/g) || []).length; assert.strictEqual(pages, 1, "the print of piece 2 is one page, got " + pages);
+    await js(`document.querySelector('[data-piece="next"]').click()`); await waitFor(`JAIReportDebug.analysis.piece && JAIReportDebug.analysis.piece.k === 3 && !!document.querySelector('.rec-tr')`, 60000); const p3 = await state();
+    assert(/^Piece 3 of 3 . rows 20,001 to 23,000 of 23,000/.test(p3.bar), p3.bar); assert.strictEqual(p3.held, 3000); assert(p3.nextOff && !p3.prevOff); assert(!p3.hasRef);
+    await js(`document.querySelector('[data-piece="prev"]').click()`); await waitFor(`JAIReportDebug.analysis.piece && JAIReportDebug.analysis.piece.k === 2 && JAIReportDebug.store.rows.length === 10000`, 60000);
+    return `piece 1 of 3 (10,000 held), piece 2 (rows from 10,002, different findings, ref still out, prints piece 2 of 3 on one page), piece 3 (3,000 held), Previous returns to piece 2`;
   });
 
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {

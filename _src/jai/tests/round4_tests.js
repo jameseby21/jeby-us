@@ -109,4 +109,37 @@ module.exports = function (h) {
     const rows = [["name", "ssn", "city"]]; for (let i = 0; i < 12; i++) rows.push(["Cafe " + i, `${100 + i}-45-${1000 + i}`, "Miami"]);
     const w = R.analyse({ name: "s.csv", rows }).worth; w.items.forEach(x => assert(!/\d{3}-45/.test(x.query + x.title + x.reason)));
   });
+
+  // ---------- CONS-0053: a file over the limit runs as pieces
+  console.log("a big file runs as pieces (CONS-0053)");
+  const big23 = R.cafeSample(23000), piece = (k, rows, lim, choice = {}) => { const p = R.handle({ op: "analyse", name: "big.csv", rows, choice, maxRows: lim, maxCols: 12, piece: k }); R.setLimits(10000, 12); return p; };   // the analysis runs inside the call, so the shared limit is put back right after it
+  const three = [1, 2, 3].map(k => piece(k, big23, 10000));   // started once, shared by the tests below: three analyses of 10,000 rows are the whole cost
+  test("pieces: a 23,000-row file is read as piece 1 of 3, 2 of 3 and 3 of 3, with no error; the piece sizes are the limit, the limit and the rest", async () => {
+    const [r1, r2, r3] = await Promise.all(three);
+    [[r1, 1, 10000], [r2, 2, 10000], [r3, 3, 3000]].forEach(([r, k, n]) => { assert.strictEqual(r.a.N, n, "rows in piece " + k); assert.deepStrictEqual({ k: r.a.piece.k, n: r.a.piece.n, total: r.a.piece.total, size: r.a.piece.size }, { k, n: 3, total: 23000, size: 10000 }); assert.strictEqual(r.a.allRows, 23000); assert.strictEqual(r.a.truncated, false, "the rows are not cut: they are pieces"); });
+    assert.strictEqual(r1.a.rowBase, 2); assert.strictEqual(r2.a.rowBase, 10002, "row numbers are the file's own"); assert.strictEqual(r3.a.rowBase, 20002);
+    assert.strictEqual(r2.rows[1][0], big23[10001][0], "piece 2 starts at the 10,001st row of data"); assert.strictEqual(r3.rows[r3.rows.length - 1][0], big23[23000][0], "piece 3 ends at the last row");
+  });
+  test("pieces: only one piece is held at a time: what the worker returns is the header and that piece, never the whole file", async () => {
+    const [, r2, r3] = await Promise.all(three); assert.strictEqual(r2.rows.length, 1 + 10000); assert.strictEqual(r2.rows[0][0], big23[0][0], "the header row comes with every piece");
+    assert.strictEqual(r3.rows.length, 1 + 3000); assert.strictEqual(R.makeStore({ name: "b", rows: r3.rows }, r3.a).rows.length, 3000);
+  });
+  test("pieces: each piece is reported on its own (piece 2 has different findings from piece 1)", async () => {
+    const [r1, r2] = await Promise.all(three), t = r => r.a.findingsList.map(f => f.title).join("|"); assert.notStrictEqual(t(r1), t(r2), "the planted problems of the cafe sample live in piece 1 only");
+  });
+  test("pieces: a piece number out of range goes to the nearest piece; exactly the limit is one piece with no counter, one row more is two pieces", async () => {
+    const rows = R.cafeSample(250); assert.strictEqual((await piece(99, rows, 100)).a.piece.k, 3); assert.strictEqual((await piece(0, rows, 100)).a.piece.k, 1); assert.strictEqual((await piece(undefined, rows, 100)).a.piece.k, 1, "no piece number means piece 1");
+    const exact = await piece(1, R.cafeSample(100), 100); assert.strictEqual(exact.a.piece, null); assert.strictEqual(exact.a.N, 100);
+    const more = R.cafeSample(101), a = await piece(1, more, 100), b = await piece(2, more, 100); assert.strictEqual(a.a.piece.n, 2); assert.strictEqual(b.a.N, 1); assert.strictEqual(b.a.piece.k, 2);
+  });
+  test("pieces: screening runs on every piece and a column flagged in one piece stays out of the others", async () => {
+    const src = R.cafeSample(500), rows = src.map((r, i) => (i === 0 ? [...r, "ref"] : [...r, i <= 200 ? `${100 + (i % 800)}-45-${1000 + (i % 8000)}` : "plain"]));
+    const r1 = await piece(1, rows, 200); assert(r1.a.screen.excluded.some(x => x.name === "ref" && x.cls === "government-id"), JSON.stringify(r1.a.screen.excluded)); assert(!r1.a.header.includes("ref"));
+    const alone = await piece(2, rows, 200); assert(alone.a.header.includes("ref"), "without the carry, piece 2 on its own shows nothing odd in this column");
+    const r2 = await piece(2, rows, 200, { pieceScreen: r1.a.screen.flagged }); assert(!r2.a.header.includes("ref"), "flagged columns stay excluded across pieces"); assert(r2.a.screen.excluded.some(x => x.name === "ref")); assert(!JSON.stringify(R.cleanA(r2.a)).includes("-45-"), "no value of it anywhere");
+    const ssn = src.map((r, i) => (i === 0 ? [...r, "ssn"] : [...r, `${100 + (i % 800)}-45-${1000 + (i % 8000)}`])), r3 = await piece(3, ssn, 200); assert(r3.a.screen.excluded.some(x => x.name === "ssn"), "screening ran on piece 3 as well");
+  });
+  test("pieces: the counter text and the paid note come from one place, and the note is one plain sentence", () => {
+    assert(/all pieces at once/i.test(R.PIECE_NOTE) && R.PIECE_NOTE.split(/[.!?]/).filter(x => x.trim()).length === 1, R.PIECE_NOTE); assert.strictEqual(R.pieceLabel({ k: 2, n: 3 }), "piece 2 of 3");
+  });
 };
