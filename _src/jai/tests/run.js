@@ -78,11 +78,28 @@ test("venues fixture: latitude, longitude and postal codes are not tested as out
 // ---------- finding-to-rows
 console.log("findings to rows (CONS-0049)");
 const venues = load("venues.csv"), VT = truth("venues.truth.json"), aV = R.analyse(venues);
-test("venues: the spelling finding maps to the CVS rows", () => {
+test("venues (CONS-0040): one place written several ways is a duplicate place, counted with its rows, and the finding names the rule", () => {
+  // Changed on purpose: the CVS rows share one address, so they used to be a "spelling" finding and are now duplicates (James, 2026-11-08: multiple spellings at one place IS duplication).
+  const f = aV.findingsAll.find(x => x.id === "dupplace");
+  assert(f, "no duplicate-places finding: " + aV.findingsAll.map(x => x.id));
+  assert.deepStrictEqual([...f.rows].sort((x, y) => x - y), VT.cvs_all); assert(/^5 duplicate places$/.test(f.title), f.title);
+  assert(/same name/i.test(f.detail) && /same address/i.test(f.detail) && /postal/i.test(f.detail), "the finding should name its rule: " + f.detail);
+  assert.strictEqual(f.kind, "qa"); assert.strictEqual(f.cls, "duplicate"); assert.strictEqual(f.sev, "fix");
+  assert(aV.checks.some(c => /duplicate place/.test(c.title) && c.sev === "fix"), "Data health lists the duplicate places: " + aV.checks.map(c => c.title));
+  assert(!aV.checks.some(c => c.title === "No duplicate rows"), "the all-clear must not stay beside a duplicate finding");
+});
+test("venues (CONS-0040): the same name written two ways at different addresses stays a spelling finding, and the CVS pair is no longer in it", () => {
   const f = aV.findingsAll.find(x => x.id === "variant");
   assert(f, "no spelling finding: " + aV.findingsAll.map(x => x.id));
-  assert(f.rows.length >= 2 && f.rows.every(r => VT.cvs_all.includes(r)), f.rows.join());
-  assert(f.rows.includes(VT.cvs_spacing[0]) && f.rows.includes(VT.cvs_short[0]), "both spellings expected: " + f.rows);
+  assert(VT.bk.some(r => f.rows.includes(r)), "Burger King should be a spelling variant: " + f.rows);   // the finding flags the cells that differ from the commonest way of writing the name
+  VT.cvs_all.forEach(r => assert(!f.rows.includes(r), "CVS row " + r + " is a duplicate, not a spelling variant"));   // all six are one address: Cvs and CVS Pharmacy and CVS
+  assert(/different address/i.test(f.detail), "the finding should name its rule: " + f.detail);
+  const d = aV.findingsAll.find(x => x.id === "dupplace"); VT.bk.forEach(r => assert(!d.rows.includes(r), "Burger King is not a duplicate place"));
+});
+test("venues (CONS-0040): coordinates decide the place when a file has no address column", () => {
+  const rows = [["venue_name", "latitude", "longitude"], ["Cvs Pharmacy", "25.77301", "-80.11929"], ["CVS Pharmacy", "25.77301", "-80.11929"], ["Burger King", "25.7", "-80.2"], ["BURGER KING", "25.9", "-80.3"], ["Cafe Uno", "25.1", "-80.1"], ["Cafe Dos", "25.2", "-80.4"]];
+  const a = R.analyse({ name: "coords.csv", rows }), d = a.findingsAll.find(x => x.id === "dupplace"), v = a.findingsAll.find(x => x.id === "variant");
+  assert(d && d.rows.join() === "0,1" && /coordinates/.test(d.detail), d && d.detail); assert(v && v.rows.join() === "3", "BURGER KING (row 3) is written differently from Burger King, at other coordinates: " + (v && v.rows.join()));
 });
 test("venues: mixed id types are reported", () => {
   assert(aV.findingsAll.some(x => x.id === "mixedid" && /vip_id/.test(x.title)), "no vip_id finding: " + aV.findingsAll.map(x => x.id));

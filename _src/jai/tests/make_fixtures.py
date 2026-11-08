@@ -93,6 +93,10 @@ cvs_addr = "1200 Brickell Ave"; start = 100
 for k, nm in enumerate(["CVS Pharmacy", "CVS Pharmacy", "CVS  Pharmacy", "CVS  Pharmacy", "CVS", "CVS"]):
     r = venues[start + k]; r[0], r[1], r[2], r[3], r[4], r[6] = nm, "Pharmacy", cvs_addr, "", "Miami", "33131"
 vt["cvs_all"] = list(range(start, start + 6)); vt["cvs_spacing"] = [start + 2, start + 3]; vt["cvs_short"] = [start + 4, start + 5]
+# CONS-0040: Burger King written two ways at two different addresses (a spelling variant, not a duplicate); the CVS rows above are one place written several ways (duplicate places)
+for k, nm in zip((110, 111), ("Burger King", "BURGER KING")):
+    venues[k][0], venues[k][1] = nm, "Restaurant"
+vt["bk"] = [110, 111]
 write("venues.csv", VH, venues)
 (OUT / "venues.truth.json").write_text(json.dumps(vt, indent=1), encoding="utf-8")
 

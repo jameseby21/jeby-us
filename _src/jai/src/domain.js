@@ -25,6 +25,8 @@
     moneyName: /price|amount|total|cost|revenue|sales?\b|value|income|profit|paid|fee|spend|rent|tax|consideration/,
     notMeasure: ["identifier", "coordinates", "unit", "postal", "year", "code", "phone", "amount", "balance"],   // numbers that are labels, not quantities
     placeRoles: ["address", "unit", "city", "state", "postal"],
+    nameName: /(^|[_\s-])(name|venue|business|store|place|company|merchant)($|[_\s-])|name$/i,   // a column that names the thing a row is about: used to tell one place written two ways from two places (CONS-0040)
+    coordPrecision: 4,        // latitude and longitude are compared to this many decimals (about 11 metres) when a file has no address column
     // A repeated tiny value in a money column is a placeholder, not an amount (CONS-0058).
     nominal: { floor: 1000, minTypical: 20000, minRest: 20, typicalShare: 0.01 },
     baselineMin: 8,           // a group needs this many non-nominal values to be its own baseline
@@ -45,6 +47,7 @@
     checks: [
       { id: "nominal", label: "repeated tiny values in a money column", needs: ["money"], kind: "qa", cls: "repeated-value", rule: "A money value at or below $1,000 repeated many times in a column whose other values are far larger is a nominal amount, not a real one.", todo: "Confirm what these are; they are left out of every baseline." },
       { id: "dup", label: "duplicates", needs: [], kind: "qa", cls: "duplicate", rule: "Rows equal on every place field plus date and money are one record entered twice; identifiers never count as a match.", todo: "Delete the extra row or merge the two." },
+      { id: "dupplace", label: "one place written more than one way", needs: [], kind: "qa", cls: "duplicate", rule: "Rows with the same name (capitals, spacing and punctuation ignored) at the same address and postal code (or, with no address column, the same coordinates) are one place entered more than once; the same name at different places is a spelling variant instead.", todo: "Keep one row and delete the others, or merge them." },
       { id: "dupnear", label: "near-duplicates", needs: ["place"], kind: "qa", cls: "duplicate", rule: "Rows that match once the place is written the same way (case, punctuation, St and Street, unit formats) are probably one record.", todo: "Check the two rows and delete the extra." },
       { id: "ratio", label: "a money column over a measure column", needs: ["money", "measure"], kind: "qa", cls: "contextual-outlier", rule: "Money divided by a measure is compared with the median of the other non-nominal rows in the same group (at least 8 of them).", todo: "Check both numbers against the source." },
       { id: "dates", label: "impossible dates", needs: ["date"], kind: "qa", cls: "malformed", rule: "A date in the future or before 1900 cannot be right.", todo: "Correct the year from the source." },
@@ -174,6 +177,25 @@
     rep.forEach(rows => { if (rows.length > 1) rows.slice(1).forEach(ri => nearPairs.push([rows[0], ri])); });
     return { mode: "place", ids, keyCols, fields: keyCols.map(c => c.name), exactPairs, nearPairs, dateC, moneyC, placeCols: place };
   }
+  // One place written several ways (CONS-0040): the same normalized name at the same address and postal code (or, with no address column, the same coordinates).
+  // The identifying columns (address lines, postal code, latitude and longitude) are found by role; place ids and other identifiers never decide it.
+  function placeDuplicates(ctx) {
+    const { cols, body } = ctx, addr = byRole(cols, "address"), unit = byRole(cols, "unit"), postal = byRole(cols, "postal"), coords = byRole(cols, "coordinates");
+    const nameC = cols.find(c => (c.type === "text" || c.type === "category") && !["address", "unit", "city", "state", "postal"].includes(c.role) && DOMAIN.nameName.test(c.name));
+    if (!nameC || !(addr.length || coords.length >= 2)) return null;
+    const by = addr.length ? "address and postal code" : "coordinates", idCols = [...addr, ...unit, ...postal];
+    const placeKey = r => addr.length ? idCols.map(c => (c.role === "address" ? normAddress(r[c.i]) : c.role === "unit" ? normUnit(r[c.i]) : normPostal(r[c.i]))).join("|") : coords.slice(0, 2).map(c => { const v = parseFloat(r[c.i]); return isNaN(v) ? "" : v.toFixed(DOMAIN.coordPrecision); }).join("|");
+    const at = new Map();   // place -> name -> rows
+    body.forEach((r, ri) => { const n = normText(r[nameC.i]), p = placeKey(r); if (!n || !p.replace(/\|/g, "")) return; const m = at.get(p) || at.set(p, new Map()).get(p); (m.get(n) || m.set(n, []).get(n)).push(ri); });
+    const groups = [], first = new Map();
+    at.forEach(m => {   // at one place the commonest name is the anchor; a name with the same words, or whose words all sit inside it (or contain it), is the same place written another way
+      const names = [...m.entries()].sort((a, b) => b[1].length - a[1].length || a[1][0] - b[1][0]), anchor = new Set(names[0][0].split(" "));
+      const same = names.filter(([n], i) => { if (!i) return true; const w = new Set(n.split(" ")); return [...w].every(x => anchor.has(x)) || [...anchor].every(x => w.has(x)); });
+      const rows = same.flatMap(x => x[1]).sort((a, b) => a - b); if (rows.length > 1) groups.push(rows);
+    });
+    groups.forEach(rows => rows.slice(1).forEach(ri => first.set(ri, rows[0])));   // every row after the first of its place is the extra copy
+    return { nameC, by, idCols: addr.length ? idCols : coords.slice(0, 2), groups, first };
+  }
   const listWords = a => a.length <= 1 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
 
   function repeatOccurrences(ctx, dups) {
@@ -287,6 +309,6 @@
   }
   const classOf = id => (CHK[id] ? CHK[id].cls : null);
 
-  const API = { DOMAIN, GATE_FN, gate, assignRoles, roleLabel, ratioPairs, ratioCandidates, unitOf, normAddress, normUnit, normPostal, findNominal, duplicates, repeatOccurrences, domainItems, notChecked, listWords, classOf, CHK, byRole };
+  const API = { DOMAIN, GATE_FN, gate, assignRoles, roleLabel, ratioPairs, ratioCandidates, unitOf, normAddress, normUnit, normPostal, normText, findNominal, duplicates, placeDuplicates, repeatOccurrences, domainItems, notChecked, listWords, classOf, CHK, byRole };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.JAIDomain = API;
 })(typeof self !== "undefined" ? self : this);

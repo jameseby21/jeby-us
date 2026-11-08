@@ -283,7 +283,8 @@
 
     // duplicates (CONS-0059): rows equal on every place field plus date and money; identifiers are never a matching column
     const dctx = { body, cols, num, dt, dateCol, measure, nominal, calc, rowBase: RB }, dups = Dom.duplicates(dctx), meta = new Map();
-    let dupRows = 0, dupValue = 0, nearDup = 0;
+    let dupRows = 0, dupValue = 0, nearDup = 0, dupPlace = 0;
+    const pd = !ledger && dups.mode !== "place" ? Dom.placeDuplicates({ body, cols }) : null;   // one place written several ways: same name at the same address (CONS-0040)
     if (ledger) { /* duplicates, balance, gaps and the rest come from ledgerItems below */ }
     else if (dups.mode === "place") {
       const addrC = Dom.byRole(cols, "address")[0], ids = dups.ids, same = Dom.listWords(dups.fields), diff = ids.length ? `; different ${Dom.listWords(ids.map(c => c.name))}` : "";
@@ -307,11 +308,18 @@
         if (near.length > N * .02 || nearDup === 0) { nearDup = 0; nearExample = null; }   // so many matches that they are chance, not double entry
         else near.forEach(([a, b]) => { if (body[a].join("\u0001") !== body[b].join("\u0001")) link("dup", b, firstCol, "fix", `<b>Matches row ${a + RB} on every column except ${idCols.map(c => esc(c.name)).join(", ")}.</b> The same record under a new ID.`, "", Math.abs(mval(b)) || 0); });
       }
+      if (pd) { let dpEx = null; const nm = pd.nameC.name;
+        pd.groups.forEach(rows => { const f0 = rows[0]; rows.slice(1).forEach(ri => { if (body[ri].join("") === body[f0].join("")) return;   // an exact copy is counted above
+          dupPlace++; dpEx = dpEx || [f0, ri];
+          link("dupplace", ri, pd.nameC.i, "fix", `<b>Duplicate of row ${f0 + RB}.</b> The same ${esc(nm)} (capitals, spacing and punctuation ignored) at the same ${pd.by}.`, "", 0);
+          link("dupplace", f0, pd.nameC.i, "fix", `<b>Has a duplicate in row ${ri + RB}.</b> The same ${esc(nm)} (capitals, spacing and punctuation ignored) at the same ${pd.by}.`, "", 0); }); });
+        if (dupPlace) { add("fix", `${dupPlace.toLocaleString("en-US")} duplicate place${dupPlace > 1 ? "s" : ""}`, `Same name (capitals, spacing and punctuation ignored, or one name written inside the other) at the same ${pd.by}, rows ${dpEx[0] + RB} and ${dpEx[1] + RB} for example. ${Dom.listWords(pd.idCols.map(c => c.name))} decide where a place is; identifier columns do not. The same name at different places is a spelling variant instead.`, 92, true, "dupplace", "Duplicate places");
+          meta.set("dupplace", { cls: "duplicate", rule: Dom.CHK.dupplace.rule, todo: Dom.CHK.dupplace.todo }); } }
       const both = dupRows && nearDup, ex = nearExample ? ` (rows ${nearExample[0] + RB} and ${nearExample[1] + RB}, for example)` : "";
       if (dupRows) add("fix", `${dupRows} row${dupRows > 1 ? "s appear" : " appears"} twice`, `Identical in every column.${measure && total ? ` Together they add ${full(dupValue)} to ${measure.name}, ${pct(dupValue, total).toFixed(1)}% of the total.` : ""}`, 90, !both, "dup", "Rows entered twice");
       if (nearDup) add("fix", `${nearDup} likely double entr${nearDup > 1 ? "ies" : "y"}`, `Rows that match on every column except ${idCols.map(c => c.name).join(", ")}${ex}. Same record, two IDs.`, 95, !both, "dup", "Rows entered twice");
       if (both) findings.push({ id: "dup", sev: "fix", title: `${dupRows + nearDup} rows look entered twice`, detail: `${dupRows} are exact copies. ${nearDup} more match on every column except ${idCols.map(c => c.name).join(", ")}${ex}: the same record under a new ID.`, score: 95, crumb: "Rows entered twice" });
-      if (!dupRows && !nearDup) add("ok", "No duplicate rows", "Every row is unique.");
+      if (!dupRows && !nearDup && !dupPlace) add("ok", "No duplicate rows", "Every row is unique.");
     }
 
     // empties: whole columns with gaps, then the odd blank in a column that is otherwise full
@@ -330,12 +338,12 @@
 
     // spelling variants (CONS-0073): one name written more than one way. A description-like column is compared by the merchant or name behind it (rules.js, NORMALIZE), any other column by case and punctuation.
     // Seen so is an FYI with a Merge button; it is a QA finding only when merging would change a group's rank in the top ten.
-    const variants = []; let varRows = 0;
+    const variants = []; let varRows = 0; const placeRule = pd ? `Same name at different ${pd.by === "coordinates" ? "coordinates" : "addresses"} is a spelling variant; at the same ${pd.by} it is a duplicate place.` : "";
     const normKey = s => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     const isEntityCol = c => (ledger && c.i === ledgerCols.desc) || Rules.NORMALIZE.columns.test(c.name);
     cols.filter(c => c.type === "category" || c.type === "text").forEach(c => {
       const entity = isEntityCol(c), nrm = entity ? Shape.makeNormalizer(body.map(r => r[c.i])) : null, g = new Map();
-      body.forEach((r, ri) => { const raw = r[c.i]; if (!raw.trim()) return; const nv = entity ? nrm(raw) : null, k = entity ? nv.key : (normKey(raw) || raw.trim().toLowerCase());
+      body.forEach((r, ri) => { const raw = r[c.i]; if (!raw.trim()) return; if (pd && c.i === pd.nameC.i && pd.first.has(ri)) return; /* the extra copy of a place is a duplicate, not a spelling */ const nv = entity ? nrm(raw) : null, k = entity ? nv.key : (normKey(raw) || raw.trim().toLowerCase());
         const e = g.get(k) || g.set(k, { forms: new Map(), cleans: new Map(), alias: null }).get(k); if (!e.forms.has(raw)) e.forms.set(raw, []); e.forms.get(raw).push(ri); if (entity) { e.cleans.set(nv.clean, (e.cleans.get(nv.clean) || 0) + 1); e.alias = nv.alias; } });
       const size = rows => (measure ? rows.reduce((t, ri) => t + Math.max(0, num(body[ri][measure.i]) || 0), 0) : rows.length), rawSize = new Map(), entSize = new Map();
       g.forEach((e, k) => { let tot = 0; e.forms.forEach((rows, raw) => { const z = size(rows); rawSize.set(raw, z); tot += z; }); entSize.set(k, tot); });
@@ -346,23 +354,18 @@
         const others = forms.filter(f => f[0] !== canonical);
         variants.push({ col: c.name, ci: c.i, canonical, entity, material, rRaw, rMerged, forms: forms.map(f => [f[0], f[1].length]), rows: others.reduce((x, f) => x + f[1].length, 0), spans: forms.reduce((x, f) => x + f[1].length, 0), others: others.map(f => f[0]),
           cells: others.flatMap(([raw, rs]) => rs.map(ri => [ri, raw])) }); }); });
-    { const nameC = cols.find(c => (c.type === "text" || c.type === "category") && /name|venue|business|store|place/i.test(c.name)), addrC = cols.find(c => /address|street|addr/i.test(c.name) && c.type !== "number"), postC = cols.find(c => /zip|postal/i.test(c.name));
-      if (nameC && addrC) { const at = new Map(); body.forEach((r, ri) => { const a = normKey(r[addrC.i]) + "|" + (postC ? r[postC.i].trim() : ""), n = normKey(r[nameC.i]); if (!normKey(r[addrC.i]) || !n) return; if (!at.has(a)) at.set(a, new Map()); const m = at.get(a); if (!m.has(n)) m.set(n, []); m.get(n).push(ri); });
-        at.forEach(m => { if (m.size < 2) return; const names = [...m.entries()].sort((a, b) => b[1].length - a[1].length), top = names[0], tw = new Set(top[0].split(" "));
-          names.slice(1).forEach(([n, rs]) => { const w = new Set(n.split(" ")), sub = [...w].every(x => tw.has(x)) || [...tw].every(x => w.has(x)); if (!sub) return;
-            variants.push({ col: nameC.name, ci: nameC.i, canonical: null, entity: false, material: true, forms: [[top[0], top[1].length], [n, rs.length]], rows: rs.length, others: [], cells: [],
-              place: rs.map(ri => [ri, `<b>“${esc(body[ri][nameC.i])}” is probably the same place as “${esc(body[top[1][0]][nameC.i])}”.</b> Both are at ${esc(body[ri][addrC.i])}, so they are counted as two places.`]) }); }); }); } }
+    // the same name at the same address is not a spelling variant: it is a duplicate place (CONS-0040, above)
     const linkVariants = () => variants.forEach(v => { const sev = v.material ? "look" : "ctx";
       (v.cells || []).forEach(([ri, raw]) => link("variant", ri, v.ci, sev, `<b>“${esc(raw)}” is also written “${esc(v.canonical)}”${v.entity ? "" : ` (${v.forms[0][1]} rows)`}.</b> ${v.material ? "It is counted separately in every report, and merging would change a rank in the top ten." : "Merge writes them the same way; nothing is wrong with the data."}`));
       (v.place || []).forEach(([ri, why]) => link("variant", ri, v.ci, "look", why)); });
     if (!ledger) linkVariants();   // a ledger's own findings (duplicates, balance) claim their cells first; the variants take what is left
     if (variants.length) { const top = [...variants].sort((a, b) => b.rows - a.rows), v = top[0], vr = new Set(variants.flatMap(x => (x.cells || []).concat(x.place || []).map(c => c[0]))).size, material = variants.some(x => x.material), plural = variants.length > 1;
       if (material) {
-        add("look", `${variants.length} value${plural ? "s are" : " is"} spelled more than one way`, `In ${v.col}: ${v.forms.slice(0, 3).map(f => `“${f[0]}”`).join(", ")} count as different ${v.col} values in every report. ${vr} rows affected.`, 80, true, "variant", "Spelling variants");
+        add("look", `${variants.length} value${plural ? "s are" : " is"} spelled more than one way`, `In ${v.col}: ${v.forms.slice(0, 3).map(f => `“${f[0]}”`).join(", ")} count as different ${v.col} values in every report. ${vr} row${vr === 1 ? "" : "s"} affected.${pd && v.ci === pd.nameC.i ? ` ${placeRule}` : ""}`, 80, true, "variant", "Spelling variants");
         const mf = findings[findings.length - 1]; mf.merge = mergeOf(top.filter(x => x.ci === v.ci && x.canonical));
       } else {
         const ex = top.slice(0, 2).map(x => x.entity ? `${x.canonical} (${x.forms.length} ways, for example “${x.forms[0][0]}” and “${x.forms[1][0]}”)` : `“${x.forms[1][0]}” is also written “${x.forms[0][0]}”`).join("; ");
-        findings.push({ id: "variant", kind: "fyi", sev: "look", title: `${variants.length} name${plural ? "s are" : " is"} written more than one way`, detail: `In ${v.col}: ${ex}. ${top.some(x => x.entity) ? "They are grouped under one name in the insights; " : "Merging them changes no ranking; "}Merge writes them the same way in the table (Undo in the table puts a cell back).`, score: 28, crumb: "Spelling variants", merge: mergeOf(top.filter(x => x.ci === v.ci && x.canonical)) });
+        findings.push({ id: "variant", kind: "fyi", sev: "look", title: `${variants.length} name${plural ? "s are" : " is"} written more than one way`, detail: `In ${v.col}: ${ex}. ${top.some(x => x.entity) ? "They are grouped under one name in the insights; " : "Merging them changes no ranking; "}Merge writes them the same way in the table (Undo in the table puts a cell back).${pd && v.ci === pd.nameC.i ? ` ${placeRule}` : ""}`, score: 28, crumb: "Spelling variants", merge: mergeOf(top.filter(x => x.ci === v.ci && x.canonical)) });
         checks.push({ sev: "ok", title: "Names are consistent enough", detail: "Names written more than one way are listed as an FYI: they change no ranking." });
       } }
     else add("ok", "Consistent spelling", "No values that differ only by capitals or spaces.");
@@ -566,7 +569,7 @@
   // ---------- classes and review verbs
   const classOfFinding = (f, cols) => {
     const id = f.id || "";
-    if (id === "dup" || id === "dupnear") return "duplicate";
+    if (id === "dup" || id === "dupnear" || id === "dupplace") return "duplicate";
     if (id === "nominal") return "repeated-value";
     if (/^(unit|out|ratio|shift):/.test(id) || id === "neg") return "contextual-outlier";
     if (id === "date" || id === "badnum" || id === "mixedid" || id === "coords") return "malformed";
