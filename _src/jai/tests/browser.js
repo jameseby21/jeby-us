@@ -455,7 +455,8 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
 
   await check("CONS-0056: at 390 x 844 no state of the report scrolls the page sideways; the Row column stays pinned; worth-a-look items are cards; editing opens one field at a time", async () => {
     await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
-    const out = [], overflow = async tag => { const m = await js(`({ sw: document.documentElement.scrollWidth, vw: innerWidth })`); assert(m.sw <= m.vw + 1, `${tag}: the page is ${m.sw} px wide in a ${m.vw} px viewport`); out.push(`${tag} ${m.sw}/${m.vw}`); };
+    // CONS-0077: measured against the fixed 390 px layout width, never innerWidth (a page that overflows grows innerWidth to fit, which hid the rotated Checked stamp at 414 px). Every element's right edge counts, except the two windows that scroll inside themselves.
+    const out = [], overflow = async tag => { const m = await js(`({ sw: document.documentElement.scrollWidth, wide: [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > 391 && !e.closest('.rec-win') && !e.closest('.grp-wrap') && getComputedStyle(e).position !== 'fixed' && getComputedStyle(e).display !== 'none').slice(0, 6).map(e => e.tagName + '.' + e.className + ':' + Math.round(e.getBoundingClientRect().right)) })`); assert(m.sw === 390, `${tag}: the page is ${m.sw} px wide in a 390 px layout`); assert.strictEqual(m.wide.length, 0, `${tag}: these reach past 390 px: ${m.wide.join(' ')}`); out.push(`${tag} ${m.sw}/390`); };
     try {
       for (const fx of ["venues.csv", "sales_clean.csv", "sales_planted.csv", "ledger_header.csv", "records_mixed.csv"]) { await loadFx(fx); await overflow(fx);
         if (fx === "venues.csv") { await pick('[data-ch="cat"]', "city"); await waitFor(`document.querySelectorAll('.grp-parent').length === 5`); await pick('[data-ch="cat2"]', "category"); await waitFor(`document.querySelectorAll('.grp-child').length > 5`); await overflow("venues nested grouping"); await js(`document.querySelector('details.not-shown') && (document.querySelector('details.not-shown').open = true)`); } }
@@ -634,10 +635,24 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
       await openStates(); await js(`document.querySelector('tr.grp-parent[data-g="CA"]').click()`); await sliceOn();
       await js(`document.querySelector('[data-compare]').click()`); await waitFor(`document.querySelectorAll('table.grp.cmp .grp-track').length === 4`);
       const m = await js(`({ sw: document.documentElement.scrollWidth, vw: innerWidth, bar: document.querySelector('.slicebar').getBoundingClientRect().right, wide: [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > 391 && !e.closest('.rec-win') && !e.closest('.grp-wrap') && getComputedStyle(e).position !== 'fixed').slice(0, 6).map(e => e.tagName + '.' + e.className + ':' + Math.round(e.getBoundingClientRect().right)) })`);
-      // the rotated "Checked" stamp reaches 414 px in every state of the report (also without a slice); that is older than CONS-0051 and is reported on the ticket. Everything else must fit.
-      const wide = m.wide.filter(w => !/^SPAN\.stamp/.test(w)); assert.strictEqual(wide.length, 0, `these reach past the ${m.vw} px viewport: ${wide.join(' ')}`); assert(m.bar <= m.vw + 1, "the slice bar fits: " + m.bar);
-      return `nothing but the older stamp reaches past ${m.vw} px (page ${m.sw})`;
+      assert.strictEqual(m.wide.length, 0, `these reach past the 390 px layout width: ${m.wide.join(' ')}`); assert(m.bar <= 391, "the slice bar fits: " + m.bar); assert.strictEqual(m.sw, 390, "scrollWidth " + m.sw);
+      return `nothing reaches past 390 px, the Checked stamp included (page ${m.sw})`;
     } finally { await send("Emulation.clearDeviceMetricsOverride"); }
+  });
+
+  await check("CONS-0077: the rotated Checked stamp sits inside a 390 px layout (right edge, whole box) and is still shown in the print", async () => {
+    // protects: the stamp once reached 414 px and made the page scroll sideways on a phone; the stamp must also survive in print.
+    await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+    try {
+      await loadFx("sales_clean.csv");
+      // the overflow was the stamp-in animation (it starts at 2.4x and overshoots), so replay it and sample every frame for 0.8 s, then once at rest
+      const m = await js(`new Promise(res => { const st = document.querySelector('.stamp'); st.classList.remove('hit'); void st.offsetWidth; st.classList.add('hit'); let l = 1e9, r = -1e9, sw = 0; const t0 = performance.now(); (function f() { const b = st.getBoundingClientRect(); l = Math.min(l, b.left); r = Math.max(r, b.right); sw = Math.max(sw, document.documentElement.scrollWidth); if (performance.now() - t0 < 800) requestAnimationFrame(f); else res({ l, r, sw, shown: b.width > 0 }); })(); })`);
+      assert(m.shown && m.l >= 0 && m.r <= 390 && m.sw === 390, "stamp over the animation " + JSON.stringify(m));
+      await send("Emulation.setEmulatedMedia", { media: "print" });
+      const pr = await js(`document.querySelector('.stamp').getClientRects().length`); await send("Emulation.setEmulatedMedia", { media: "" });
+      assert(pr > 0, "the stamp is shown in print");
+      return `stamp ${Math.round(m.l)} to ${Math.round(m.r)} px, page ${m.sw}; shown in print`;
+    } finally { await send("Emulation.clearDeviceMetricsOverride"); await send("Emulation.setEmulatedMedia", { media: "" }); }
   });
 
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {

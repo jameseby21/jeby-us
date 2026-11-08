@@ -323,7 +323,7 @@ table.prof td:first-child{font-weight:500}table.prof td.more{color:var(--muted);
 .sh-foot .stamp{position:static;flex:none}
 .tableview{max-width:920px;margin:14px auto 0;font-size:14px}.tableview summary{cursor:pointer;color:var(--muted)}
 .tableview table{margin-top:10px;max-width:360px}
-@media screen and (max-width:760px){.sheet{padding:22px 18px}.sh-kpis{grid-template-columns:1fr 1fr;row-gap:12px}.sh-kpis div:nth-child(3){border-left:0;padding-left:0}.sh-two{grid-template-columns:1fr;gap:22px}.sh-meta{text-align:left}}
+@media screen and (max-width:760px){.sheet{padding:22px 18px}.sh-kpis{grid-template-columns:1fr 1fr;row-gap:12px}.sh-kpis div:nth-child(3){border-left:0;padding-left:0}.sh-two{grid-template-columns:1fr;gap:22px}.sh-meta{text-align:left}.sh-foot{flex-direction:column;align-items:flex-start;gap:14px}.sh-foot>div{min-width:0}.sh-foot .stamp{margin:2px 0 4px 32px}}
 @media print{
   @page{size:letter;margin:.4in}
   html,body{background:#fff}
