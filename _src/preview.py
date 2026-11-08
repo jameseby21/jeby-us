@@ -33,6 +33,10 @@ class Quiet(SimpleHTTPRequestHandler):
         path = Path(self.translate_path(self.path.split("?", 1)[0]))
         if path.is_dir():
             path = path / "index.html"
+        if not path.suffix and not path.exists() and path.with_suffix(".html").is_file():
+            path = path.with_suffix(".html")  # GitHub Pages serves /report as report.html; the preview must too
+        if path.suffix in TEXT and path.is_file() and not self.rewrite:
+            return self._send_file(path)
         if self.rewrite and path.suffix in TEXT and path.is_file():
             body = path.read_bytes()
             for live, local in LIVE.items():
@@ -46,6 +50,15 @@ class Quiet(SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
         return super().do_GET()
+
+    def _send_file(self, path):
+        body = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", TEXT[path.suffix])
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
 
 
 def serve(port, directory):
