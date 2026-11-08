@@ -19,10 +19,20 @@ if (typeof WebSocket === "undefined") { console.log("NOT RUN: this Node has no W
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const freePort = () => new Promise(res => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => res(p)); }); });
 let child = null, profile = null, tmpCsv = null;
-function cleanup() {
-  try { if (child && child.pid) { if (process.platform === "win32") cp.spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" }); else child.kill("SIGKILL"); } } catch (e) {}
+// Edge re-launches itself, so the pid we spawned is not the browser's. Stop every process whose command line carries our temporary profile folder (and nothing else).
+function stopBrowser() {
+  try {
+    if (profile) {
+      if (process.platform === "win32") cp.spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${profile.replace(/'/g, "''")}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`], { stdio: "ignore", windowsHide: true });
+      else cp.spawnSync("pkill", ["-f", profile], { stdio: "ignore" });
+    }
+    if (child && child.pid) { if (process.platform === "win32") cp.spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" }); else child.kill("SIGKILL"); }
+  } catch (e) {}
   child = null;
-  for (const p of [profile, tmpCsv]) { try { if (p) fs.rmSync(p, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch (e) {} }
+}
+function cleanup() {
+  stopBrowser();
+  for (const p of [profile, tmpCsv]) { try { if (p) fs.rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {} }
 }
 process.on("exit", cleanup); process.on("SIGINT", () => { cleanup(); process.exit(130); });
 
@@ -42,7 +52,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
   const send = (method, params = {}) => new Promise((res, rej) => { const i = ++id; pending.set(i, { res, rej }); sock.send(JSON.stringify({ id: i, method, params })); });
   const js = async (expr) => { const r = await send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error((r.exceptionDetails.exception && r.exceptionDetails.exception.description) || r.exceptionDetails.text); return r.result.value; };
   const waitFor = async (expr, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await js(expr).catch(() => false)) return Date.now() - t0; await sleep(50); } throw new Error("timed out waiting for " + expr); };
-  await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable");
+  await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable"); await send("Emulation.setFocusEmulationEnabled", { enabled: true });   // a headless page is never "focused" otherwise, and focus-driven reasons would not show
 
   console.log("browser: " + path.basename(exe) + " headless, profile " + path.basename(profile));
   await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") + "#sample" });
@@ -83,6 +93,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     assert(/Showing 12 of 5,000/.test(m.count), m.count); assert(/unit price/i.test(m.crumbs), m.crumbs);
     assert(/247, 227, 227|f7e3e3/i.test(m.bg), "tint " + m.bg); assert(/179, 18, 26/.test(m.rule), "red rule " + m.rule);
     assert(/\$115\.00 is 10x this item's usual \$11\.50\. Likely/.test(m.tip), m.tip);
+    await sleep(250); assert.strictEqual(await js(`getComputedStyle(document.querySelector('.rec-tip')).opacity`), "1", "the reason is visible while the cell has focus");
   });
   await check("records worth a look: at most ten, click scrolls to and highlights the row", async () => {
     await js(`document.querySelector('[data-crumbs] .rec-x').click()`);
@@ -101,7 +112,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
       await js(`(() => { const c = document.querySelector('.rec-td.fix[data-c="5"]'); c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); })()`);
       await js(`(() => { const inp = document.querySelector('[data-edit]'); inp.value = '$11.50'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
     }
-    const m = await js(`({ n: document.querySelector('.rec-edits .n').textContent, finds: document.querySelector('#rep-sheet .finds').textContent, edited: document.querySelectorAll('.rec-td.edited').length, tip: document.querySelector('.chart.bars [data-g="Sunny Isles Beach"]').dataset.tip, total: window.JAIReportDebug.store.rows.filter(r => r[2] === 'Sunny Isles Beach').slice(0, 0).length })()`);
+    const m = await js(`(() => ({ n: document.querySelector('.rec-edits .n').textContent, finds: document.querySelector('#rep-sheet .finds').textContent, edited: document.querySelectorAll('.rec-td.edited').length, tip: document.querySelector('.chart.bars [data-g="Sunny Isles Beach"]').dataset.tip }))()`);
     assert.strictEqual(m.n, "12 edits"); assert(!/unit price values/.test(m.finds), m.finds.slice(0, 200)); assert(m.edited >= 12, "edited cells " + m.edited);
     const avg = t => +(t.match(/average (?:&lt;b&gt;|<b>)?([\d,.]+)/) || [0, "0"])[1].replace(/,/g, "");
     assert(avg(m.tip) < avg(before), `average ${avg(before)} -> ${avg(m.tip)}`);
@@ -128,9 +139,9 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
   });
   await check("print hides the table and keeps at most five records worth a look", async () => {
     await send("Emulation.setEmulatedMedia", { media: "print" });
-    const m = await js(`({ rec: getComputedStyle(document.querySelector('.records')).display, sixth: getComputedStyle(document.querySelectorAll('.worth li')[5]).display, fifth: getComputedStyle(document.querySelectorAll('.worth li')[4]).display, controls: getComputedStyle(document.querySelector('.report-controls')).display, note: getComputedStyle(document.querySelector('.edit-note')).display, note_txt: document.querySelector('.edit-note').textContent })`);
+    const m = await js(`({ rec: getComputedStyle(document.querySelector('.records')).display, sixth: getComputedStyle(document.querySelectorAll('.worth li')[5]).display, fifth: getComputedStyle(document.querySelectorAll('.worth li')[4]).display, controls: getComputedStyle(document.querySelector('.report-controls')).display, note: getComputedStyle(document.querySelector('.edit-note')).display })`);
     await send("Emulation.setEmulatedMedia", { media: "" });
-    assert.strictEqual(m.rec, "none"); assert.strictEqual(m.sixth, "none"); assert.notStrictEqual(m.fifth, "none"); assert.strictEqual(m.controls, "none"); assert.notStrictEqual(m.note, "none"); assert(/11 cells were corrected/.test(m.note_txt), m.note_txt);
+    assert.strictEqual(m.rec, "none"); assert.strictEqual(m.sixth, "none"); assert.notStrictEqual(m.fifth, "none"); assert.strictEqual(m.controls, "none"); assert.notStrictEqual(m.note, "none");
   });
   await check("nothing leaves the browser: no request while working, none that is a POST or PUT, ever", async () => {
     const quiet = requests.filter(r => r.t >= quietFrom && !r.url.startsWith("data:") && !r.url.startsWith("blob:"));
@@ -142,7 +153,8 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
   console.log("10,000 rows");
   tmpCsv = path.join(os.tmpdir(), `jai-10k-${process.pid}.csv`);
   const rows10 = R.cafeSample(10000); fs.writeFileSync(tmpCsv, Rec.rowsToCSV(rows10, { delim: ",", eol: "\n" }));
-  await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") }); await waitFor("document.readyState === 'complete'");
+  await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") }); await waitFor("document.readyState === 'complete' && !!window.JAIReportDebug");
+  await js(`JAIReportDebug.setLimits(10000, 12)`);   // the page's own limit comes from the build; this run does not depend on it
   const doc = await send("DOM.getDocument"), inp = await send("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "#report-file" });
   const t0 = Date.now(); await send("DOM.setFileInputFiles", { files: [tmpCsv], nodeId: inp.nodeId });
   await check("10,000 x 8 renders; time to a drawn table and memory are recorded", async () => {
@@ -156,6 +168,17 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
       gaps.sort((a, b) => a - b); return { p50: gaps[100], p95: gaps[190], max: gaps[199], maxDrawn, height: w.scrollHeight }; })()`);
     assert(m.height >= 10000 * 34); assert(m.p95 < 20, "p95 " + m.p95.toFixed(1)); assert(m.maxDrawn <= 24);
     return `frame p50 ${m.p50.toFixed(1)} ms, p95 ${m.p95.toFixed(1)} ms, max ${m.max.toFixed(1)} ms`;
+  });
+
+  await check("phone width (390 px): the page does not scroll sideways; the table scrolls inside its window with the header and Row column staying put", async () => {
+    await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 800, deviceScaleFactor: 2, mobile: true }); await sleep(400);
+    const m = await js(`(() => { const w = document.querySelector('.rec-win'), r = w.getBoundingClientRect(); return { page: document.documentElement.scrollWidth, view: innerWidth, win: Math.round(r.width), inner: w.scrollWidth, left: r.left, right: r.right } })()`);
+    const st = await js(`(async () => { const w = document.querySelector('.rec-win'); w.scrollTop = 40 * 34; w.scrollLeft = 220; await new Promise(r => requestAnimationFrame(r)); await new Promise(r => requestAnimationFrame(r));
+      const wb = w.getBoundingClientRect(), f = document.querySelector('.rec-td.first').getBoundingClientRect(), h = document.querySelector('.rec-thead').getBoundingClientRect(); return { dx: Math.abs(f.left - wb.left), dy: Math.abs(h.top - wb.top), sl: w.scrollLeft, st: w.scrollTop }; })()`);
+    assert(st.sl > 0 && st.st > 0, JSON.stringify(st)); assert(st.dx <= 2, "Row column moved " + st.dx); assert(st.dy <= 2, "header moved " + st.dy);
+    await send("Emulation.clearDeviceMetricsOverride");
+    assert(m.page <= m.view + 1, "page is " + m.page + " wide in a " + m.view + " viewport"); assert(m.right <= m.view + 1 && m.left >= -1, "window leaves the screen: " + JSON.stringify(m)); assert(m.inner > m.win, "table scrolls inside its window");
+    return `window ${m.win} px wide, table ${m.inner} px`;
   });
 
   sock.close(); console.log(`\nbrowser checks: ${passed} passed, ${failed} failed`);

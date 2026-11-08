@@ -602,5 +602,5 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   drop.addEventListener("drop", async e => { const f = e.dataTransfer.files[0]; if (f) { status("Reading…"); try { run(await readFile(f)); } catch (x) { status(x.message); } } });
   $("#report-sample").addEventListener("click", () => run({ name: "cafe-sales-sample.csv (made up)", rows: cafeSample() }));
   if (location.hash === "#sample") $("#report-sample").click();
-  window.JAIReportDebug = { get table() { return table; }, get store() { return store; }, get analysis() { return last; } };
+  window.JAIReportDebug = { get table() { return table; }, get store() { return store; }, get analysis() { return last; }, setLimits };
 })();

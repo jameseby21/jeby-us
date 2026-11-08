@@ -131,6 +131,13 @@ test("virtualization: only the rows in view are drawn", () => {
 });
 
 // ---------- CONS-0054: editing, recompute, undo, export
+test("flagged cell colours: text on the Fix, Look and Edited tints is at least 5.6:1 (CONS-0049 T3)", () => {
+  const css = fs.readFileSync(path.join(__dirname, "../src/jai.css"), "utf8"), v = n => (css.match(new RegExp("--" + n + ":\s*(#[0-9a-fA-F]{6})")) || [])[1];
+  const lum = h => { const c = [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16) / 255).map(x => (x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4))); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  for (const [fg, bg] of [["red", "red-tint"], ["slate", "slate-tint"], ["edit", "edit-tint"]]) { assert(v(fg) && v(bg), "missing colour " + fg + "/" + bg); assert(ratio(v(fg), v(bg)) >= 5.6, `${fg} on ${bg}: ${ratio(v(fg), v(bg)).toFixed(2)}`); }
+});
+
 console.log("editing and export (CONS-0054)");
 const cafe = () => { const d = { name: "cafe.csv", rows: R.cafeSample() }; const a = R.analyse(d); return { d, a, s: R.makeStore(d, a) }; };
 test("numbers parse: '$1,150.00' becomes 1150.00 and text in a number column is refused", () => {
