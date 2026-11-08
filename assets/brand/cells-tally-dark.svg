@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Cell-count pipeline">
+<title>Cell-count pipeline</title>
+<rect width="64" height="64" rx="14" fill="#111116"/>
+<circle cx="14" cy="26" r="4.6" fill="none" stroke="#EEECF2" stroke-width="2.6"/><circle cx="26" cy="26" r="4.6" fill="none" stroke="#EEECF2" stroke-width="2.6"/><circle cx="38" cy="26" r="4.6" fill="none" stroke="#EEECF2" stroke-width="2.6"/><circle cx="50" cy="26" r="4.6" fill="none" stroke="#EEECF2" stroke-width="2.6"/><path d="M12 44h40" stroke="#6D6A7C" stroke-width="2.4" stroke-linecap="round"/><path d="M15 50V38M23 50V38M31 50V38M39 50V38" stroke="#EEECF2" stroke-width="3" stroke-linecap="round"/><path d="M12 48 42 40" stroke="#E3262F" stroke-width="3.4" stroke-linecap="round"/>
+</svg>

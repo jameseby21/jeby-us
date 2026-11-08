@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Dog territory app">
+<title>Dog territory app</title>
+<rect width="64" height="64" rx="14" fill="#111116"/>
+
+<ellipse cx="32" cy="41" rx="12" ry="10" fill="#E3262F"/>
+<ellipse cx="17" cy="27" rx="5" ry="6.5" fill="#EEECF2"/><ellipse cx="26" cy="19" rx="5" ry="6.5" fill="#EEECF2"/><ellipse cx="38" cy="19" rx="5" ry="6.5" fill="#EEECF2"/><ellipse cx="47" cy="27" rx="5" ry="6.5" fill="#EEECF2"/>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Become a Data Analyst">
+<title>Become a Data Analyst</title>
+<rect width="64" height="64" rx="14" fill="#111116"/>
+
+<rect x="10" y="38" width="6" height="14" rx="1.5" fill="#6D6A7C"/>
+<rect x="19" y="32" width="6" height="20" rx="1.5" fill="#6D6A7C"/>
+<rect x="46" y="42" width="6" height="10" rx="1.5" fill="#6D6A7C"/>
+<circle cx="33" cy="26" r="13" fill="none" stroke="#EEECF2" stroke-width="4.5"/>
+<path d="M42.5 35.5 52 45" stroke="#EEECF2" stroke-width="6" stroke-linecap="round"/>
+<circle cx="33" cy="26" r="4.5" fill="#E3262F"/>
+</svg>

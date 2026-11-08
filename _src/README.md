@@ -22,6 +22,7 @@ Commit the root after `--publish`; that commit is what goes live on jeby.us.
 | `jeby/static/` | Images and files copied as they are: the Drew photo, the Drew QR, the poster PDF, project marks |
 | `jai/src/jai_content.py` | Every word and price on jainsights.com. Prices are hours × the one rate, computed at build time |
 | `jai/build.py`, `jai/src/jai.css`, `jai/src/jai.js`, `jai/src/report.js`, `jai/src/records.js`, `jai/src/domain.js`, `jai/src/pack.js` | The jainsights.com generator, styles, behaviour and the in-browser free report (`report.js` reads and analyses; `records.js` is the records table, editing and export; `domain.js` holds the column roles, thresholds, the eight data-quality classes and every check's rule in one block at the top for Joe and Chaz to edit; `pack.js` reads optional rule packs from `jai/packs/*.json`, none loaded by default, loaded with `?pack=real-estate` or the file picker) |
+| `brand/marks.json`, `brand/marks/`, `brand/brand.py`, `brand/brand.js` | Every brand mark and favicon candidate for both sites, and the rotation that shows one per session (the cycling rule). Add or retire a candidate in `marks.json` only |
 | `jai/tests/` | Report tests: `run.js` (Node, no DOM), `browser.js` (headless Edge or Chrome), synthetic fixtures made by `make_fixtures.py`. No real data |
 | `family/family.js` | How the two sites link: the shared "jeby family" strip (option C, the default), or one site (A) or sister sites (B) |
 | `research/src/` | The galaxy-cluster slideshow on jeby.us/research |
