@@ -8,7 +8,7 @@ Python 3.10 or newer, nothing else to install.
 
 ```
 python3 _src/build.py            # builds both sites into _src/jeby/out and _src/jai/out
-python3 _src/build.py --publish  # also copies the jeby.us build into the repository root
+python3 _src/build.py --publish  # also makes the repository root match the jeby.us build
 ```
 
 Commit the root after `--publish`; that commit is what goes live on jeby.us.

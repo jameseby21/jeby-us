@@ -41,7 +41,6 @@ Expected: `built [...]` twice (17 entries for jeby.us, 7 pages for JA Insights),
 ## If it fails
 | You see | It means | Do |
 | --- | --- | --- |
-| `FileExistsError` from `build.py --publish` on Windows | a folder in the repository root could not be deleted before it was copied again (something holds it open) | `git status`, delete that one folder, run `--publish` again, then `git status` to see only the files you meant to change |
 | `UnicodeEncodeError` during build | an old checkout without the Windows fixes | `git pull` the branch |
 | `Address already in use` | port 8080 or 8081 is taken | stop your own earlier preview, or run `python -m http.server <other port> --directory _src/jeby/out` |
 | `check_links.py` lists dead links | a page or asset the HTML points at is missing | fix the source in `_src/`, rebuild |
