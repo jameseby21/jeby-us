@@ -227,6 +227,7 @@
   }
 
   // ---------- analysis
+  const spanUnit = days => (days > 1460 ? "year" : days > 150 ? "month" : days > 28 ? "week" : "day");
   function analyse(data, choice = {}) {
     let rows = data.rows; if (rows.length < 2) throw new Error("That file doesn't have a header row and at least one row of data.");
     const allCols = rows[0].length, allRows = rows.length - 1;
@@ -234,7 +235,12 @@
     const seenH = {}; header = header.map(h => (seenH[h] = (seenH[h] || 0) + 1) > 1 ? `${h} (${seenH[h]})` : h);
     const body = rows.slice(1, MAXR + 1).map(r => header.map((_, i) => r[i] == null ? "" : String(r[i])));
     const truncated = allRows > MAXR || allCols > MAXC;
-    const N = body.length, cols = header.map((h, i) => ({ ...profileCol(h, body.map(r => r[i])), i }));
+    const N = body.length;
+    header.forEach((h, i) => {   // epoch seconds (10 digits) or milliseconds (13 digits) in a column whose name says it is a date or a time
+      if (!/date|time|created|updated|stamp|(^|[_\s-])(at|ts|on)$|sold|posted/i.test(h)) return; const vals = body.map(r => r[i].trim()).filter(Boolean);
+      if (vals.length >= 5 && vals.every(v => /^\d{10}(\d{3})?$/.test(v)) && vals.every(v => v.length === vals[0].length)) body.forEach(r => { const v = r[i].trim(); if (v) r[i] = new Date(v.length === 13 ? +v : +v * 1000).toISOString().slice(0, 10); });
+    });
+    const cols = header.map((h, i) => ({ ...profileCol(h, body.map(r => r[i])), i }));
     Dom.assignRoles(cols, body, num);
     const nominal = Dom.findNominal(body, cols, num, median);   // set aside before any baseline is drawn (CONS-0058)
 
@@ -426,19 +432,30 @@
     let trend = null;
     if (dateCol && dateInfo && dateInfo.okDates.length) {
       const ds = dateInfo.okDates, lo = ds[0], hi = ds[ds.length - 1], span = (hi - lo) / 864e5;
-      const unit = span > 150 ? "month" : span > 28 ? "week" : "day";
-      const key = t => { const d = new Date(t); if (unit === "month") return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); if (unit === "week") return t - ((d.getUTCDay() + 6) % 7) * 864e5; return t; };
+      const unit = spanUnit(span);
+      const key = t => { const d = new Date(t); if (unit === "year") return Date.UTC(d.getUTCFullYear(), 0, 1); if (unit === "month") return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); if (unit === "week") return t - ((d.getUTCDay() + 6) % 7) * 864e5; return t; };
       const okSet = new Set(dateInfo.odd.map(x => x[1])), agg = new Map(); body.forEach((r, ri) => { if (okSet.has(ri)) return; const t = dt(r[dateCol.i]); if (t == null) return; const k = key(t); agg.set(k, (agg.get(k) || 0) + (measure ? (num(r[measure.i]) || 0) : 1)); });
-      const keys = [...agg.keys()].sort((a, b) => a - b), step = unit === "month" ? null : (unit === "week" ? 7 : 1) * 864e5;
-      const series = []; if (keys.length) { let k = keys[0]; while (k <= keys[keys.length - 1]) { series.push({ t: k, v: agg.get(k) || 0 }); if (step) k += step; else { const d = new Date(k); k = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1); } } }
-      const lastEnd = unit === "month" ? Date.UTC(new Date(hi).getUTCFullYear(), new Date(hi).getUTCMonth() + 1, 0) : unit === "week" ? key(hi) + 6 * 864e5 : hi;
+      const keys = [...agg.keys()].sort((a, b) => a - b), step = unit === "month" || unit === "year" ? null : (unit === "week" ? 7 : 1) * 864e5;
+      const series = []; if (keys.length) { let k = keys[0]; while (k <= keys[keys.length - 1]) { series.push({ t: k, v: agg.get(k) || 0 }); if (step) k += step; else { const d = new Date(k); k = unit === "year" ? Date.UTC(d.getUTCFullYear() + 1, 0, 1) : Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0 + 1); } } }
+      const lastEnd = unit === "year" ? Date.UTC(new Date(hi).getUTCFullYear(), 11, 31) : unit === "month" ? Date.UTC(new Date(hi).getUTCFullYear(), new Date(hi).getUTCMonth() + 1, 0) : unit === "week" ? key(hi) + 6 * 864e5 : hi;
       const partialLast = series.length > 2 && hi < lastEnd - 2 * 864e5;
       const firstStart = series.length ? series[0].t : lo, partialFirst = series.length > 2 && lo > firstStart + 2 * 864e5;
       const core = series.filter((_, i) => !(partialFirst && i === 0) && !(partialLast && i === series.length - 1));
       const pm = median(core.map(p => p.v)); let spike = null;
       core.forEach(p => { const r = pm ? p.v / pm : 0; if (r >= 1.5 && (!spike || r > spike.r)) spike = { ...p, r }; });
-      const label = t => { const d = new Date(t); return unit === "month" ? `${MON[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}` : `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+      const label = t => { const d = new Date(t); return unit === "year" ? String(d.getUTCFullYear()) : unit === "month" ? `${MON[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}` : `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
       trend = { unit, series, label, spike, partialFirst, partialLast, lo, hi, median: pm };
+      // a small category split (CONS-0061): a column with 8 values or fewer, else the top five values of the most informative category column, plus Other
+      const entropy = c => { const m = new Map(); let n = 0; body.forEach(r => { const v = r[c.i].trim(); if (v) { m.set(v, (m.get(v) || 0) + 1); n++; } }); let h = 0; m.forEach(k => { const q = k / n; h -= q * Math.log(q); }); return m.size > 1 ? h / Math.log(m.size) : 0; };
+      const sCands = catCands.filter(c => c.empty / N < 0.3 && c.distinct <= 60), low = sCands.filter(c => c.distinct <= 8);
+      const sCol = choice.split === "" ? null : (choice.split && cols.find(c => c.name === choice.split && c.type === "category")) || [...(low.length ? low : sCands)].sort((x, y) => (CAT_RE.test(y.name) - CAT_RE.test(x.name)) || entropy(y) - entropy(x))[0] || null;
+      if (sCol && series.length > 1) {
+        const tot = new Map(); body.forEach(r => { const v = r[sCol.i].trim() || "(blank)"; tot.set(v, (tot.get(v) || 0) + 1); });
+        const ranked = [...tot.entries()].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1)).map(e => e[0]), top5 = ranked.length > 8, names = top5 ? ranked.slice(0, 5).concat(["Other"]) : ranked, keep = new Set(top5 ? ranked.slice(0, 5) : ranked), ix = new Map(series.map((p, i) => [p.t, i]));
+        const vals = names.map(() => series.map(() => 0));
+        body.forEach((r, ri) => { if (okSet.has(ri)) return; const t = dt(r[dateCol.i]); if (t == null) return; const i = ix.get(key(t)); if (i == null) return; const v = r[sCol.i].trim() || "(blank)", g = keep.has(v) ? names.indexOf(v) : names.length - 1; vals[g][i] += measure ? (num(r[measure.i]) || 0) : 1; });
+        trend.split = { col: sCol.name, ci: sCol.i, names, vals, top5 };
+      }
       if (spike) findings.push({ id: null, kind: "insight", sev: "look", title: `${unit === "month" ? new Date(spike.t).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "The " + unit + " of " + label(spike.t)} is ${spike.r.toFixed(1)}× a typical ${unit}`, detail: `${measure ? measure.name : "Rows"}: ${full(spike.v, 0)} against a typical ${full(pm, 0)}. Worth knowing why.`, score: 70 });
     }
 
@@ -621,6 +638,19 @@
     const hits = s.map((p, i) => { const w = (W - L - R) / Math.max(1, s.length - 1); return `<rect x="${X(i) - w / 2}" y="${T}" width="${w}" height="${H - T - B}" fill="transparent" data-x="${X(i)}" data-tip="${tipSafe(tr.label(p.t))}${(tr.partialFirst && i === 0) || (tr.partialLast && i === s.length - 1) ? " (partial)" : ""}: <b>${esc(full(p.v, 0))}</b>"/>`; }).join("");
     return `<svg viewBox="0 0 ${W} ${H}" class="chart line" role="img" aria-label="${esc(measureName)} by ${tr.unit}">${g}<line class="xh" x1="0" x2="0" y1="${T}" y2="${H - B}"/><path d="${d}" class="ln"/>${marks}${note}${hits}</svg>`;
   }
+  const SPLITC = ["#2f3b4b", "#b3121a", "#2f5e9e", "#8a6d3b", "#4f7a5c", "#9a998f", "#6b5b95", "#c2792b"];
+  function stackSVG(tr, measureName) {
+    const W = 680, H = 230, L = 56, R = 18, T = 14, B = 52, sp = tr.split, n = tr.series.length; if (n < 2) return "";
+    const totals = tr.series.map((_, i) => sp.vals.reduce((a, row) => a + row[i], 0)), max = niceMax(Math.max(...totals) * 1.05) || 1, bw = (W - L - R) / n, Y = v => T + (H - T - B) * (1 - v / max);
+    let g = ""; for (let i = 0; i <= 4; i++) { const v = max * i / 4; g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${L - 8}" y="${Y(v) + 3.5}" text-anchor="end" class="tk">${fmt(v)}</text>`; }
+    const every = Math.ceil(n / 12); let bars = "";
+    tr.series.forEach((p, i) => { let acc = 0; const x = L + i * bw + bw * 0.12, w = bw * 0.76, part = (tr.partialFirst && i === 0) || (tr.partialLast && i === n - 1);
+      if (i % every === 0 || i === n - 1) g += `<text x="${x + w / 2}" y="${H - B + 14}" text-anchor="middle" class="tk">${tr.label(p.t)}</text>`;
+      const tip = `${tipSafe(tr.label(p.t))}${part ? " (partial)" : ""}: <b>${esc(full(totals[i], 0))}</b>` + sp.names.map((nm, k) => (sp.vals[k][i] ? `<br>${tipSafe(nm)} ${esc(full(sp.vals[k][i], 0))}` : "")).join("");
+      bars += `<g data-tip="${tip}"><rect x="${L + i * bw}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"/>` + sp.names.map((nm, k) => { const v = sp.vals[k][i]; if (!v) return ""; const y1 = Y(acc + v), y0 = Y(acc); acc += v; return `<rect x="${x}" y="${y1}" width="${w}" height="${Math.max(0.5, y0 - y1)}" fill="${nm === "Other" ? SPLITC[5] : SPLITC[k % SPLITC.length]}" opacity="${part ? 0.55 : 1}"/>`; }).join("") + `</g>`; });
+    const legend = sp.names.map((nm, k) => `<g transform="translate(${L + (k % 4) * 150} ${H - 22 + Math.floor(k / 4) * 14})"><rect width="10" height="10" y="-9" fill="${nm === "Other" ? SPLITC[5] : SPLITC[k % SPLITC.length]}"/><text x="14" y="0" class="tk">${esc(nm.slice(0, 18))}</text></g>`).join("");
+    return `<svg viewBox="0 0 ${W} ${H + (sp.names.length > 4 ? 14 : 0)}" class="chart stack" role="img" aria-label="${esc(measureName)} by ${tr.unit}, split by ${esc(sp.col)}">${g}${bars}${legend}</svg>`;
+  }
   function barsSVG(bd) {
     const rowH = 30, W = 420, L = 150, R = 64, H = bd.items.length * rowH + 4, max = Math.max(...bd.items.map(x => x[1]), 1);
     return `<svg viewBox="0 0 ${W} ${H}" class="chart bars" role="img" aria-label="Totals by ${esc(bd.col)}">` + bd.items.map(([k, v, other, n], i) => {
@@ -642,6 +672,7 @@
   <label>Measure <select data-ch="measure">${opt(a.numCols, a.measure, a.numCols.length ? "" : "Row count")}</select></label>
   <label>Date <select data-ch="date">${opt(a.dateCands, a.dateCol, a.dateCands.length ? "" : "None")}</select></label>
   <label>Group by <select data-ch="cat">${opt(a.catCands, a.cat, "None")}</select></label>
+  ${a.trend ? `<label>Split timeline by <select data-ch="split">${opt(a.catCands.filter(c => c.distinct <= 60), a.trend.split ? { name: a.trend.split.col } : null, "None")}</select></label>` : ""}
   <span class="sp"></span><button class="btn small" type="button" data-print>Print or save as PDF</button><button class="btn small" type="button" data-reset>Start over</button>
 </div>`;
   }
@@ -652,7 +683,8 @@
     const kpi = [["Rows", a.N.toLocaleString("en-US")], ["Columns", a.cols.length], ["Dates", range], [a.measure ? "Total " + a.measure.name : "Measure", a.measure ? full(a.total, 0) : "None found"]];
     const prof = a.cols.slice(0, 12).map(c => `<tr><td>${esc(c.name)}</td><td>${c.type}${Dom.roleLabel(c) && Dom.roleLabel(c) !== c.type ? ` · ${esc(Dom.roleLabel(c))}` : ""}</td><td>${pct(c.filled, a.N).toFixed(0)}%</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="3" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
     const next = a.needsCleanup ? ["Data health check", 8, "a person reads the data and writes down what to fix first"] : ["Focused analysis", 20, "one question answered properly, with the uncertainty stated"];
-    const trendSvg = a.trend && a.trend.series.length > 1 ? lineSVG(a.trend, a.measure ? a.measure.name : "Rows") : "";
+    const trendSvg = a.trend && a.trend.series.length > 1 ? (a.trend.split ? stackSVG(a.trend, a.measure ? a.measure.name : "Rows") : lineSVG(a.trend, a.measure ? a.measure.name : "Rows")) : "";
+    const rep = (a.findingsList || []).find(f => f.id === "repeat" && f.repeat), repNote = rep && trendSvg ? `<p class="trend-note">Repeat occurrences: ${fmtCount(rep.repeat.n)} places appear on more than one date${rep.repeat.pct != null ? `; the median change between their first and last row is ${rep.repeat.pct >= 0 ? "+" : ""}${Math.round(rep.repeat.pct * 100)}%` : ""}.</p>` : "";
     const tableRows = (a.trend ? a.trend.series.map(p => `<tr><td>${a.trend.label(p.t)}</td><td>${full(p.v, 0)}</td></tr>`).join("") : "");
     const sec = sections(a, notable);
     const tag = f => f.cls && Dom.DOMAIN.classes[f.cls] ? `<em class="cls ${f.hard ? "hard" : "adv"}" title="${esc(Dom.DOMAIN.classes[f.cls].means)}">${f.hard ? "Invalid" : "Check"} · ${esc(Dom.DOMAIN.classes[f.cls].label)}</em> ` : "";
@@ -672,7 +704,7 @@
       <section><h3>What the data says</h3>${listHTML(sec.insights.findings, "Nothing stands out yet. Add a date, a place or a category column and this space fills.")}</section>
       <section>${a.breakdown ? `<h3>${esc(a.measure ? a.measure.name : "Rows")} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
     </div>
-    ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measure ? a.measure.name : "Rows")} by ${a.trend.unit}</h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div></section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
+    ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measure ? a.measure.name : "Rows")} by ${a.trend.unit}${a.trend.split ? `, split by ${esc(a.trend.split.col)}${a.trend.split.top5 ? " (top five and Other)" : ""}` : ""} <span class="hint">date column: ${esc(a.dateCol.name)}</span></h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div>${repNote}</section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
     ${worthHTML(sec.insights.notable, "Worth a look", "ins")}
   </section>
   <section class="sh-sec sh-qa" aria-label="QA"><h2>QA <span class="sec-n">${sec.qa.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="qa">Show ${fmtCount(qaRows.size)} QA rows</button></h2>

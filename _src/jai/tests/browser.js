@@ -122,6 +122,15 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     return `seed ${a.seed} -> ${b.seed}`;
   });
 
+  await check("the timeline is a stacked chart split by a small category; switching the split redraws it", async () => {
+    const before = await js(`(() => { const svg = document.querySelector('.sh-trend svg.stack'); return svg ? svg.textContent : null; })()`); assert(before, "no stacked timeline");
+    await js(`(() => { const sel = document.querySelector('[data-ch="split"]'); sel.value = 'payment'; sel.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    const after = await js(`document.querySelector('.sh-trend svg.stack').textContent`), head = await js(`document.querySelector('.sh-trend h3').textContent`);
+    assert(/Apple Pay/.test(after) && after !== before, "legend after the switch: " + after.slice(-80)); assert(/split by payment/.test(head), head);
+    await js(`(() => { const sel = document.querySelector('[data-ch="split"]'); sel.value = ''; sel.dispatchEvent(new Event('change', { bubbles: true })); })()`); assert(await js(`!!document.querySelector('.sh-trend svg.line') && !document.querySelector('.sh-trend svg.stack')`), "no split gives the single line");
+    await js(`(() => { const sel = document.querySelector('[data-ch="split"]'); sel.value = 'location'; sel.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  });
+
   console.log("editing and export (CONS-0054)");
   await check("fix the twelve $115.00 prices with Enter: the finding disappears, '12 edits' shows, the location average drops", async () => {
     const before = await js(`document.querySelector('.chart.bars [data-g="Sunny Isles Beach"]').dataset.tip`);

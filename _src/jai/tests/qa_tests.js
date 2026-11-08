@@ -174,4 +174,27 @@ module.exports = function (h) {
   test("no topic-specific word, threshold or detector in the report code: a grep for lot, parcel, folio, sale_observations finds nothing", () => {
     const dir = path.join(FX, "..", "..", "src"); fs.readdirSync(dir).filter(f => /\.(js|css|py)$/.test(f)).forEach(f => { const t = fs.readFileSync(path.join(dir, f), "utf8"); assert(!/\blot\b|parcel|folio|sale_observations/i.test(t), f + " names a topic: " + (t.match(/.{20}(\blot\b|parcel|folio|sale_observations).{20}/i) || [""])[0]); });
   });
+
+  // ---------- CONS-0061
+  console.log("timelines (CONS-0061)");
+  const withDates = (fmt, n = 40) => { const rows = [["id", "created_at", "kind", "v"]]; for (let i = 0; i < n; i++) { const d = new Date(Date.UTC(2025, i % 10, 1 + (i % 27))); rows.push(["r" + i, fmt(d), "ab"[i % 2], String(10 + i)]); } return { name: "t", rows }; };
+  const MONn = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  test("a date column is found in ISO, US, month-name and epoch formats, and the timeline names it", () => {
+    [["ISO", d => d.toISOString().slice(0, 10)], ["US", d => `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`], ["month names", d => `${MONn[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`], ["epoch seconds", d => String(Math.floor(d.getTime() / 1000))], ["epoch milliseconds", d => String(d.getTime())]]
+      .forEach(([name, f]) => { const a = R.analyse(withDates(f)); assert(a.dateCol && a.dateCol.name === "created_at", name + ": date column not found"); assert(a.trend && a.trend.series.length > 3, name + ": no timeline"); });
+    const ids = [["id", "order_number"]]; for (let i = 0; i < 40; i++) ids.push(["r" + i, String(1700000000 + i)]); assert.strictEqual(R.analyse({ name: "t", rows: ids }).dateCol, null, "a ten-digit order number is not a date");
+  });
+  test("buckets follow the span: days, weeks, months, years", () => {
+    const span = days => { const rows = [["id", "d", "v"]]; for (let i = 0; i < 60; i++) rows.push(["r" + i, new Date(Date.UTC(2020, 0, 1) + Math.round(i * days / 59) * 864e5).toISOString().slice(0, 10), "5"]); return R.analyse({ name: "t", rows }).trend.unit; };
+    assert.deepStrictEqual([span(20), span(90), span(400), span(2000)], ["day", "week", "month", "year"]);
+  });
+  test("the timeline is split by a column with 8 values or fewer, else the top five plus Other; the split can be switched or turned off", () => {
+    const a = R.analyse(county), sp = a.trend.split; assert(sp && sp.col === "city" && sp.names.length === 8 && !sp.top5, JSON.stringify(sp && [sp.col, sp.names.length]));
+    const total = sp.vals.flat().reduce((x, y) => x + y, 0); assert(Math.abs(total - a.trend.series.reduce((x, p) => x + p.v, 0)) < 1, "split adds up to the timeline");
+    const sw = R.analyse(county, { split: "property_type" }); assert.strictEqual(sw.trend.split.col, "property_type"); assert.strictEqual(R.analyse(county, { split: "" }).trend.split, undefined);
+    const rows = [["id", "d", "grp", "v"]]; for (let i = 0; i < 200; i++) rows.push(["r" + i, new Date(Date.UTC(2025, i % 12, 1 + (i % 25))).toISOString().slice(0, 10), "g" + (i % 12), "1"]);
+    const b = R.analyse({ name: "t", rows }).trend.split; assert(b.top5 && b.names.length === 6 && b.names[5] === "Other", JSON.stringify(b.names));
+    assert(["item", "location", "payment"].includes(cafeA.trend.split.col), "cafe split: " + cafeA.trend.split.col);
+  });
+
 };
