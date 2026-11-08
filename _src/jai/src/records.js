@@ -167,7 +167,7 @@
     function crumbs() {
       const p = ['<button class="rec-link" data-all>All records</button>'];
       if (filt.finding) p.push("›", `<span class="here">${esc(filt.finding.crumb)}</span>`);
-      if (filt.group) p.push("›", `<span class="here">${esc(s.names[filt.group.col])}: ${esc(filt.group.val)}</span>`);
+      if (filt.group) p.push("›", `<span class="here">${esc(s.names[filt.group.col])}: ${esc(filt.group.val)}${filt.group.col2 != null ? ` · ${esc(s.names[filt.group.col2])}: ${esc(filt.group.val2)}` : ""}</span>`);
       if (filt.q) p.push("›", `<span class="here">Search: “${esc(filt.q)}”</span>`);
       if (filt.finding || filt.group || filt.q) p.push('<button class="rec-x" data-all>Back to all ✕</button>');
       $("crumbs").innerHTML = p.join(" ");
@@ -232,11 +232,19 @@
     thead.addEventListener("click", e => {
       const b = e.target.closest("[data-k]"); if (!b) return; const k = +b.dataset.k;
       if (filt.sortCol !== k) { filt.sortCol = k; filt.sortDir = 1; } else if (filt.sortDir === 1) filt.sortDir = -1; else { filt.sortCol = null; filt.sortDir = 0; }
-      refresh(true);
+      refresh(true); emit();
     });
-    $("q").addEventListener("input", e => { filt.q = e.target.value.trim(); refresh(true); });
+    $("q").addEventListener("input", e => { filt.q = e.target.value.trim(); refresh(true); emit("typing"); });
     function clearFilters() { filt = { finding: null, group: null, q: "", sortCol: null, sortDir: 0 }; hl = null; $("q").value = ""; }
-    $("crumbs").addEventListener("click", e => { if (e.target.closest("[data-all]")) { clearFilters(); refresh(true); } });
+    $("crumbs").addEventListener("click", e => { if (e.target.closest("[data-all]")) { clearFilters(); refresh(true); emit(); } });
+    // The page listens (CONS-0051): every change the visitor makes to what the table shows is reported with the filter in words, so the panels can be worked out for that slice and the URL can carry it.
+    // The filter names a finding, a section, a column or a group by name; a list of rows has an id that begins "rows:" and is never written to a URL.
+    const emit = how => { if (o.onFilter) o.onFilter(self.getFilter(), how); };
+    const idRows = id => {   // the rows an id stands for in this analysis, or null
+      if (id.startsWith("sec:")) { const kind = id.slice(4); return { rows: new Set(a.findingsAll.filter(f => (f.kind === "insight") === (kind === "insight")).flatMap(f => f.rows)), crumb: kind === "insight" ? "Insight rows" : "QA rows" }; }
+      if (id.startsWith("col:")) { const ci = s.names.indexOf(id.slice(4)); if (ci < 0) return null; const rows = new Set(); a.flags.forEach((_, k) => { const j = k.indexOf(":"); if (+k.slice(j + 1) === ci) rows.add(+k.slice(0, j)); }); return { rows, crumb: "Marked cells in " + s.names[ci] }; }
+      const f = a.findingsAll.find(x => x.id === id); return f ? { rows: new Set(f.rows), crumb: f.crumb || f.title } : null;
+    };
     host.addEventListener("click", e => {
       if (e.target.closest("[data-undo]")) { undoEdit(s); toolbar(); draw(true); o.onChange(); }
       else if (e.target.closest("[data-export]")) openExport();
@@ -269,18 +277,37 @@
       update(next) { a = next; flags = a.flags; refresh(false); },
       showFinding(id) {
         const f = a.findingsAll.find(x => x.id === id); if (!f) return;
-        clearFilters(); filt.finding = { id, rows: new Set(f.rows), crumb: f.crumb || f.title }; refresh(true);
+        clearFilters(); filt.finding = { id, rows: new Set(f.rows), crumb: f.crumb || f.title }; refresh(true); emit();
         host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       },
       showSection(kind) {   // every row behind an Insight, or every row behind a QA finding
         const fs = a.findingsAll.filter(f => (f.kind === "insight") === (kind === "insight")), rows = new Set(fs.flatMap(f => f.rows));
-        clearFilters(); filt.finding = { id: "sec:" + kind, rows, crumb: kind === "insight" ? "Insight rows" : "QA rows" }; refresh(true);
+        clearFilters(); filt.finding = { id: "sec:" + kind, rows, crumb: kind === "insight" ? "Insight rows" : "QA rows" }; refresh(true); emit();
         host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       },
-      showRows(rows, crumb) { clearFilters(); filt.finding = { id: "rows:" + crumb, rows: new Set(rows), crumb }; refresh(true); host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); },
-      showGroup(col, val) { clearFilters(); filt.group = { col, val }; refresh(true); host.scrollIntoView({ block: "nearest", behavior: "smooth" }); },
+      showRows(rows, crumb, id) { clearFilters(); filt.finding = { id: id || "rows:" + crumb, rows: new Set(rows), crumb }; refresh(true); emit(); host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); },
+      showGroup(col, val, col2, val2) { clearFilters(); filt.group = col2 != null ? { col, val, col2, val2 } : { col, val }; refresh(true); emit(); host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); },
+      // the rows of a column that carry a marked cell, as a filter (a click on a column's name)
+      showColumn(name) { const r = idRows("col:" + name); if (!r || !r.rows.size) { o.say && o.say(`No cell in ${name} is marked, so there is nothing to show.`); return false; } self.showRows([...r.rows], r.crumb, "col:" + name); return true; },
+      getFilter() {
+        const g = filt.group, sc = filt.sortCol, f = filt.finding;
+        return { id: f ? f.id : null, crumb: f ? f.crumb : null, group: g ? { col: s.names[g.col], val: g.val, col2: g.col2 != null ? s.names[g.col2] : null, val2: g.col2 != null ? g.val2 : null } : null, q: filt.q || "",
+          sort: sc != null && filt.sortDir ? { col: sc === -1 ? "@row" : s.names[sc], dir: filt.sortDir } : null, filtered: !!(f || g || filt.q), shown: view.length, total: s.rows.length };
+      },
+      // the rows the table shows now when something filters them (ascending, as the store holds them), else null: the slice the rest of the report is worked out for
+      sliceRows() { return filt.finding || filt.group || filt.q ? [...view].sort((x, y) => x - y) : null; },
+      // put a filter back (a link, or the Back button): the same spec getFilter() gives, with names; what no longer exists is skipped
+      setFilter(sp = {}, quiet) {
+        clearFilters();
+        if (sp.id && !sp.id.startsWith("rows:")) { const r = idRows(sp.id); if (r) filt.finding = { id: sp.id, rows: r.rows, crumb: r.crumb }; }
+        if (sp.group) { const c = s.names.indexOf(sp.group.col), c2 = sp.group.col2 != null ? s.names.indexOf(sp.group.col2) : -1; if (c >= 0) filt.group = c2 >= 0 ? { col: c, val: sp.group.val, col2: c2, val2: sp.group.val2 } : { col: c, val: sp.group.val }; }
+        if (sp.q) { filt.q = sp.q; $("q").value = sp.q; }
+        if (sp.sort) { const c = sp.sort.col === "@row" ? -1 : s.names.indexOf(sp.sort.col); if (c >= -1 && (c >= 0 || sp.sort.col === "@row")) { filt.sortCol = c; filt.sortDir = sp.sort.dir < 0 ? -1 : 1; } }
+        refresh(true); if (!quiet) emit();
+      },
+      clear() { clearFilters(); refresh(true); emit(); },
       jumpTo(ri) {
-        clearFilters(); hl = ri; recompute(); drawHead(); toolbar(); crumbs();
+        clearFilters(); hl = ri; recompute(); drawHead(); toolbar(); crumbs(); emit();
         win.scrollTop = Math.max(0, view.indexOf(ri) * RH - RH * 4); draw(true);
         win.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
         const c = tbody.querySelector(`[data-r="${ri}"] .rec-td[tabindex="0"]`); if (c) c.focus({ preventScroll: true });
