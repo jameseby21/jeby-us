@@ -1,0 +1,94 @@
+{
+  "id": "real-estate",
+  "name": "Real estate (rules from jRE)",
+  "version": "2026-11-08",
+  "note": "An optional rule pack for the benchmark (CONS-0068). It is written from jRE's documented data-quality rules, as rules and thresholds, not code. The default report loads no pack and knows nothing about a file's topic; nothing here runs unless this file is loaded with ?pack=real-estate or the file picker.",
+  "select": {
+    "money": "price|sold|sale.?amount",
+    "area": "living|sq.?ft|square|(^|[_ ])area($|[_ ])",
+    "beds": "(^|[_ -])beds?($|[_ -])|bedroom",
+    "baths": "(^|[_ -])baths?($|[_ -])|bathroom",
+    "place": "city|town|municipality",
+    "address": "address|street|addr",
+    "date": "sale.?date|transaction.?date|sold.?date|(^|[_ -])date($|[_ -])"
+  },
+  "checks": [
+    {
+      "id": "TXN.REPEAT_PRICE_BATCH",
+      "type": "repeat-exact",
+      "needs": ["money"],
+      "threshold": { "minCount": 4 },
+      "class": "repeated-value",
+      "severity": "critical",
+      "title": "the same {field} appears four or more times",
+      "wording": "{count} records report the same {field} ({value}). Check for duplicate entries and compare their source details.",
+      "reason": "{count} records report the same {field} ({value}). Check for duplicate entries and compare their source details.",
+      "rule": "Four or more records with exactly the same sale price in one batch are suspicious (jRE rule TXN.REPEAT_PRICE_BATCH, severity critical, confidence 0.75 plus 0.05 per extra record).",
+      "source": "jRE backend/app/services/data_quality_service.py repeated_value_issue (lines 56-77); docs/reference/DATA_SOURCES.md validation contract, repeated-value case"
+    },
+    {
+      "id": "TXN.PRICE_CONTEXT",
+      "type": "neighbors-z",
+      "needs": ["money"],
+      "neighbor_by": "area",
+      "within": "place",
+      "threshold": { "neighbors": 3, "z": 2 },
+      "class": "contextual-outlier",
+      "severity": "warning",
+      "title": "{field} far from its three closest comparables",
+      "wording": "{field} may be too {dir}: the {k} closest comparables by {by} average {avg}. This is advisory and does not reject the record.",
+      "rule": "A price more than two (population) standard deviations from the average of the three closest comparable records (nearest living area in the same city) is flagged as a warning; outliers stay advisory (jRE rule TXN.PRICE_CONTEXT).",
+      "source": "jRE backend/app/services/data_quality_service.py price_context_issue (lines 80-121); docs/reference/DATA_MODEL.md lines 704 and 718 (validity is hard, outliers are advisory)"
+    },
+    {
+      "id": "NUMERIC.CONTEXT.beds",
+      "type": "neighbors-abs",
+      "needs": ["beds"],
+      "neighbor_by": "area",
+      "within": "place",
+      "threshold": { "neighbors": 3, "tolerance": 2 },
+      "class": "contextual-outlier",
+      "severity": "warning",
+      "title": "{field} more than two away from its closest comparables",
+      "wording": "{field} may be too {dir} compared with the closest comparable records (average {avg}).",
+      "rule": "Bedrooms use an absolute two-unit tolerance against the average of the three closest comparables, because a fractional room matters more than a standard deviation on a small sample (jRE rule NUMERIC.CONTEXT).",
+      "source": "jRE backend/app/services/data_quality_service.py numeric_context_issue (lines 124-150)"
+    },
+    {
+      "id": "NUMERIC.CONTEXT.baths",
+      "type": "neighbors-abs",
+      "needs": ["baths"],
+      "neighbor_by": "area",
+      "within": "place",
+      "threshold": { "neighbors": 3, "tolerance": 2 },
+      "class": "contextual-outlier",
+      "severity": "warning",
+      "title": "{field} more than two away from its closest comparables",
+      "wording": "{field} may be too {dir} compared with the closest comparable records (average {avg}).",
+      "rule": "Bathrooms use the same absolute two-unit tolerance as bedrooms (jRE rule NUMERIC.CONTEXT).",
+      "source": "jRE backend/app/services/data_quality_service.py numeric_context_issue (lines 124-150)"
+    },
+    {
+      "id": "GEN.REQUIRED_FIELD",
+      "type": "required",
+      "needs": ["address", "date", "money"],
+      "class": "missing",
+      "severity": "warning",
+      "title": "a required field is blank",
+      "wording": "Required field '{field}' is missing or blank.",
+      "rule": "A transaction needs a location, a transaction date and a price; blank or missing is a warning (jRE rule GEN.REQUIRED_FIELD, required fields lot_id, transaction_date, price).",
+      "source": "jRE backend/app/services/data_quality_service.py missing_required_fields (lines 153-175) and assess_transaction_candidate (line 182)"
+    },
+    {
+      "id": "TXN.PRICE_NUMERIC",
+      "type": "numeric-parse",
+      "needs": ["money"],
+      "class": "malformed",
+      "severity": "critical",
+      "title": "{field} is not a number",
+      "wording": "{field} cannot be parsed as a number.",
+      "rule": "A sale price that cannot be parsed as a finite number is a hard validity failure (jRE rule TXN.PRICE_NUMERIC, severity critical).",
+      "source": "jRE backend/app/services/data_quality_service.py assess_transaction_candidate (lines 191-202)"
+    }
+  ]
+}

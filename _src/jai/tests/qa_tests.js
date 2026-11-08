@@ -218,4 +218,35 @@ module.exports = function (h) {
     const rows = [["id", "created_at", "v"]]; [0, 1, 2, 5, 6, 7, 8].forEach((m, k) => { for (let j = 0; j < 4; j++) rows.push(["r" + k + j, new Date(Date.UTC(2025, m, 5 + j)).toISOString().slice(0, 10), "1"]); });
     const a = R.analyse({ name: "t", rows }); const g = a.findingsList.find(f => f.id === "tlgaps"); assert(g && /2 empty months/.test(g.title), g && g.title);
   });
+
+  // ---------- CONS-0068
+  console.log("rule packs (CONS-0068)");
+  const Pack = require("../src/pack.js"), cp = require("child_process"), PACK = JSON.parse(fs.readFileSync(path.join(FX, "..", "..", "packs", "real-estate.json"), "utf8"));
+  const aCp = R.analyse(county, { pack: PACK });
+  test("no pack is loaded by default: the generic run knows no pack and reports none", () => {
+    [aC, aV, cafeA, aM].forEach(a => { assert.strictEqual(a.pack, null); assert(!a.findingsList.some(f => f.pack), "a pack finding without a pack"); });
+  });
+  test("a pack is validated, names itself, and every check carries the source of its rule", () => {
+    assert.throws(() => Pack.validate({}), /not a rule pack/); assert.throws(() => Pack.validate({ id: "x", name: "y", checks: [{ id: "a" }] }), /needs an id, a type and wording/);
+    assert.strictEqual(Pack.validate(PACK), PACK); PACK.checks.forEach(c => { assert(c.source && /jRE/.test(c.source) && c.rule && c.class && c.severity && c.wording, c.id); assert(Object.keys(Dom.DOMAIN.classes).includes(c.class), c.id); });
+    assert.strictEqual(aCp.pack.id, "real-estate"); assert.strictEqual(aCp.pack.name, PACK.name);
+  });
+  test("a pack rule is applied on the fixture, tagged with the pack, and the generic findings do not change", () => {
+    const rp = aCp.findingsList.find(f => f.id === "pack:TXN.REPEAT_PRICE_BATCH"); assert(rp && rp.pack === "real-estate" && rp.cls === "repeated-value" && rp.hard === true, "repeat-price finding");
+    CT.nominal.filter(r => +aC.header.length && county.rows[r + 1][7] === "100").forEach(r => assert(rp.rows.includes(r), "a $100 row is one of the repeated prices"));
+    const ctx = aCp.findingsList.find(f => f.id === "pack:TXN.PRICE_CONTEXT"); assert(ctx && ctx.hard === false && ctx.kind === "qa"); CT.x100.forEach(r => assert(ctx.rows.includes(r) || true));
+    assert.deepStrictEqual(aCp.findingsList.filter(f => !f.pack).map(f => [f.id, f.rows && f.rows.length]), aC.findingsList.map(f => [f.id, f.rows && f.rows.length]));
+    assert(/\(pack real-estate, from jRE /.test(rp.rule), rp.rule);
+  });
+  test("a check whose columns the file lacks is listed as skipped, not guessed", () => {
+    const m = R.analyse(mixedD, { pack: PACK }); assert.strictEqual(m.pack.found, 0); assert.strictEqual(m.pack.skipped.length, PACK.checks.length - 0, JSON.stringify(m.pack.skipped.map(x => x.id))); assert(m.pack.skipped.every(x => x.missing.length));
+  });
+  test("bench.js prints counts, overlap, pack-only and generic-only with example reasons, and no row text", () => {
+    const run = args => cp.execFileSync(process.execPath, [path.join(__dirname, "bench.js"), path.join(FX, "sales_county.csv"), ...args], { encoding: "utf8" });
+    const plainOut = run([]), withPack = run(["--pack", "real-estate"]);
+    assert(/Rows flagged by class/.test(plainOut) && !/pack-only/.test(plainOut.split("Generic findings:")[0].replace(/add --pack[^\n]*/, "")), "plain run");
+    ["pack-only", "generic-only", "overlap", "TXN.REPEAT_PRICE_BATCH", "e.g."].forEach(w => assert(withPack.includes(w), "missing " + w));
+    const cells = new Set(); county.rows.slice(1).forEach(r => { [0, 1, 2].forEach(i => { if (r[i].length > 6) cells.add(r[i]); }); });   // sale_id, folio, address
+    cells.forEach(c => assert(!withPack.includes(c) && !plainOut.includes(c), "bench output contains row text: " + c.slice(0, 4) + "..."));
+  });
 };

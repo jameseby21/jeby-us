@@ -207,6 +207,15 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     return `${requests.length} requests in total, the page start-up and public font files only; nothing else, no POST or PUT`;
   });
 
+  await check("rule pack: none by default; loading one names it on the page and marks its findings; it can also be fetched with ?pack= from a served page", async () => {
+    assert.strictEqual(await js(`document.querySelector('#pack-name').textContent`), "none"); assert.strictEqual(await js(`JAIReportDebug.pack`), null);
+    const pack = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../packs/real-estate.json"), "utf8"));
+    await js(`JAIReportDebug.usePack(${JSON.stringify(pack)})`);
+    const m = await js(`({ name: document.querySelector('#pack-name').textContent, meta: document.querySelector('.sh-meta').textContent, tags: [...document.querySelectorAll('.sheet .finds li b')].map(e => e.textContent), skipped: JAIReportDebug.analysis.pack.skipped.length })`);
+    assert(/Real estate/.test(m.name) && /rule pack: Real estate/.test(m.meta), JSON.stringify(m)); assert.strictEqual(m.skipped, 4, "the café file has no area, beds, baths or address columns for four of the six checks");
+    return `pack named: ${m.name}`;
+  });
+
   console.log("10,000 rows");
   tmpCsv = path.join(os.tmpdir(), `jai-10k-${process.pid}.csv`);
   const rows10 = R.cafeSample(10000); fs.writeFileSync(tmpCsv, Rec.rowsToCSV(rows10, { delim: ",", eol: "\n" }));

@@ -9,6 +9,7 @@
   if (root) { RATE = +root.dataset.rate || RATE; MAXR = +root.dataset.maxRows || MAXR; MAXC = +root.dataset.maxCols || MAXC; }
   const Rec = typeof module !== "undefined" && module.exports ? require("./records.js") : self.JAIRecords;
   const Dom = typeof module !== "undefined" && module.exports ? require("./domain.js") : self.JAIDomain;
+  const Pack = typeof module !== "undefined" && module.exports ? require("./pack.js") : self.JAIPack;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 0) => (Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(1) + "K" : v.toLocaleString("en-US", { maximumFractionDigits: d }));
   const full = (v, d = 2) => v.toLocaleString("en-US", { maximumFractionDigits: d });
@@ -428,6 +429,17 @@
       else findings.push({ id: it.id, kind: "insight", sev: it.sev, title: it.title, detail: it.detail, score: it.score, crumb: it.crumb });
     });
 
+    // an optional rule pack (CONS-0068): none unless the visitor loads one; its findings are tagged with the pack and never change the generic ones
+    let packInfo = null;
+    if (choice.pack) {
+      Pack.validate(choice.pack); const its = Pack.run(choice.pack, { body, cols, num }); packInfo = { id: choice.pack.id, name: choice.pack.name, version: choice.pack.version, found: 0, skipped: [] };
+      its.forEach(it => {
+        if (it.skipped) { packInfo.skipped.push({ id: it.id, missing: it.missing }); return; }
+        packInfo.found++; it.cells.forEach(c => { const k = c.ri + ":" + c.ci; if (!flags.has(k)) flags.set(k, { sev: c.sev, why: c.why, id: it.id, fam: "", eff: 0 }); (fr.get(it.id) || fr.set(it.id, new Set()).get(it.id)).add(c.ri); });
+        checks.push({ sev: it.sev, title: it.title, detail: it.detail }); findings.push({ id: it.id, kind: it.kind, cls: it.cls, sev: it.sev, hard: it.hard, pack: it.pack, title: it.title, detail: it.detail, rule: it.rule, todo: it.todo, score: it.score, crumb: it.crumb });
+      });
+    }
+
     // trend (dates outside a sensible range are left out so they do not stretch the chart)
     let trend = null;
     if (dateCol && dateInfo && dateInfo.okDates.length) {
@@ -473,8 +485,8 @@
 
     findings.forEach(f => { Object.assign(f, meta.get(f.id) || {}); if (!f.kind) f.kind = "qa"; if (f.kind === "qa" && !f.cls) f.cls = classOfFinding(f); });
     const byFid = new Map(findings.filter(f => f.id).map(f => [f.id, f])), CL = Dom.DOMAIN.classes;
-    findings.forEach(f => { if (f.kind === "qa" && f.cls && CL[f.cls] && f.sev !== "ok") { f.hard = CL[f.cls].hard; f.pri = f.sev; f.sev = f.hard ? "fix" : "look"; const ck = checks.find(c => c.title === f.title); if (ck) ck.sev = f.sev; } });
-    flags.forEach(fl => { const fd = byFid.get(fl.id); if (fd && fd.kind === "qa" && fd.cls && CL[fd.cls]) { fl.pri = fl.pri || fl.sev; fl.sev = CL[fd.cls].hard ? "fix" : "look"; } });
+    findings.forEach(f => { if (f.kind === "qa" && f.cls && CL[f.cls] && f.sev !== "ok" && !f.pack) { f.hard = CL[f.cls].hard; f.pri = f.sev; f.sev = f.hard ? "fix" : "look"; const ck = checks.find(c => c.title === f.title); if (ck) ck.sev = f.sev; } });
+    flags.forEach(fl => { const fd = byFid.get(fl.id); if (fd && fd.kind === "qa" && fd.cls && CL[fd.cls] && !fd.pack) { fl.pri = fl.pri || fl.sev; fl.sev = CL[fd.cls].hard ? "fix" : "look"; } });
     const classCounts = Object.keys(CL).map(k => { const fs = findings.filter(f => f.kind === "qa" && f.cls === k); const rows = new Set(fs.flatMap(f => (fr.get(f.id) ? [...fr.get(f.id)] : []))); return { cls: k, label: CL[k].label, hard: CL[k].hard, n: k === "optional-field" ? optionalCols.length : rows.size }; }).filter(c => c.n > 0);
     findings.sort((a, b) => b.score - a.score);
     findings.forEach(f => { if (f.id) { f.rows = [...(fr.get(f.id) || [])].sort((a, b) => a - b); f.n = f.rows.length; } });
@@ -482,7 +494,7 @@
     const rank = { fix: 0, look: 1, ok: 2 }; checks.sort((a, b) => rank[a.sev] - rank[b.sev]);
     const needsCleanup = checks.some(c => c.sev === "fix");
     const qaSample = N >= 10 ? qaSampleOf({ N, header, cat, flags, findingsList: findings }, body, choice.seed) : null;
-    return { name: data.name, sheet: data.sheet, N, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, classCounts, qaSample, notChecked: Dom.notChecked(cols), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+    return { name: data.name, sheet: data.sheet, N, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, pack: packInfo, classCounts, qaSample, notChecked: Dom.notChecked(cols), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
   }
 
   // ---------- classes and review verbs
@@ -731,6 +743,12 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
 
   // ---------- wiring
   let current = null, choice = {}, store = null, table = null, last = null;
+  let activePack = null;
+  const packName = () => { const el = $("#pack-name"); if (el) el.textContent = activePack ? `${activePack.name} (${activePack.version || "no version"})` : "none"; };
+  const usePack = p => { activePack = Pack.validate(p); packName(); if (current) { choice.pack = activePack; show2(); } status(`Rule pack loaded: ${activePack.name}. Its findings are marked with the pack; the generic ones are unchanged.`); };
+  { const q = new URLSearchParams(location.search).get("pack");   // ?pack=real-estate loads packs/real-estate.json from this site
+    if (q && /^[a-z0-9-]+$/.test(q)) fetch(`assets/packs/${q}.json`).then(r => { if (!r.ok) throw new Error("not found"); return r.json(); }).then(usePack).catch(() => status("That rule pack could not be loaded, so the report runs without one.")); }
+  { const pk = $("#report-pack"); if (pk) pk.addEventListener("change", async () => { try { usePack(JSON.parse(await pk.files[0].text())); } catch (e) { status(e.message || "That file is not a rule pack."); } pk.value = ""; }); }
   const out = $("#report-out"), status = msg => { $("#report-status").textContent = msg; };
   function paint(a, first) {
     last = a; const ed = store ? { n: store.edits.length, cells: store.edited.size } : null, notable = pickNotable(a, store);
@@ -758,7 +776,7 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     paint(a, false); status(`${store.edits.length} edit${store.edits.length === 1 ? "" : "s"}. Findings recalculated in ${Math.round(performance.now() - t0)} ms, on this device.`);
   }
   async function run(data) {
-    try { const t0 = performance.now(); current = data; choice = {}; const a = analyse(data); show(a); status(`Read ${a.N.toLocaleString("en-US")} rows in ${Math.round(performance.now() - t0)} ms, on this device.`); }
+    try { const t0 = performance.now(); current = data; choice = activePack ? { pack: activePack } : {}; const a = analyse(data, choice); show(a); status(`Read ${a.N.toLocaleString("en-US")} rows in ${Math.round(performance.now() - t0)} ms, on this device.`); }
     catch (e) { status(e.message || "That file couldn't be read."); }
   }
   out.innerHTML = `<div id="rep-controls"></div><div id="rep-sheet"></div><section class="records print-hide" id="rep-records" aria-label="All records"></section>`;
@@ -803,5 +821,5 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   drop.addEventListener("drop", async e => { const f = e.dataTransfer.files[0]; if (f) { status("Reading…"); try { run(await readFile(f)); } catch (x) { status(x.message); } } });
   $("#report-sample").addEventListener("click", () => run({ name: "cafe-sales-sample.csv (made up)", rows: cafeSample() }));
   if (location.hash === "#sample") $("#report-sample").click();
-  window.JAIReportDebug = { get table() { return table; }, get store() { return store; }, get analysis() { return last; }, get fitLog() { return fitLog; }, setLimits };
+  window.JAIReportDebug = { usePack, get pack() { return activePack; }, get table() { return table; }, get store() { return store; }, get analysis() { return last; }, get fitLog() { return fitLog; }, setLimits };
 })();

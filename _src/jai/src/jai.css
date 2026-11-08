@@ -452,3 +452,4 @@ body.print-fit .sheet[data-ph="2"] .qa-sample{display:none}
 body.print-fit .sh-foot{padding-top:8px}body.print-fit .sh-foot p{font-size:12px;margin-top:2px;max-width:none}body.print-fit .sh-kpis b{font-size:20px}body.print-fit .sh-head{padding-bottom:6px}body.print-fit .sheet{gap:10px}body.print-fit .sh-sec .calm{margin:0}
 .trend-note{margin:6px 0 0;font-size:13px;color:var(--ink-2)}
 .chart.stack .tk{font-size:10.5px}
+.pack-line{margin:8px 0 0;font-size:13px;color:var(--ink-2)}
