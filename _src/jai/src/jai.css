@@ -322,13 +322,13 @@ table.prof td:first-child{font-weight:500}table.prof td.more{color:var(--muted);
 .sh-foot .stamp{position:static;flex:none}
 .tableview{max-width:920px;margin:14px auto 0;font-size:14px}.tableview summary{cursor:pointer;color:var(--muted)}
 .tableview table{margin-top:10px;max-width:360px}
-@media (max-width:760px){.sheet{padding:22px 18px}.sh-kpis{grid-template-columns:1fr 1fr;row-gap:12px}.sh-kpis div:nth-child(3){border-left:0;padding-left:0}.sh-two{grid-template-columns:1fr;gap:22px}.sh-meta{text-align:left}}
+@media screen and (max-width:760px){.sheet{padding:22px 18px}.sh-kpis{grid-template-columns:1fr 1fr;row-gap:12px}.sh-kpis div:nth-child(3){border-left:0;padding-left:0}.sh-two{grid-template-columns:1fr;gap:22px}.sh-meta{text-align:left}}
 @media print{
   @page{size:letter;margin:.4in}
   html,body{background:#fff}
   .jai-head,.jai-foot,.fam-bar,.fam-host,.skip,.toast,main>*:not(#report-block),#report-intake,.report-controls,.tableview,.status-line,.tip{display:none!important}
-  #report-block{padding:0}#report-block>.wrap{padding:0;max-width:none}
-  .sheet{box-shadow:none;border:0;padding:0;max-width:none;zoom:.76;gap:16px;animation:none}
+  #report-block{padding:0!important}#report-block>.wrap{padding:0;max-width:none}
+  .sheet{box-shadow:none;border:0;padding:0;max-width:none;zoom:var(--pz,.76);gap:16px;animation:none}
   .sheet *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 
@@ -403,11 +403,18 @@ table.prof td:first-child{font-weight:500}table.prof td.more{color:var(--muted);
 .rec-tabs{display:flex;gap:6px}.rec-tabs button[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
 .rec-modal .rec-note{margin:0;padding:10px 14px 0;font-size:13px;color:var(--ink-2)}
 .rec-modal pre{margin:0;padding:12px 14px;overflow:auto;font:400 12px/1.5 var(--mono);background:var(--paper-2);flex:1;white-space:pre}
-@media (max-width:860px){.worth{grid-template-columns:minmax(0,1fr)}.records{padding:14px 12px}}
+@media screen and (max-width:860px){.worth{grid-template-columns:minmax(0,1fr)}.records{padding:14px 12px}}
 @media (prefers-reduced-motion:reduce){.rec-tip{transition:none}}
 @media print{
   .print-hide,.records,.rec-tip,.rec-back{display:none!important}
   .print-only{display:block}.edit-note{font-size:12px;color:var(--ink-2);border-top:1px solid var(--rule);padding-top:6px}
-  .worth li:nth-child(n+6){display:none}
+  .sheet:not([data-pw]) .worth li:nth-child(n+6),.sheet[data-pw="3"] .worth li:nth-child(n+4),.sheet[data-pw="0"] .sh-worth{display:none}
   .worth{gap:0 22px}.wrow{padding:5px 0}.sh-worth h3 .hint{display:none}
 }
+/* print fit: just before printing, report.js lays the sheet out at the printed width with these rules, so it can pick the largest zoom (and the most worth-a-look rows)
+   that keeps the report on one page. The rules mirror the print block above. */
+body.print-fit .print-hide,body.print-fit .tip{display:none!important}
+body.print-fit .print-only{display:block}
+body.print-fit .sheet{box-shadow:none;border:0;padding:0;max-width:none;gap:16px;animation:none}
+body.print-fit .worth{gap:0 22px}body.print-fit .wrow{padding:5px 0}
+body.print-fit .sheet:not([data-pw]) .worth li:nth-child(n+6),body.print-fit .sheet[data-pw="3"] .worth li:nth-child(n+4),body.print-fit .sheet[data-pw="0"] .sh-worth{display:none}

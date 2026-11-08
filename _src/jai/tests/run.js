@@ -193,6 +193,18 @@ test("cafe sample: at most ten, one reason each, price rows first, ordered by se
   const pf = a.findingsAll.find(f => f.id === "unit:unit_price"); assert(pf.rows.includes(w[0].ri), "first is not a price row: " + JSON.stringify(w[0]));
   const rank = { fix: 2, look: 1, ctx: 0 }; for (let i = 1; i < w.length; i++) assert(rank[w[i - 1].sev] >= rank[w[i].sev], "severity order at " + i);
 });
+test("a record that is one of many with the same problem says how many (the twelve price rows read '1 of 12')", () => {
+  const { a, s } = cafe(), w = R.pickNotable(a, s), pf = a.findingsAll.find(f => f.id === "unit:unit_price");
+  const lead = w.filter(x => pf.rows.includes(x.ri)); assert(lead.length >= 3 && lead.length <= 4, "price rows listed: " + lead.length);
+  assert.deepStrictEqual(w.slice(0, lead.length).map(x => x.ri), lead.map(x => x.ri), "the price rows are the first entries");
+  lead.forEach(x => assert(/One of 12 rows with this problem\./.test(x.reason), x.reason));
+  assert(!w.some(x => x.id === "largest" || x.id === "recent") || w.filter(x => /One of/.test(x.reason)).every(x => a.findingsAll.some(f => f.id === x.id)), "only finding rows carry the count");
+});
+test("the list never repeats a row and never shows more than ten", () => {
+  for (const [d, a] of [[planted, aP], [load("venues.csv"), R.analyse(load("venues.csv"))], [{ name: "c", rows: R.cafeSample(10000) }, R.analyse({ name: "c", rows: R.cafeSample(10000) })]]) {
+    const w = R.pickNotable(a, R.makeStore(d, a)); assert(w.length <= 10, w.length); assert.strictEqual(new Set(w.map(x => x.ri)).size, w.length, "a row repeats");
+  }
+});
 test("planted fixture: unit-error rows come first", () => {
   const w = R.pickNotable(aP, R.makeStore(planted, aP)), ue = new Set([...PT.city_unit_error, ...PT.x100, ...PT.x1000]);
   assert(w.slice(0, 4).every(x => ue.has(x.ri)), JSON.stringify(w.slice(0, 4).map(x => [x.ri, x.reason])));

@@ -143,6 +143,13 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await send("Emulation.setEmulatedMedia", { media: "" });
     assert.strictEqual(m.rec, "none"); assert.strictEqual(m.sixth, "none"); assert.notStrictEqual(m.fifth, "none"); assert.strictEqual(m.controls, "none"); assert.notStrictEqual(m.note, "none");
   });
+  await check("records worth a look prints as part of the one page: the printed report is a single page and the list holds at most five records", async () => {
+    const pdf = await send("Page.printToPDF", { preferCSSPageSize: true, printBackground: true }), txt = Buffer.from(pdf.data, "base64").toString("latin1");
+    const pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length; assert.strictEqual(pages, 1, "printed pages: " + pages);
+    const f = await js(`(() => { const sh = document.querySelector('.sheet'); return { z: sh.style.getPropertyValue('--pz'), rows: sh.dataset.pw || '5' } })()`);
+    assert(+f.rows >= 3, "worth-a-look rows kept in print: " + f.rows);
+    return `1 printed page at zoom ${f.z}, ${f.rows} worth-a-look rows`;
+  });
   await check("nothing leaves the browser: no request while working, none that is a POST or PUT, ever", async () => {
     const quiet = requests.filter(r => r.t >= quietFrom && !r.url.startsWith("data:") && !r.url.startsWith("blob:"));
     assert.strictEqual(quiet.length, 0, "requests during use: " + quiet.map(r => r.method + " " + r.url).join(", "));

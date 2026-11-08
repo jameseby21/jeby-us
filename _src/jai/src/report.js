@@ -419,7 +419,8 @@
     cand.sort((x, y) => SEVRANK[y.sev] - SEVRANK[x.sev] || y.fe - x.fe || y.eff - x.eff || y.n - x.n || x.ri - y.ri);
     const out = [], used = new Map(), picked = new Set();
     const where = ri => a.cat ? ` · ${rows[ri][a.cat.i].trim() || "(blank)"}` : "";
-    const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, id: c.id || null, title: `Row ${(c.ri + 2).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason });
+    const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, id: c.id || null, title: `Row ${(c.ri + 2).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason: reason + (oneOf(c.id) > 1 ? ` One of ${oneOf(c.id).toLocaleString("en-US")} rows with this problem.` : "") });
+    const oneOf = id => { const f = a.findingsAll.find(x => x.id === id); return f ? f.n : 0; };   // a list of ten cannot hold every row of a big finding, so each entry says how many there are
     for (const c of cand) { if (out.length >= 10) break; if (c.id === "gaps") continue; /* a blank cell is a column-wide matter, not a record to read */ if ((used.get(c.id) || 0) >= PER_FINDING) continue; used.set(c.id, (used.get(c.id) || 0) + 1); picked.add(c.ri); out.push(entry(c, plain(c.why), c.sev)); }
     if (out.length < 10 && a.measure && a.cat) {   // a record that would change the order of the groups if it were removed
       const mi = a.measure.i, ci = a.cat.i, sums = new Map(); rows.forEach(r => { const k = r[ci].trim() || "(blank)"; sums.set(k, (sums.get(k) || 0) + (num(r[mi]) || 0)); });
@@ -595,6 +596,22 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     const w = e.target.closest("[data-row]"); if (w && table && w.classList.contains("wrow")) table.jumpTo(+w.dataset.row);
     const g = e.target.closest("[data-g]"); if (g && table && last && last.breakdown) table.showGroup(last.breakdown.ci, g.dataset.g);
   });
+  // One printed page: letter paper with .4in margins is 739 x 979 css px. Lay the sheet out at the printed width, then keep the most worth-a-look rows (5, then 3, then none)
+  // at the largest zoom that fits. The floor is .6 (about 6 pt): a dense sheet with five findings only fits that small, and the list gives way before the report does.
+  function fitPrint() {
+    const sh = $(".sheet", out); if (!sh || out.hidden) return; const PW = 739, PH = 975, body = document.body;
+    body.classList.add("print-fit"); sh.style.zoom = "1";
+    try {
+      let set = false;
+      for (const rows of [5, 3, 0]) {
+        if (rows === 5) sh.removeAttribute("data-pw"); else sh.dataset.pw = rows;
+        for (let z = 0.76; z >= 0.595 && !set; z -= 0.02) { sh.style.width = PW / z + "px"; if (sh.offsetHeight * z <= PH) { sh.style.setProperty("--pz", z.toFixed(2)); set = true; } }
+        if (set) break;
+      }
+      if (!set) sh.style.setProperty("--pz", "0.6");
+    } finally { sh.style.width = ""; sh.style.zoom = ""; body.classList.remove("print-fit"); }
+  }
+  window.addEventListener("beforeprint", fitPrint);
   const file = $("#report-file"), drop = $("#report-drop");
   file.addEventListener("change", async () => { if (file.files[0]) { status("Reading…"); try { run(await readFile(file.files[0])); } catch (e) { status(e.message); } } });
   ["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
