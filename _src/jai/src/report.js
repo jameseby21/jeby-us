@@ -718,13 +718,14 @@
 
   // ---------- drawing
   const niceMax = m => { if (m <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(m))), f = m / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
+  let CHART_W = 680, BARS_W = 420;   // the pixel width each chart will be shown at, so its words are drawn at their real size (JEBYUS-0058)
   function lineSVG(tr, measureName) {
-    const W = 680, H = 210, L = 56, R = 18, T = 26, B = 26, s = tr.series; if (s.length < 2) return "";
+    const W = CHART_W, H = 210, L = 56, R = 18, T = 26, B = 26, s = tr.series; if (s.length < 2) return "";
     const max = niceMax(Math.max(...s.map(p => p.v)) * 1.05), min = Math.min(0, ...s.map(p => p.v));
     const X = i => L + i * (W - L - R) / (s.length - 1), Y = v => T + (H - T - B) * (1 - (v - min) / (max - min));
     let g = ""; for (let i = 0; i <= 4; i++) { const v = min + (max - min) * i / 4; g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${L - 8}" y="${Y(v) + 3.5}" text-anchor="end" class="tk">${fmt(v)}</text>`; }
-    const every = Math.ceil(s.length / 12);
-    s.forEach((p, i) => { if (i % every === 0 || i === s.length - 1) g += `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" class="tk">${tr.label(p.t)}</text>`; });
+    const every = Math.ceil(s.length / Math.max(2, Math.floor((W - L - R) / 60)));
+    s.forEach((p, i) => { if (i % every === 0 || (i === s.length - 1 && i % every >= Math.ceil(every * .75))) g += `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" class="tk">${tr.label(p.t)}</text>`; });
     const d = s.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join("");
     let marks = ""; s.forEach((p, i) => { const part = (tr.partialFirst && i === 0) || (tr.partialLast && i === s.length - 1);
       marks += `<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" class="${part ? "pt part" : "pt"}"/>`; });
@@ -737,23 +738,24 @@
   }
   const SPLITC = ["#2f3b4b", "#b3121a", "#2f5e9e", "#8a6d3b", "#4f7a5c", "#9a998f", "#6b5b95", "#c2792b"];
   function stackSVG(tr, measureName) {
-    const W = 680, H = 230, L = 56, R = 18, T = 14, B = 52, sp = tr.split, n = tr.series.length; if (n < 2) return "";
+    const W = CHART_W, L = 56, R = 18, T = 14, sp = tr.split, n = tr.series.length; if (n < 2) return "";
+    const perRow = Math.max(1, Math.floor((W - L) / 150)), legendRows = Math.ceil(sp.names.length / perRow), B = 34 + legendRows * 16, H = 170 + B;
     const totals = tr.series.map((_, i) => sp.vals.reduce((a, row) => a + row[i], 0)), max = niceMax(Math.max(...totals) * 1.05) || 1, bw = (W - L - R) / n, Y = v => T + (H - T - B) * (1 - v / max);
     let g = ""; for (let i = 0; i <= 4; i++) { const v = max * i / 4; g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${L - 8}" y="${Y(v) + 3.5}" text-anchor="end" class="tk">${fmt(v)}</text>`; }
-    const every = Math.ceil(n / 12); let bars = "";
+    const every = Math.ceil(n / Math.max(2, Math.floor((W - L - R) / 60))); let bars = "";
     tr.series.forEach((p, i) => { let acc = 0; const x = L + i * bw + bw * 0.12, w = bw * 0.76, part = (tr.partialFirst && i === 0) || (tr.partialLast && i === n - 1);
-      if (i % every === 0 || i === n - 1) g += `<text x="${x + w / 2}" y="${H - B + 14}" text-anchor="middle" class="tk">${tr.label(p.t)}</text>`;
+      if (i % every === 0 || (i === n - 1 && i % every >= Math.ceil(every * .75))) g += `<text x="${x + w / 2}" y="${H - B + 14}" text-anchor="middle" class="tk">${tr.label(p.t)}</text>`;
       const tip = `${tipSafe(tr.label(p.t))}${part ? " (partial)" : ""}: <b>${esc(full(totals[i], 0))}</b>` + sp.names.map((nm, k) => (sp.vals[k][i] ? `<br>${tipSafe(nm)} ${esc(full(sp.vals[k][i], 0))}` : "")).join("");
       bars += `<g data-tip="${tip}"><rect x="${L + i * bw}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"/>` + sp.names.map((nm, k) => { const v = sp.vals[k][i]; if (!v) return ""; const y1 = Y(acc + v), y0 = Y(acc); acc += v; return `<rect x="${x}" y="${y1}" width="${w}" height="${Math.max(0.5, y0 - y1)}" fill="${nm === "Other" ? SPLITC[5] : SPLITC[k % SPLITC.length]}" opacity="${part ? 0.55 : 1}"/>`; }).join("") + `</g>`; });
-    const legend = sp.names.map((nm, k) => `<g transform="translate(${L + (k % 4) * 150} ${H - 22 + Math.floor(k / 4) * 14})"><rect width="10" height="10" y="-9" fill="${nm === "Other" ? SPLITC[5] : SPLITC[k % SPLITC.length]}"/><text x="14" y="0" class="tk">${esc(nm.slice(0, 18))}</text></g>`).join("");
-    return `<svg viewBox="0 0 ${W} ${H + (sp.names.length > 4 ? 14 : 0)}" class="chart stack" role="img" aria-label="${esc(measureName)} by ${tr.unit}, split by ${esc(sp.col)}">${g}${bars}${legend}</svg>`;
+    const legend = sp.names.map((nm, k) => `<g transform="translate(${L + (k % perRow) * 150} ${H - B + 34 + Math.floor(k / perRow) * 16})"><rect width="10" height="10" y="-9" fill="${nm === "Other" ? SPLITC[5] : SPLITC[k % SPLITC.length]}"/><text x="14" y="0" class="tk">${esc(nm.slice(0, 18))}</text></g>`).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" class="chart stack" role="img" aria-label="${esc(measureName)} by ${tr.unit}, split by ${esc(sp.col)}">${g}${bars}${legend}</svg>`;
   }
   function barsSVG(bd) {
-    const rowH = 30, W = 420, L = 150, R = 64, H = bd.items.length * rowH + 4, max = Math.max(...bd.items.map(x => x[1]), 1);
+    const rowH = 30, W = BARS_W, L = Math.min(150, Math.round(W * .36)), R = 64, H = bd.items.length * rowH + 4, max = Math.max(...bd.items.map(x => x[1]), 1);
     return `<svg viewBox="0 0 ${W} ${H}" class="chart bars" role="img" aria-label="Totals by ${esc(bd.col)}">` + bd.items.map(([k, v, other, n], i) => {
       const y = i * rowH + 6, w = Math.max(2, (W - L - R) * Math.max(0, v) / max), h = 18, r = Math.min(4, w / 2);
       const norm = k.trim().toLowerCase().replace(/\s+/g, " "), variant = !other && bd.items.some(([k2, v2], j) => j !== i && k2.trim().toLowerCase().replace(/\s+/g, " ") === norm && (v2 > v || (v2 === v && j < i)));
-      const pickable = !other && !bd.noPick, lab = (variant ? k.replace(/ {2,}/g, m => "·".repeat(m.length)) : k).slice(0, variant ? 12 : 18) + (k.length > (variant ? 12 : 18) ? "…" : "");
+      const pickable = !other && !bd.noPick, mc = Math.max(8, Math.floor((L - 12) / 7)) - (variant ? 7 : 0), lab = (variant ? k.replace(/ {2,}/g, m => "·".repeat(m.length)) : k).slice(0, mc) + (k.length > mc ? "…" : "");
       return `<g data-tip="${tipSafe(k)}: <b>${esc(full(v, 0))}</b> · ${pct(v, bd.total).toFixed(1)}% · ${n.toLocaleString("en-US")} rows · average <b>${esc(full(v / (n || 1), 2))}</b>${pickable ? "<br>Click to show these rows" : ""}"${pickable ? ` data-g="${esc(k)}" class="pick"` : ""}><rect x="0" y="${y - 6}" width="${W}" height="${rowH}" fill="transparent"/>
         <text x="${L - 10}" y="${y + 13}" text-anchor="end" class="bl">${esc(lab)}${variant ? `<tspan class="var"> variant</tspan>` : ""}</text>
         <path class="${other ? "bar other" : "bar"}" d="M${L} ${y}h${w - r}a${r} ${r} 0 0 1 ${r} ${r}v${h - 2 * r}a${r} ${r} 0 0 1 -${r} ${r}h-${w - r}z"/>
@@ -841,6 +843,8 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   const out = $("#report-out"), status = msg => { $("#report-status").textContent = msg; };
   function paint(a, first, nb) {
     last = a; const ed = store ? { n: store.edits.length, cells: store.edited.size } : null, notable = nb || pickNotable(a, store);
+    { const pad = innerWidth <= 760 ? 18 : 38, inner = Math.min(920, $("#rep-sheet").clientWidth || out.clientWidth || 700) - 2 * pad - 2;   // the sheet's own padding and border; charts are drawn at the width they will be shown
+      CHART_W = Math.round(Math.max(280, Math.min(680, inner))); BARS_W = Math.round(Math.max(280, Math.min(420, innerWidth <= 760 ? inner : (inner - 30) / 2.15))); }
     $("#rep-sheet").innerHTML = sheetHTML(a, notable, ed); if (!first) $(".sheet", out).style.animation = "none";
     $$(".chart-wrap", out).forEach(wrap => {
       const tip = $(".tip", wrap), svg = $("svg", wrap), xh = $(".xh", wrap);
@@ -848,6 +852,7 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
         if (xh && el.dataset.x) { xh.setAttribute("x1", el.dataset.x); xh.setAttribute("x2", el.dataset.x); xh.style.opacity = 1; } };
       $$("[data-tip]", svg).forEach(el => { el.addEventListener("pointermove", e => show(el, e)); el.addEventListener("pointerleave", () => { tip.hidden = true; if (xh) xh.style.opacity = 0; }); });
     });
+    if (window.JAI) JAI.fitSvgText($("#rep-sheet"));   // chart words stay 12 px or more however narrow the sheet is (JEBYUS-0058)
     const st = $(".stamp", out); if (st) requestAnimationFrame(() => st.classList.add("hit"));
     if (table) table.update(a);
   }
