@@ -8,6 +8,7 @@
   let RATE = 95, MAXR = 10000, MAXC = 12;
   if (root) { RATE = +root.dataset.rate || RATE; MAXR = +root.dataset.maxRows || MAXR; MAXC = +root.dataset.maxCols || MAXC; }
   const Rec = typeof module !== "undefined" && module.exports ? require("./records.js") : self.JAIRecords;
+  const Dom = typeof module !== "undefined" && module.exports ? require("./domain.js") : self.JAIDomain;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 0) => (Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(1) + "K" : v.toLocaleString("en-US", { maximumFractionDigits: d }));
   const full = (v, d = 2) => v.toLocaleString("en-US", { maximumFractionDigits: d });
@@ -107,6 +108,9 @@
   const money = v => "$" + (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString("en-US") : v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
   const fv = (isMoney, v) => isMoney ? money(v) : full(v, Math.abs(v) < 10 ? 2 : 1);
   const xs = r => { r = r >= 1 ? r : 1 / r; return (r >= 9.5 ? String(Math.round(r)) : (Math.round(r * 10) / 10).toString()) + "x"; };
+  // "x times" only up to 20; beyond that a ratio is "far above" or "far below", with both numbers beside it (CONS-0058)
+  const FAR = 20, isFar = r => (r >= 1 ? r : 1 / r) > FAR;
+  const rel = (r, hi) => isFar(r) ? `far ${hi ? "above" : "below"}` : `${xs(r)} ${hi ? "above" : "below"}`;
   const logStats = l => { const med = median(l); return { med, sig: Math.max(1.4826 * median(l.map(v => Math.abs(v - med))), 0.02), n: l.length }; };
   const CAUSE = {
     1: "Likely an extra zero or a misplaced decimal point.", "-1": "Likely a missing digit.",
@@ -116,14 +120,17 @@
 
   function detectOutliers(body, cols, o = {}) {
     const N = body.length, items = new Map(), claimed = new Map(), calc = o.calc;
-    const numCols = cols.filter(c => c.type === "number" && !NOT_MEASURE.test(c.name));
-    const vals = new Map(); const V = c => vals.get(c.i) || (vals.set(c.i, Float64Array.from(body, r => num(r[c.i]))), vals.get(c.i));
+    const numCols = cols.filter(c => c.type === "number" && !NOT_MEASURE.test(c.name) && !Dom.DOMAIN.notMeasure.includes(c.role));
+    const nominal = o.nominal || new Map();
+    const vals = new Map(); const V = c => vals.get(c.i) || (vals.set(c.i, Float64Array.from(body, (r, ri) => (nominal.has(c.i) && nominal.get(c.i).set.has(ri) ? NaN : num(r[c.i])))), vals.get(c.i));
+    const nomWord = c => (nominal.has(c.i) ? "non-nominal " : "");
     const groupCols = cols.filter(c => c.type === "category" && c.distinct >= 2 && c.distinct <= 40);
     const G = groupCols.map(c => { const ids = new Map(), gid = new Int32Array(N).fill(-1), names = []; body.forEach((r, ri) => { const k = r[c.i].trim(); if (!k) return; if (!ids.has(k)) { ids.set(k, names.length); names.push(k); } gid[ri] = ids.get(k); }); return { col: c, gid, names }; });
     const gstat = new Map();
     const statsFor = (key, v, g) => { const k = key + "|" + g.col.i; if (gstat.has(k)) return gstat.get(k);
       const buckets = g.names.map(() => []); for (let i = 0; i < N; i++) if (g.gid[i] >= 0 && v[i] > 0) buckets[g.gid[i]].push(Math.log(v[i]));
-      const st = buckets.map(b => ({ ...logStats(b), l: b })); gstat.set(k, st); return st; };
+      const st = buckets.map((b, gi) => ({ ...logStats(b), l: b, sv: g.names[gi] })); gstat.set(k, st); return st; };
+    const countCache = new Map(); const isCountCol = c => (countCache.has(c.i) ? countCache.get(c.i) : (countCache.set(c.i, isCount(c)), countCache.get(c.i)));
     const isCount = c => { const v = V(c); let ints = true, pos = []; for (let i = 0; i < N; i++) { if (v[i] !== v[i]) continue; if (v[i] !== Math.floor(v[i])) { ints = false; break; } if (v[i] > 0) pos.push(v[i]); } return ints && median(pos) <= 12; };
 
     // metrics: every numeric column, then ratios when the columns exist. Ratios go first so a short living area is named for what it is.
@@ -155,13 +162,19 @@
     function reasonFor(m, ri, c, v, st, scope, how) { // how: "group" (its own group's usual), "shift" (the rest of the file), "all" (the whole file)
       const r = v / Math.exp(st.med), k = unitK(r, st.sig), money = MONEY_RE.test(c.name) || (m.money && c === m.a), refv = Math.exp(st.med);
       const usual = how === "group" ? `this ${human(scope)}'s usual` : "the usual", tail = how === "shift" ? " in the rest of the file" : how === "all" ? " across the file" : "";
-      let t = `<b>${fv(money, v)} is ${xs(r)}${r >= 1 ? "" : " below"} ${usual} ${fv(money, refv)}${tail}.</b>`;
+      let t = isFar(r) ? `<b>${fv(money, v)} is far ${r >= 1 ? "above" : "below"} ${usual} ${fv(money, refv)}${tail}.</b>` : `<b>${fv(money, v)} is ${xs(r)}${r >= 1 ? "" : " below"} ${usual} ${fv(money, refv)}${tail}.</b>`;
       if (m.a) t += ` ${m.label[0].toUpperCase() + m.label.slice(1)} comes out at ${fv(true, V(m.a)[ri] / V(m.b)[ri])}.`;
       t += " " + (k ? CAUSE[k] : (r >= 10 || r <= .1) ? "Check it against the source." : "A typo, or a real exception?");
+      const nw = nomWord(c), n = st.n != null ? st.n.toLocaleString("en-US") : null;
+      if (n) t += how === "group" && st.sv != null ? ` Baseline: median of ${n} ${nw}values in ${human(scope)} “${st.sv}”.`
+        : how === "shift" ? ` Baseline: median of ${n} ${nw}values in the rest of the file.`
+        : ` Baseline: median of ${n} ${nw}values across the file${st.fb ? ` (${human(st.fb.col)} “${st.fb.val}” has fewer than ${Dom.DOMAIN.baselineMin})` : ""}.`;
       return { why: t, k, r, refv };
     }
     function flag(m, ri, c, v, st, scope, how, extra) {
-      if (!(v > 0)) return; const rs = reasonFor(m, ri, c, v, st, scope, how), r = rs.r, fix = rs.k !== 0 || r >= 10 || r <= .1 || how === "shift";
+      if (!(v > 0)) return; const rs = reasonFor(m, ri, c, v, st, scope, how), r = rs.r;
+      if (m.a && isCountCol(c) && r < 8 && r > 1 / 8) return;   // a bedroom count one or two off is not a finding; only a count far from its usual is
+      const fix = rs.k !== 0 || r >= 10 || r <= .1 || how === "shift";
       const id = how === "shift" ? extra.id : rs.k ? "unit:" + c.name : m.a ? "ratio:" + m.label : "out:" + c.name;
       const rowM = o.measure && o.measure !== c ? V(o.measure)[ri] : NaN;
       const eff = o.measure === c ? Math.abs(v - rs.refv) : (rowM > 0 ? rowM * Math.min(50, Math.abs(1 - 1 / r)) : 0);
@@ -169,7 +182,7 @@
       if (ok) { const it = items.get(id); if (m.a) it.via.add(m.label); it.metrics.add(metricName(m)); if (how === "shift") Object.assign(it, { group: extra.group, gcol: extra.gcol, medG: extra.medG, rest: extra.rest }); if (!it.col) it.col = c; if (!it.scope) it.scope = scope; }
     }
 
-    const medCache = new Map(); const cacheMed = (c, gi, g, l) => { const k = c.i + "|" + g.col.i + "|" + gi; if (!medCache.has(k)) medCache.set(k, l.length ? { med: median(l), sig: .02 } : null); return medCache.get(k); };
+    const medCache = new Map(); const cacheMed = (c, gi, g, l) => { const k = c.i + "|" + g.col.i + "|" + gi; if (!medCache.has(k)) medCache.set(k, l.length ? { med: median(l), sig: .02, n: l.length } : null); return medCache.get(k); };
     // pass 1: a whole group sitting far from the rest of the file (a city entered with an extra zero)
     metrics.forEach(m => { if (m.count) return;
       const glob = []; for (let i = 0; i < N; i++) if (m.v[i] > 0) glob.push(Math.log(m.v[i]));
@@ -185,9 +198,9 @@
           if (dev.length < .6 * s.n) return;
           const id = `shift:${g.col.name}=${g.names[gi]}`, medAll = exp => exp;
           dev.forEach(ri => {
-            if (m.col) flag(m, ri, m.col, m.v[ri], { med: restMed, sig: between }, g.col.name, "shift", { id, group: g.names[gi], gcol: g.col.name, medG: Math.exp(s.med), rest: Math.exp(restMed) });
+            if (m.col) flag(m, ri, m.col, m.v[ri], { med: restMed, sig: between, n: rest.length }, g.col.name, "shift", { id, group: g.names[gi], gcol: g.col.name, medG: Math.exp(s.med), rest: Math.exp(restMed) });
             else { const cu = culprit(m, ri, c => { const l = []; for (let i = 0; i < N; i++) if (V(c)[i] > 0 && g.gid[i] !== gi) l.push(Math.log(V(c)[i])); return cacheMed(c, gi, g, l); });
-              flag(m, ri, cu.c, cu.v, cu.st ? { med: cu.st.med, sig: between } : { med: restMed, sig: between }, g.col.name, "shift", { id, group: g.names[gi], gcol: g.col.name, medG: Math.exp(s.med), rest: Math.exp(restMed) }); }
+              flag(m, ri, cu.c, cu.v, cu.st ? { med: cu.st.med, sig: between, n: cu.st.n } : { med: restMed, sig: between, n: rest.length }, g.col.name, "shift", { id, group: g.names[gi], gcol: g.col.name, medG: Math.exp(s.med), rest: Math.exp(restMed) }); }
           });
         });
       });
@@ -198,20 +211,21 @@
       const floor = m.count ? LN8 : LN3;
       // the group that explains this metric best (the smallest spread inside its groups) is the one a value is judged against
       const usable = G.map(g => { const st = statsFor(m.key, m.v, g), big = st.filter(x => x.n >= 8); return { g, st, w: big.length ? median(big.map(x => x.sig)) : Infinity }; }).filter(u => u.w < Infinity).sort((x, y) => x.w - y.w);
-      const globalL = []; if (!usable.length) for (let i = 0; i < N; i++) if (m.v[i] > 0) globalL.push(Math.log(m.v[i]));
+      const globalL = []; for (let i = 0; i < N; i++) if (m.v[i] > 0) globalL.push(Math.log(m.v[i]));
       const gs = globalL.length >= 20 ? logStats(globalL) : null;
       for (let ri = 0; ri < N; ri++) {
         const v = m.v[ri]; if (!(v > 0)) continue; const l = Math.log(v); let best = null;
-        let judged = false;
-        for (const { g, st } of usable) { const gi = g.gid[ri]; if (gi < 0) continue; const s = st[gi]; if (s.n < 8) continue; judged = true;
+        let judged = false, small = null;
+        for (const { g, st } of usable) { const gi = g.gid[ri]; if (gi < 0) continue; const s = st[gi]; if (s.n < Dom.DOMAIN.baselineMin) { if (!small) small = { col: g.col.name, val: g.names[gi] }; continue; } judged = true;
           const dev = Math.abs(l - s.med), thr = Math.max(floor, KSIG * s.sig); if (dev >= thr) best = { g, gi, s }; break; }
         if (judged && !best) continue;
         if (best) {
           if (m.col) flag(m, ri, m.col, v, best.s, best.g.col.name, "group");
           else { const cu = culprit(m, ri, c => statsFor(c.i, V(c), best.g)[best.g.gid[ri]]); flag(m, ri, cu.c, cu.v, cu.st || best.s, best.g.col.name, "group"); }
         } else if (gs && Math.abs(l - gs.med) >= Math.max(floor, (KSIG + 1) * gs.sig)) {
-          if (m.col) flag(m, ri, m.col, v, gs, "", "all");
-          else { const cu = culprit(m, ri, c => { const q = []; for (let i = 0; i < N; i++) if (V(c)[i] > 0) q.push(Math.log(V(c)[i])); return logStats(q); }); flag(m, ri, cu.c, cu.v, cu.st || gs, "", "all"); }
+          const gsf = small ? { ...gs, fb: small } : gs;
+          if (m.col) flag(m, ri, m.col, v, gsf, "", "all");
+          else { const cu = culprit(m, ri, c => { const q = []; for (let i = 0; i < N; i++) if (V(c)[i] > 0) q.push(Math.log(V(c)[i])); return logStats(q); }); flag(m, ri, cu.c, cu.v, cu.st ? (small ? { ...cu.st, fb: small } : cu.st) : gsf, "", "all"); }
         }
       }
     });
@@ -227,10 +241,12 @@
     const body = rows.slice(1, MAXR + 1).map(r => header.map((_, i) => r[i] == null ? "" : String(r[i])));
     const truncated = allRows > MAXR || allCols > MAXC;
     const N = body.length, cols = header.map((h, i) => ({ ...profileCol(h, body.map(r => r[i])), i }));
+    Dom.assignRoles(cols, body, num);
+    const nominal = Dom.findNominal(body, cols, num, median);   // set aside before any baseline is drawn (CONS-0058)
 
     const pick = (list, re, want) => (want && list.find(c => c.name === want)) || list.find(c => re.test(c.name)) || list[0] || null;
     const numCols = cols.filter(c => c.type === "number");
-    const measureCands = numCols.filter(c => !NOT_MEASURE.test(c.name));
+    const measureCands = numCols.filter(c => !NOT_MEASURE.test(c.name) && !Dom.DOMAIN.notMeasure.includes(c.role));
     const sumAbs = c => body.reduce((a, r) => a + Math.abs(num(r[c.i]) || 0), 0);
     const measure = (choice.measure && cols.find(c => c.name === choice.measure)) || measureCands.find(c => /total|amount|revenue|sales/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name) && !/qty|quantity|units/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name)) || [...measureCands].sort((a, b) => sumAbs(b) - sumAbs(a))[0] || null;
     const dateCol = pick(cols.filter(c => c.type === "date"), DATE_RE, choice.date);
@@ -338,8 +354,15 @@
         add("fix", `${odd.length} date${odd.length > 1 ? "s" : ""} outside a sensible range`, `${fut ? fut + " in the future" : ""}${fut && anc ? ", " : ""}${anc ? anc + " before 1900" : ""}. For example row ${odd[0][1] + 2}: ${body[odd[0][1]][dateCol.i]}.`, 85, true, "date", "Dates far outside the file"); }
     }
 
+    // nominal transfers (CONS-0058): their own QA finding, never part of a baseline
+    nominal.forEach(nm => {
+      const n = nm.rows.length, fl = nm.floor >= 1000 ? "$" + Math.round(nm.floor).toLocaleString("en-US") : "$" + nm.floor.toFixed(2), vs = nm.values.slice(0, 4).map(([v, k]) => `${money(v)} (${k.toLocaleString("en-US")})`).join(", ");
+      nm.rows.forEach(ri => link("nominal", ri, nm.col.i, "look", `<b>${money(num(body[ri][nm.col.i]))} is a nominal price.</b> Typical sale here is ${money(nm.typical)}. Likely a transfer between related parties or a foreclosure, not a market sale. It is left out of every baseline.`, "", 0));
+      add("look", `${n.toLocaleString("en-US")} nominal transfers (price ${fl} or less), set aside`, `${vs}. Typical sale is ${money(nm.typical)} (median of ${nm.nRest.toLocaleString("en-US")} other rows). Deeds between family, trusts and foreclosures are recorded this way. They are left out of every baseline.`, 92, true, "nominal", "Nominal transfers");
+    });
+
     // outliers (CONS-0048)
-    const items = detectOutliers(body, cols, { calc, measure });
+    const items = detectOutliers(body, cols, { calc, measure, nominal });
     const outItems = [...items.values()];
     outItems.forEach(it => {
       const fix = it.cells.some(c => c.sev === "fix"), n = it.cells.length, ex = it.cells[0], rowsTxt = it.cells.slice(0, 3).map(c => c.ri + 2).join(", ") + (n > 3 ? ` and ${n - 3} more` : "");
@@ -349,12 +372,12 @@
       if (it.kind === "shift") {
         const hi = it.medG > it.rest, mult = hi ? it.medG / it.rest : it.rest / it.medG, rs = it.cells.map(c => c.r), lo = Math.min(...rs.map(r => r >= 1 ? r : 1 / r)), up = Math.max(...rs.map(r => r >= 1 ? r : 1 / r));
         const unitN = it.cells.filter(c => c.k).length, ks = it.cells.filter(c => c.k).map(c => c.k), kk = ks.length ? ks.sort((a, b) => ks.filter(x => x === b).length - ks.filter(x => x === a).length)[0] : 0;
-        title = `${it.group}: ${n} records at ${Math.round(lo)} to ${Math.round(up)} times the rest of the file`;
-        detail = `${[...it.metrics].join(" and ")} in ${human(it.gcol)} “${it.group}” runs ${xs(mult)} ${hi ? "above" : "below"} everywhere else (typical ${fv(MONEY_RE.test(it.col.name) || it.via.size > 0, it.medG)} against ${fv(MONEY_RE.test(it.col.name) || it.via.size > 0, it.rest)}). ${unitN >= n * .6 ? `Most look like a unit error (${CAUSE[kk].replace(/^Likely /, "").replace(/\.$/, "")}).` : "Check the units and the source for this group."}${via} Rows ${rowsTxt}.`;
+        title = up > FAR ? `${it.group}: ${n} records far ${hi ? "above" : "below"} the rest of the file` : `${it.group}: ${n} records at ${Math.round(lo)} to ${Math.round(up)} times the rest of the file`;
+        detail = `${[...it.metrics].join(" and ")} in ${human(it.gcol)} “${it.group}” runs ${rel(mult, hi)} everywhere else (typical ${fv(MONEY_RE.test(it.col.name) || it.via.size > 0, it.medG)} against ${fv(MONEY_RE.test(it.col.name) || it.via.size > 0, it.rest)}). ${unitN >= n * .6 ? `Most look like a unit error (${CAUSE[kk].replace(/^Likely /, "").replace(/\.$/, "")}).` : "Check the units and the source for this group."}${via} Rows ${rowsTxt}.`;
         score = 97; crumb = `${it.group}: ${[...it.metrics][0]} far ${hi ? "above" : "below"} the rest`;
       } else if (it.kind === "unit") {
         const kk = Math.round(Math.log10(ex.r)), big = ex.r >= 1;
-        const ks = new Set(it.cells.map(c => c.k)), mult = ks.size === 1 ? `${10 ** Math.abs(kk)}x` : "10x, 100x or 1,000x";
+        const ks = new Set(it.cells.map(c => c.k)), mult = ks.size === 1 ? (Math.abs(kk) === 1 ? "10x" : `${["", "", "two", "three"][Math.abs(kk)]} digits`) : "one to three digits";
         title = `${n} ${name} value${n > 1 ? "s" : ""} look ${mult} too ${big ? "large" : "small"}`;
         detail = `For example row ${ex.ri + 2}: ${plain(ex.why)}${via} Rows ${rowsTxt}.`; score = 94; crumb = `${name} off by a factor of ten`;
       } else if (it.kind === "ratio") {
@@ -384,7 +407,7 @@
       core.forEach(p => { const r = pm ? p.v / pm : 0; if (r >= 1.5 && (!spike || r > spike.r)) spike = { ...p, r }; });
       const label = t => { const d = new Date(t); return unit === "month" ? `${MON[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}` : `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
       trend = { unit, series, label, spike, partialFirst, partialLast, lo, hi, median: pm };
-      if (spike) findings.push({ id: null, sev: "look", title: `${unit === "month" ? new Date(spike.t).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "The " + unit + " of " + label(spike.t)} is ${spike.r.toFixed(1)}× a typical ${unit}`, detail: `${measure ? measure.name : "Rows"}: ${full(spike.v, 0)} against a typical ${full(pm, 0)}. Worth knowing why.`, score: 70 });
+      if (spike) findings.push({ id: null, kind: "insight", sev: "look", title: `${unit === "month" ? new Date(spike.t).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "The " + unit + " of " + label(spike.t)} is ${spike.r.toFixed(1)}× a typical ${unit}`, detail: `${measure ? measure.name : "Rows"}: ${full(spike.v, 0)} against a typical ${full(pm, 0)}. Worth knowing why.`, score: 70 });
     }
 
     // breakdown
@@ -394,9 +417,10 @@
       let items2 = [...g.entries()].sort((a, b) => b[1][0] - a[1][0]); const top = items2.slice(0, 7).map(([k, e]) => [k, e[0], false, e[1]]), rest = items2.slice(7);
       if (rest.length) top.push([`Other (${rest.length})`, rest.reduce((a, x) => a + x[1][0], 0), true, rest.reduce((a, x) => a + x[1][1], 0)]);
       breakdown = { col: cat.name, ci: cat.i, items: top, total: items2.reduce((a, x) => a + x[1][0], 0) };
-      if (items2.length > 1 && items2[0][1][0] / breakdown.total >= .5) findings.push({ id: null, sev: "look", title: `${items2[0][0]} is ${pct(items2[0][1][0], breakdown.total).toFixed(0)}% of ${measure ? measure.name : "rows"}`, detail: `One ${cat.name} carries most of the total. Good to know before you plan around averages.`, score: 40 });
+      if (items2.length > 1 && items2[0][1][0] / breakdown.total >= .5) findings.push({ id: null, kind: "insight", sev: "look", title: `${items2[0][0]} is ${pct(items2[0][1][0], breakdown.total).toFixed(0)}% of ${measure ? measure.name : "rows"}`, detail: `One ${cat.name} carries most of the total. Good to know before you plan around averages.`, score: 40 });
     }
 
+    findings.forEach(f => { if (!f.kind) f.kind = "qa"; });
     findings.sort((a, b) => b.score - a.score);
     findings.forEach(f => { if (f.id) { f.rows = [...(fr.get(f.id) || [])].sort((a, b) => a - b); f.n = f.rows.length; } });
     const findingsAll = findings.filter(f => f.id && f.n > 0);
@@ -433,7 +457,7 @@
     if (out.length < 10 && a.measure) {   // the largest value of the measure
       const mi = a.measure.i, med = median(rows.map(r => num(r[mi])).filter(x => x > 0)); let best = -1, bv = -Infinity;
       rows.forEach((r, ri) => { const v = num(r[mi]); if (v > bv && !picked.has(ri)) { bv = v; best = ri; } });
-      if (best >= 0 && med > 0 && bv >= 3 * med) { picked.add(best); out.push(entry({ ri: best, ci: mi, id: "largest" }, `Largest ${a.measure.name} in the file: ${fv(MONEY_RE.test(a.measure.name), bv)}, ${xs(bv / med)} the median ${fv(MONEY_RE.test(a.measure.name), med)}.`, "ctx")); }
+      if (best >= 0 && med > 0 && bv >= 3 * med) { picked.add(best); out.push(entry({ ri: best, ci: mi, id: "largest" }, `Largest ${a.measure.name} in the file: ${fv(MONEY_RE.test(a.measure.name), bv)}, ${isFar(bv / med) ? "far above" : xs(bv / med)} the median ${fv(MONEY_RE.test(a.measure.name), med)}.`, "ctx")); }
     }
     if (out.length < 10 && a.dateCol) {   // the most recent record
       const now = Date.now(); let best = -1, bt = -Infinity; rows.forEach((r, ri) => { const t = dt(r[a.dateCol.i]); if (t != null && t <= now + 864e5 && t > bt && !picked.has(ri)) { bt = t; best = ri; } });
@@ -526,7 +550,7 @@
     const yr = t => new Date(t).getUTCFullYear(), md = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; }, my = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${yr(t)}`; };
     const range = !a.trend ? "No date column" : yr(a.trend.lo) === yr(a.trend.hi) ? `${md(a.trend.lo)} – ${md(a.trend.hi)}, ${yr(a.trend.hi)}` : `${my(a.trend.lo)} – ${my(a.trend.hi)}`;
     const kpi = [["Rows", a.N.toLocaleString("en-US")], ["Columns", a.cols.length], ["Dates", range], [a.measure ? "Total " + a.measure.name : "Measure", a.measure ? full(a.total, 0) : "None found"]];
-    const prof = a.cols.slice(0, 12).map(c => `<tr><td>${esc(c.name)}</td><td>${c.type}</td><td>${pct(c.filled, a.N).toFixed(0)}%</td><td>${c.distinct.toLocaleString("en-US")}</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="4" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
+    const prof = a.cols.slice(0, 12).map(c => `<tr><td>${esc(c.name)}</td><td>${c.type}${Dom.roleLabel(c) && Dom.roleLabel(c) !== c.type ? ` · ${esc(Dom.roleLabel(c))}` : ""}</td><td>${pct(c.filled, a.N).toFixed(0)}%</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="3" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
     const next = a.needsCleanup ? ["Data health check", 8, "a person reads the data and writes down what to fix first"] : ["Focused analysis", 20, "one question answered properly, with the uncertainty stated"];
     const trendSvg = a.trend && a.trend.series.length > 1 ? lineSVG(a.trend, a.measure ? a.measure.name : "Rows") : "";
     const tableRows = (a.trend ? a.trend.series.map(p => `<tr><td>${a.trend.label(p.t)}</td><td>${full(p.v, 0)}</td></tr>`).join("") : "");
@@ -544,7 +568,7 @@
   ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measure ? a.measure.name : "Rows")} by ${a.trend.unit}</h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div></section>` : `<section class="sh-trend"><h3>Trend</h3><p class="calm">No date column found. Add one and this space shows the trend.</p></section>`}
   <div class="sh-two">
     <section>${a.breakdown ? `<h3>${esc(a.measure ? a.measure.name : "Rows")} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
-    <section><h3>Columns</h3><table class="prof"><thead><tr><th>Column</th><th>Type</th><th>Filled</th><th>Distinct</th></tr></thead><tbody>${prof}</tbody></table></section>
+    <section><h3>Columns</h3><table class="prof"><thead><tr><th>Column</th><th>Type · role</th><th>Filled</th></tr></thead><tbody>${prof}</tbody></table></section>
   </div>
   ${ed && ed.n ? `<p class="print-only edit-note">${ed.n} edit${ed.n > 1 ? "s were" : " was"} made in this browser session${ed.cells !== ed.n ? ` (${ed.cells} cells changed, counting totals worked out again)` : ""}; the findings above are recalculated from the corrected values.</p>` : ""}
   <footer class="sh-foot"><div><span class="label">What I'd do next</span><p><b>${next[0]}</b>, ${next[1]} h × $${RATE} = $${(next[1] * RATE).toLocaleString("en-US")}: ${next[2]}. This page is an automatic first pass; that's the human one.</p></div>

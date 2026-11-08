@@ -5,8 +5,10 @@ Writes, next to this file under fixtures/:
     sales_planted.csv + sales_planted.truth.json   sale_observations shape with planted problems
     sales_clean.csv                                 the same generator with nothing planted
     venues.csv + venues.truth.json                  venues export shape with planted problems
+    sales_county.csv + sales_county.truth.json      county sales file shape (CONS-0058/0059/0063): a nominal $100 cluster, same-address
+                                                    duplicates under new ids, near-duplicates, repeat sales and a few domain problems
 Row numbers in the truth files are 0-based body indexes (the header is not counted)."""
-import csv, json, math, pathlib, random
+import csv, datetime, json, math, pathlib, random
 
 OUT = pathlib.Path(__file__).parent / "fixtures"; OUT.mkdir(exist_ok=True)
 
@@ -88,4 +90,67 @@ for k, nm in enumerate(["CVS Pharmacy", "CVS Pharmacy", "CVS  Pharmacy", "CVS  P
 vt["cvs_all"] = list(range(start, start + 6)); vt["cvs_spacing"] = [start + 2, start + 3]; vt["cvs_short"] = [start + 4, start + 5]
 write("venues.csv", VH, venues)
 (OUT / "venues.truth.json").write_text(json.dumps(vt, indent=1), encoding="utf-8")
+
+# ---------- county sales file (nominal transfers, same-address duplicates under new ids, repeat sales, domain problems)
+CS_H = ["sale_id", "folio", "address", "unit", "city", "zip", "sale_date", "sale_price", "living_area_sqft", "beds", "baths", "property_type", "source"]
+CS_CITY = {"Sweetwater": ("33172", 300), "Hialeah": ("33012", 340), "Miami": ("33130", 450), "Doral": ("33166", 420), "Coral Gables": ("33134", 640), "Miami Beach": ("33139", 800), "Homestead": ("33030", 260), "Kendall": ("33186", 400)}
+CS_W = [16, 14, 22, 12, 10, 8, 10, 14]
+CS_STREETS = ["Palm Street", "Ocean Drive", "Bayshore Boulevard", "Coral Way", "Sunset Avenue", "Pine Street", "Lake Road", "Harbor Lane", "Oak Court", "Main Street"]
+def cs_date(r, y0=2023):
+    day = r.randrange(0, 1095); return (datetime.date(y0, 1, 1) + datetime.timedelta(days=day)).isoformat()
+def county(n):
+    r = random.Random(424242); rows = []; seen = set()
+    while len(rows) < n:
+        city = r.choices(list(CS_CITY), CS_W)[0]; zc, ppsf = CS_CITY[city]
+        num = r.randrange(100, 9900); street = r.choice(CS_STREETS); unit = "" if r.random() < 0.8 else f"{r.randrange(1, 40)}"
+        key = (num, street, unit, city)
+        if key in seen: continue
+        seen.add(key)
+        area = int(min(5500, max(500, math.exp(r.gauss(math.log(1400), 0.3)))))
+        price = int(round(area * ppsf * math.exp(r.gauss(0, 0.2)), -3))
+        beds = max(1, min(6, round(area / 520 + r.gauss(0, 0.5)))); baths = max(1, min(5, round(beds * 0.75 + r.gauss(0, 0.4))))
+        folio = f"{r.randrange(10, 40)}-{r.randrange(1000, 9999)}-{r.randrange(100, 999):03d}-{r.randrange(1000, 9999)}"
+        rows.append([f"S-{len(rows) + 1:06d}", folio, f"{num} {street}", unit, city, zc, cs_date(r), price, area, beds, baths, r.choices(["Single family", "Condo", "Townhouse"], [50, 35, 15])[0], r.choices(["County records", "MLS"], [80, 20])[0]])
+    return rows
+def plant_county(rows):
+    r = random.Random(31337); t = {}; n0 = len(rows); idx = list(range(n0)); r.shuffle(idx); take = lambda k: [idx.pop() for _ in range(k)]
+    nom = take(280)
+    for j, i in enumerate(nom): rows[i][7] = 100 if j < 200 else 10 if j < 240 else 1 if j < 260 else 0     # deeds between family, trusts, foreclosures
+    t["nominal"] = nom
+    x100 = take(6)
+    for i in x100: rows[i][7] *= 100
+    t["x100"] = x100
+    big = take(1)[0]; rows[big][7] = 150000000; t["over_100m"] = [big]
+    d1850 = take(1)[0]; rows[d1850][6] = "1850-01-01"; t["ancient_date"] = [d1850]
+    beds = take(1)[0]; rows[beds][9] = 999; t["beds_999"] = [beds]
+    badzip = take(3)
+    for i in badzip: rows[i][5] = rows[i][5][:4]
+    t["bad_zip"] = badzip
+    mism = [i for i in take(30) if rows[i][4] == "Miami"][:4]
+    for i in mism: rows[i][5] = "33012"                      # a Hialeah zip on a Miami address
+    t["city_zip_mismatch"] = mism
+    badparcel = take(3)
+    for i in badparcel: rows[i][1] = rows[i][1].replace("-", "")
+    t["bad_parcel"] = badparcel
+    sources = [i for i in take(300) if i not in nom and rows[i][7] > 1000]
+    rep = sources[:25]; extra = []
+    for i in rep:                                           # repeat sales: same address, later date, higher price
+        o = rows[i]; d = datetime.date.fromisoformat(o[6]) + datetime.timedelta(days=r.randrange(200, 900))
+        extra.append([f"S-{n0 + len(extra) + 1:06d}", o[1], o[2], o[3], o[4], o[5], d.isoformat(), int(round(o[7] * r.uniform(1.04, 1.35), -3)), o[8], o[9], o[10], o[11], o[12]])
+    t["repeat_first"] = rep; t["repeat_second"] = list(range(n0, n0 + len(extra)))
+    rows.extend(extra)
+    dsrc = sources[25:37]; dups = []
+    for i in dsrc:                                          # the same sale entered again under a new id
+        o = rows[i][:]; o[0] = f"S-{len(rows) + len(dups) + 1:06d}"; dups.append(o)
+    t["dup_first"] = dsrc; t["dup_second"] = list(range(len(rows), len(rows) + len(dups)))
+    rows.extend(dups)
+    nsrc = sources[37:43]; near = []
+    for i in nsrc:                                          # same sale, address written differently
+        o = rows[i][:]; o[0] = f"S-{len(rows) + len(near) + 1:06d}"; o[2] = o[2].upper().replace("STREET", "ST").replace("AVENUE", "AVE").replace("BOULEVARD", "BLVD").replace("ROAD", "RD").replace("DRIVE", "DR").replace("LANE", "LN").replace("COURT", "CT"); near.append(o)
+    t["near_first"] = nsrc; t["near_second"] = list(range(len(rows), len(rows) + len(near)))
+    rows.extend(near)
+    return t
+cs = county(2000); cs_truth = plant_county(cs)
+write("sales_county.csv", CS_H, cs)
+(OUT / "sales_county.truth.json").write_text(json.dumps(cs_truth, indent=1), encoding="utf-8")
 print("fixtures written to", OUT)

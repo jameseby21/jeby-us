@@ -66,7 +66,7 @@ def page(key, title, desc, body):
 {FONTS}<link rel="stylesheet" href="assets/jai.css">
 <script type="speculationrules">{{"prerender":[{{"where":{{"href_matches":"/*"}},"eagerness":"moderate"}}]}}</script>{ld}
 </head><body>{header(key)}<main id="main">{body}</main>{footer()}
-<script src="assets/jai.js" defer></script>{'<script src="assets/records.js" defer></script><script src="assets/report.js" defer></script>' if key == "report" else ""}<script src="assets/family.js" data-site="jai" defer></script></body></html>'''
+<script src="assets/jai.js" defer></script>{'<script src="assets/records.js" defer></script><script src="assets/domain.js" defer></script><script src="assets/report.js" defer></script>' if key == "report" else ""}<script src="assets/family.js" data-site="jai" defer></script></body></html>'''
     (OUT / f"{key}.html").write_text(doc, encoding="utf-8")
 
 def mark(it):
@@ -247,7 +247,7 @@ page("contact", "Contact · JA Insights", "Book a free 30-minute intro call with
 
 # assets
 S2 = ROOT.parent / "jeby" / "out" / "assets"; FAM = ROOT.parent / "family"
-shutil.copy(ROOT / "src" / "jai.css", OUT / "assets" / "jai.css"); shutil.copy(ROOT / "src" / "jai.js", OUT / "assets" / "jai.js"); shutil.copy(ROOT / "src" / "report.js", OUT / "assets" / "report.js"); shutil.copy(ROOT / "src" / "records.js", OUT / "assets" / "records.js")
+shutil.copy(ROOT / "src" / "jai.css", OUT / "assets" / "jai.css"); shutil.copy(ROOT / "src" / "jai.js", OUT / "assets" / "jai.js"); shutil.copy(ROOT / "src" / "report.js", OUT / "assets" / "report.js"); shutil.copy(ROOT / "src" / "records.js", OUT / "assets" / "records.js"); shutil.copy(ROOT / "src" / "domain.js", OUT / "assets" / "domain.js")
 shutil.copy(FAM / "family.js", OUT / "assets" / "family.js")
 for f in ("plantriloquist.png", "musicalgames.svg", "lighting-lab.svg", "desk.svg"): shutil.copy(S2 / f, OUT / "assets" / f)
 (OUT / "assets" / "favicon.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#fafaf7"/><text x="32" y="44" text-anchor="middle" font-family="Georgia,serif" font-size="32" fill="#b3121a">JA</text></svg>', encoding="utf-8")

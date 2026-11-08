@@ -3,7 +3,7 @@
    Browser checks live in browser.js and say "not run" when no Edge or Chrome is found. */
 "use strict";
 const fs = require("fs"), path = require("path"), assert = require("assert");
-const R = require("../src/report.js"), Rec = require("../src/records.js");
+const R = require("../src/report.js"), Rec = require("../src/records.js"), Dom = require("../src/domain.js");
 const FX = path.join(__dirname, "fixtures");
 const read = n => fs.readFileSync(path.join(FX, n), "utf8");
 const truth = n => JSON.parse(read(n));
@@ -46,7 +46,7 @@ test("planted fixture: x100 and x1000 rows are unit findings with plain reasons"
   assert(f, "no unit finding on sale_price: " + aP.findingsAll.map(x => x.id));
   assert.strictEqual(f.rows.filter(r => PT.x100.includes(r) || PT.x1000.includes(r)).length, 4);
   const why = plain(aP.flags.get(`${PT.x100[0]}:1`).why);
-  assert(/is (1\d\d)x/.test(why) && /cents/.test(why) && /\$/.test(why), why);
+  assert(/is far above this city's usual \$[\d,]+/.test(why) && /cents/.test(why), why);
 });
 test("planted fixture: area typos are found through price per square foot", () => {
   PT.area_typo.forEach(r => assert([...aP.flags.entries()].some(([k, f]) => k.startsWith(r + ":") && f.fam === "out"), "area typo row not flagged"));
@@ -217,6 +217,9 @@ test("recalculates after an edit: fixing a record removes it from the list", () 
   const { d, a, s } = cafe(), w = R.pickNotable(a, s), p = a.header.indexOf("unit_price"); Rec.commitEdit(s, w[0].ri, p, "11.50");
   const a2 = R.analyse({ name: d.name, rows: [d.rows[0], ...s.rows] }); assert(!R.pickNotable(a2, s).some(x => x.ri === w[0].ri && x.col === p));
 });
+
+// ---------- CONS-0058, 0059, 0062, 0060, 0061, 0063 live in qa_tests.js (same helpers)
+require("./qa_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) { console.log("failed: " + failures.join("; ")); process.exit(1); }
