@@ -60,6 +60,9 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
   const send = (method, params = {}) => new Promise((res, rej) => { const i = ++id; pending.set(i, { res, rej }); sock.send(JSON.stringify({ id: i, method, params })); });
   const js = async (expr) => { const r = await send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error((r.exceptionDetails.exception && r.exceptionDetails.exception.description) || r.exceptionDetails.text); return r.result.value; };
   const waitFor = async (expr, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await js(expr).catch(() => false)) return Date.now() - t0; await sleep(50); } const why = await js("(document.querySelector('#report-status') || {}).textContent + ' | engine ' + (window.JAIReportDebug ? JAIReportDebug.engine : 'no debug')").catch(() => "?"); throw new Error("timed out waiting for " + expr + " (page says: " + why + ")"); };
+  // CONS-0078: a scroll event is delivered on the next animation frame, so anything that moves a scroll position (a click that resets it, scrollIntoView, a focus that scrolls) can hide a tooltip after the test has looked. settle() returns after two frames, when those events have fired; the checks then wait for the tooltip state itself, never for a fixed time.
+  const settle = () => js(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))`);
+  const until = async (expr, what, ms = 4000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await js(expr).catch(() => false)) return; await sleep(25); } throw new Error("timed out waiting for " + what); };
   await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable"); await send("Emulation.setFocusEmulationEnabled", { enabled: true });   // a headless page is never "focused" otherwise, and focus-driven reasons would not show
 
   console.log("browser: " + path.basename(exe) + " headless, profile " + path.basename(profile));
@@ -97,12 +100,12 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await js(`document.querySelector('[data-crumbs] .rec-x').click()`); assert(/Showing 5,000 of 5,000/.test(await js(`document.querySelector('[data-count]').textContent`)));
   });
   await check("clicking a finding shows its rows; an advisory outlier cell is slate (Look) and carries its reason on focus", async () => {
-    await js(`document.querySelector('[data-find="unit:unit_price"]').click()`);
+    await js(`document.querySelector('[data-find="unit:unit_price"]').click()`); await settle();
     const m = await js(`(() => { const c = document.querySelector('.rec-td.look'); c.focus(); const tip = document.querySelector('.rec-tip'); return { count: document.querySelector('[data-count]').textContent, crumbs: document.querySelector('[data-crumbs]').textContent, cls: c.className, bg: getComputedStyle(c).backgroundColor, rule: getComputedStyle(c).boxShadow, tip: tip.textContent, op: getComputedStyle(tip).opacity }; })()`);
     assert(/Showing 12 of 5,000/.test(m.count), m.count); assert(/unit price/i.test(m.crumbs), m.crumbs);
     assert(/230, 234, 240/.test(m.bg), "slate tint (an outlier is advisory: Look) " + m.bg); assert(/47, 59, 75/.test(m.rule), "slate rule " + m.rule);
     assert(/\$115\.00 is 10x this item's usual \$11\.50\. Likely/.test(m.tip), m.tip);
-    await sleep(250); assert.strictEqual(await js(`getComputedStyle(document.querySelector('.rec-tip')).opacity`), "1", "the reason is visible while the cell has focus");
+    await until(`getComputedStyle(document.querySelector('.rec-tip')).opacity === "1"`, "the reason to be visible while the cell has focus");
   });
   await check("records worth a look: at most ten, click scrolls to and highlights the row", async () => {
     await js(`document.querySelector('[data-crumbs] .rec-x').click()`);
@@ -559,15 +562,20 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
 
   await check("CONS-0051: hover on a bar shows the row count, share, average and flagged count; Tab reaches the bars; Enter filters; the focus ring is visible", async () => {
     await openStates();
-    await js(`document.querySelector('tr.grp-parent[data-g="CA"]').scrollIntoView({ block: 'center', behavior: 'instant' })`); await sleep(300);
-    const r = await js(`(() => { const e = document.querySelector('tr.grp-parent[data-g="CA"]'), b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
-    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: r.x, y: r.y }); await sleep(150);
+    await js(`document.querySelector('tr.grp-parent[data-g="CA"]').scrollIntoView({ block: 'center', behavior: 'instant' })`); await settle();
+    // Hover by moving the mouse until the numbers show: a move sent while the page is still committing the scroll can be hit-tested against the old layout and never reach the bar, so each attempt re-measures the bar and nudges the pointer by a pixel (a move to the same point raises no pointermove).
+    const hoverBar = `(() => { const e = document.querySelector('tr.grp-parent[data-g="CA"]'), b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`;
+    for (let n = 0, t0 = Date.now(); await js(`document.querySelector('.gtip').hidden`); n++) {
+      if (Date.now() - t0 > 4000) throw new Error("timed out waiting for the hover numbers to show: " + JSON.stringify(await js(`(() => { const e = document.querySelector('tr.grp-parent[data-g="CA"]'), b = e.getBoundingClientRect(), u = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return { rect: [b.left, b.top, b.width, b.height], under: u && (u.tagName + "." + u.className), hasTip: !!e.dataset.tip, scrollY, innerHeight, hidden: document.querySelector('.gtip').hidden }; })()`)));
+      const r = await js(hoverBar); await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: r.x + (n % 2), y: r.y }); await sleep(50);
+    }
     const t = await js(`(() => { const g = document.querySelector('.gtip'); return { hidden: g.hidden, text: g.innerText, vis: getComputedStyle(g).display }; })()`);
     assert(!t.hidden && t.vis !== "none", JSON.stringify(t)); assert(/^CA/.test(t.text) && /\d+ rows? · \d+% of the total/.test(t.text) && /average [\d,.]+/.test(t.text) && /\d+ of \d+ rows flagged/.test(t.text), t.text);
-    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 }); await sleep(100); assert.strictEqual(await js(`document.querySelector('.gtip').hidden`), true);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 }); await until(`document.querySelector('.gtip').hidden === true`, "the hover numbers to hide");
     await js(`document.activeElement && document.activeElement.blur(); window.scrollTo(0, 0)`); let reached = 0;
     for (let i = 0; i < 160 && !reached; i++) { await key("Tab", "Tab"); reached = await js(`document.activeElement && document.activeElement.matches('table.grp tr.grp-parent[data-g]') ? 1 : 0`); }
-    assert(reached, "Tab never reached a bar");
+    assert(reached, "Tab never reached a bar"); await settle();   // Tab may have scrolled the bar into view; that scroll event must have fired before the numbers are judged
+    await until(`!document.querySelector('.gtip').hidden`, "the numbers to show on keyboard focus");
     const ring = await js(`(() => { const e = document.activeElement, cs = getComputedStyle(e); return { name: e.dataset.g, w: parseFloat(cs.outlineWidth), st: cs.outlineStyle, tip: document.querySelector('.gtip').hidden, label: e.getAttribute('aria-label') }; })()`);
     assert(ring.w >= 2 && ring.st !== "none", "focus ring " + JSON.stringify(ring)); assert.strictEqual(ring.tip, false, "the numbers show on keyboard focus too"); assert(/rows flagged/.test(ring.label), ring.label);
     await key("Enter", "Enter"); await sliceOn(); assert(await js(`document.querySelector('#rep-slice .here').textContent.includes(${JSON.stringify(ring.name)})`), "Enter filtered to " + ring.name);

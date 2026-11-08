@@ -1168,10 +1168,12 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads ${MAXC} 
     const rowOf = e => e.target.closest && e.target.closest("table.grp tr[data-tip]");
     out.addEventListener("pointermove", e => { const r = rowOf(e); if (r) show(r, e.clientX, e.clientY); else tipEl.hidden = true; });
     out.addEventListener("pointerleave", () => { tipEl.hidden = true; });
-    out.addEventListener("focusin", e => { const r = rowOf(e); if (r && r.matches(":focus-visible, :focus")) { const b = r.getBoundingClientRect(); show(r, b.left + Math.min(b.width * .5, 240), b.bottom - b.height * .5); } });
+    const showFocused = () => { const a = document.activeElement, r = a && out.contains(a) && rowOf({ target: a }); if (r && r.matches(":focus-visible, :focus")) { const b = r.getBoundingClientRect(); show(r, b.left + Math.min(b.width * .5, 240), b.bottom - b.height * .5); } };
+    out.addEventListener("focusin", showFocused);
     out.addEventListener("focusout", () => { tipEl.hidden = true; });
     document.addEventListener("keydown", e => { if (e.key === "Escape") tipEl.hidden = true; });
-    window.addEventListener("scroll", () => { tipEl.hidden = true; }, { passive: true });
+    // Tab scrolls a far bar into view, and the scroll event arrives a frame after the focus: it used to hide the numbers the focus had just shown (CONS-0078). A bar that still has focus keeps its numbers, repositioned.
+    window.addEventListener("scroll", () => { tipEl.hidden = true; showFocused(); }, { passive: true });
   }
   groupTip();
   const startChoice = () => ({ ...(activePack ? { pack: activePack } : {}), ...((pendingView && pendingView.choice) || {}) });   // a link's pickers are used for the first analysis, so the file is read once
