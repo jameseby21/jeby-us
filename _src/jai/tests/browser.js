@@ -345,6 +345,26 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     return `${a.edits} cells merged; money out ${a.out} before and after`;
   });
 
+  console.log("round 4: site and report fixes (CONS-0076, JEBYUS-0058, CONS-0042 to 0056)");
+  await check("CONS-0076: the rate label and the $95 numeral do not touch at 1440, 1024 and 390 px, on Home and on Approach; the fact tiles do not overlap either", async () => {
+    const out = [];
+    for (const [w, h, mobile] of [[1440, 900, false], [1024, 800, false], [390, 800, true]]) {
+      await send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile });
+      for (const pg of ["index.html", "approach.html"]) {
+        await send("Page.navigate", { url: BASE + "/" + pg }); await waitFor("document.readyState === 'complete'"); await sleep(250);
+        const m = await js(`(async () => { await document.fonts.ready; const rate = document.querySelector('.bigrate'); const lab = rate.querySelector('.label').getBoundingClientRect(), b = rate.querySelector('b'), cs = getComputedStyle(b);
+          const probe = document.createElement('span'); probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline'; b.insertBefore(probe, b.firstChild); const base = probe.getBoundingClientRect().bottom; probe.remove();
+          const c = document.createElement('canvas').getContext('2d'); c.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; const ink = c.measureText(b.firstChild.textContent.trim()), inkTop = base - ink.actualBoundingBoxAscent;   // where the tallest mark of the numeral really starts, not its line box
+          const tiles = [...document.querySelectorAll('.facts > div')].flatMap(d => [...d.children].map(c => c.getBoundingClientRect())); let tileOverlap = 0; for (let i = 0; i < tiles.length; i++) for (let j = i + 1; j < tiles.length; j++) { const a = tiles[i], c2 = tiles[j]; if (a.left < c2.right - .5 && c2.left < a.right - .5 && a.top < c2.bottom - .5 && c2.top < a.bottom - .5) tileOverlap++; }
+          return { labBottom: lab.bottom, numTop: inkTop, font: [...document.fonts].filter(f => f.status === 'loaded').map(f => f.family).join('/'), tileOverlap, page: document.documentElement.scrollWidth, view: innerWidth }; })()`);
+        assert(m.labBottom <= m.numTop + 0.01, `${pg} at ${w}: the label ends at ${m.labBottom.toFixed(1)} but the numeral starts at ${m.numTop.toFixed(1)}`);
+        assert.strictEqual(m.tileOverlap, 0, `${pg} at ${w}: fact tiles overlap`); assert(m.page <= m.view + 1, `${pg} at ${w}: page scrolls sideways`);
+        out.push(`${pg}@${w} gap ${(m.numTop - m.labBottom).toFixed(1)}${/Newsreader/.test(m.font) ? "" : " (web font not loaded)"}`);
+      }
+    }
+    await send("Emulation.clearDeviceMetricsOverride"); return out.join(", ");
+  });
+
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {
     await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") + "#sample" }); await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && document.querySelectorAll('.rec-tr').length > 0", 20000);
     assert.strictEqual(await js(`JAIReportDebug.engine`), "main"); assert.strictEqual(await js(`JAIReportDebug.store.rows.length`), 5000);

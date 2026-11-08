@@ -111,7 +111,7 @@ section.block{padding-block:64px}
 /* rate card */
 .rate{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.4fr);gap:48px;align-items:start}
 .bigrate{display:grid;gap:8px}
-.bigrate b{font:400 clamp(64px,8vw,104px)/.9 var(--serif);letter-spacing:-.03em}
+.bigrate b{font:400 clamp(64px,8vw,104px)/.9 var(--serif);letter-spacing:-.03em;padding-top:.16em}   /* the tall dollar sign rises above a .9 line box; the room above keeps it clear of the label (CONS-0076) */
 .bigrate b small{font-size:.32em;color:var(--muted);letter-spacing:0}
 table.card{width:100%;border-collapse:collapse;font-size:15.5px}
 table.card th{text-align:left;font:500 11px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:0 0 10px;border-bottom:1px solid var(--ink)}

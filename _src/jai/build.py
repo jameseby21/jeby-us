@@ -253,7 +253,7 @@ page("contact", "Contact · JA Insights", "Book a free 30-minute intro call with
 # assets
 S2 = ROOT.parent / "jeby" / "out" / "assets"; FAM = ROOT.parent / "family"
 shutil.copy(ROOT / "src" / "jai.css", OUT / "assets" / "jai.css"); shutil.copy(ROOT / "src" / "jai.js", OUT / "assets" / "jai.js"); shutil.copy(ROOT / "src" / "report.js", OUT / "assets" / "report.js"); shutil.copy(ROOT / "src" / "records.js", OUT / "assets" / "records.js"); shutil.copy(ROOT / "src" / "domain.js", OUT / "assets" / "domain.js"); shutil.copy(ROOT / "src" / "pack.js", OUT / "assets" / "pack.js"); shutil.copy(ROOT / "src" / "rules.js", OUT / "assets" / "rules.js"); shutil.copy(ROOT / "src" / "shape.js", OUT / "assets" / "shape.js"); shutil.copy(ROOT / "src" / "report-worker.js", OUT / "assets" / "report-worker.js")
-shutil.copytree(ROOT / "packs", OUT / "assets" / "packs")
+shutil.copytree(ROOT / "packs", OUT / "assets" / "packs", dirs_exist_ok=True)
 shutil.copy(FAM / "family.js", OUT / "assets" / "family.js")
 for f in ("plantriloquist.png", "musicalgames.svg", "lighting-lab.svg", "desk.svg"): shutil.copy(S2 / f, OUT / "assets" / f)
 BR.copy_assets(OUT / "assets")
