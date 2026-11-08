@@ -20,7 +20,7 @@
   // ---------- the store: current values, the file as read, and the edit history
   function createStore(o) {
     const rows = o.rows.map(r => r.slice());
-    return { header: o.header, names: o.names || o.header, rows, orig: o.rows.map(r => r.slice()), mask: o.mask || null, headerMask: o.headerMask || null, fmt: o.fmt || { delim: ",", eol: "\n", finalEol: true },
+    return { header: o.header, lead: o.lead || (o.header ? [o.header] : []), leadMask: o.leadMask || (o.headerMask ? [o.headerMask] : null), rowBase: o.rowBase || 2, names: o.names || o.header, rows, orig: o.rows.map(r => r.slice()), mask: o.mask || null, fmt: o.fmt || { delim: ",", eol: "\n", finalEol: true },
       isNum: o.isNum || [], num: o.num, calc: o.calc || null, edits: [], edited: new Set(), hay: [], rev: 0, name: o.name || "records" };
   }
   const syncEdited = (s, ri, ci) => { const k = ri + ":" + ci; if (s.rows[ri][ci] !== s.orig[ri][ci]) s.edited.add(k); else s.edited.delete(k); };
@@ -83,17 +83,17 @@
   }
 
   // ---------- export
-  const exportCSV = s => rowsToCSV([s.header, ...s.rows], s.fmt, s.mask ? [s.headerMask, ...s.mask] : null);
+  const exportCSV = s => rowsToCSV([...s.lead, ...s.rows], s.fmt, s.mask ? [...(s.leadMask || s.lead.map(r => [])), ...s.mask] : null);   // title rows and the header (when the file has them) come first, as read
   function changeLogCSV(s) {
     const L = [["row", "column", "before", "after", "edited_at"]];
-    s.edits.forEach(e => { L.push([e.ri + 2, s.names[e.ci], e.before, e.after, e.at]); e.derived.forEach(d => L.push([e.ri + 2, s.names[d.ci], d.before, d.after, e.at])); });
+    s.edits.forEach(e => { L.push([e.ri + s.rowBase, s.names[e.ci], e.before, e.after, e.at]); e.derived.forEach(d => L.push([e.ri + s.rowBase, s.names[d.ci], d.before, d.after, e.at])); });
     return rowsToCSV(L, { delim: ",", eol: "\n" });
   }
 
   // the QA sample as its own file: the original columns, then why the row is there and what to do (accept, reject or defer)
   function qaSampleCSV(s, q) {
     const head = ["row", ...s.names, "qa_basis", "qa_class", "qa_issue", "qa_suggestion"];
-    const rows = q.rows.map(ri => { const i = q.info.get(ri); return [ri + 2, ...s.rows[ri], i.basis, i.cls || "", i.issue, i.suggestion]; });
+    const rows = q.rows.map(ri => { const i = q.info.get(ri); return [ri + s.rowBase, ...s.rows[ri], i.basis, i.cls || "", i.issue, i.suggestion]; });
     return rowsToCSV([head, ...rows], { delim: ",", eol: "\n" });
   }
 
@@ -132,7 +132,7 @@
     function drawHead() {
       thead.innerHTML = [-1, ...s.names.keys()].map(c => {
         const on = filt.sortCol === c, name = c === -1 ? "Row" : s.names[c];
-        return `<button data-k="${c}" role="columnheader" aria-sort="${on ? (filt.sortDir > 0 ? "ascending" : "descending") : "none"}" class="${c === -1 ? "first" : numCol[c] ? "num" : ""}" title="${c === -1 ? "Row in your file; the header is row 1" : "Sort by " + esc(name)}"><span>${esc(name)}</span><i>${c === -1 && !on ? "" : sortLabel(c)}</i></button>`;
+        return `<button data-k="${c}" role="columnheader" aria-sort="${on ? (filt.sortDir > 0 ? "ascending" : "descending") : "none"}" class="${c === -1 ? "first" : numCol[c] ? "num" : ""}" title="${c === -1 ? "Row in your file" : "Sort by " + esc(name)}"><span>${esc(name)}</span><i>${c === -1 && !on ? "" : sortLabel(c)}</i></button>`;
       }).join("");
     }
     function recompute() {
@@ -147,10 +147,10 @@
       let h = "";
       for (let i = first; i < last; i++) {
         const ri = view[i], row = s.rows[ri];
-        h += `<div class="rec-tr${ri === hl ? " hl" : ""}" role="row" aria-rowindex="${i + 2}" style="top:${i * RH}px;grid-template-columns:${template}"><div class="rec-td first" role="rowheader">${(ri + 2).toLocaleString("en-US")}</div>`;
+        h += `<div class="rec-tr${ri === hl ? " hl" : ""}" role="row" aria-rowindex="${i + 2}" style="top:${i * RH}px;grid-template-columns:${template}"><div class="rec-td first" role="rowheader">${(ri + s.rowBase).toLocaleString("en-US")}</div>`;
         for (let c = 0; c < NC; c++) {
           const fl = flags.get(ri + ":" + c), ed = s.edited.has(ri + ":" + c), cls = "rec-td" + (numCol[c] ? " num" : "") + (ed ? " edited" : fl ? " " + fl.sev : "");
-          const inner = editing && editing.ri === ri && editing.ci === c ? `<input data-edit value="${esc(row[c])}" aria-label="Edit ${esc(s.names[c])}, row ${ri + 2}">` : showVal(row[c], fl);
+          const inner = editing && editing.ri === ri && editing.ci === c ? `<input data-edit value="${esc(row[c])}" aria-label="Edit ${esc(s.names[c])}, row ${ri + s.rowBase}">` : showVal(row[c], fl);
           h += `<div class="${cls}" role="gridcell" tabindex="${fl || ed ? 0 : -1}" data-r="${ri}" data-c="${c}"${fl ? ` aria-label="${esc(plain(fl.why))}"` : ""}>${inner}</div>`;
         }
         h += "</div>";

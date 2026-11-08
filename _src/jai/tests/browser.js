@@ -281,6 +281,30 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     return `window ${m.win} px wide, table ${m.inner} px`;
   });
 
+  console.log("round 3: headers, roles, ledgers, names, the insight gate (CONS-0070 to 0074)");
+  const FXDIR = path.resolve(__dirname, "fixtures");   // read only; the fixtures are made up
+  async function loadFx(name) {
+    await send("Page.navigate", { url: BASE + "/report.html" }); await waitFor("document.readyState === 'complete' && !!window.JAIReportDebug && JAIReportDebug.engine === 'worker'");
+    const doc = await send("DOM.getDocument"), inp = await send("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "#report-file" }); await send("DOM.setFileInputFiles", { files: [path.join(FXDIR, name)], nodeId: inp.nodeId });
+    await waitFor("!!JAIReportDebug.store && JAIReportDebug.store.rows.length > 0 && document.querySelectorAll('.rec-tr').length > 0", 30000);
+  }
+  const pick = async (sel, value) => { await js(`(() => { const s = document.querySelector('${sel}'); s.value = '${value}'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); };
+  await check("a file with no header row says so, names its columns by role, and the First row switch flips it and back", async () => {
+    await loadFx("ledger_headerless.csv");
+    const m = await js(`({ note: document.querySelector('.hdr-note').textContent, names: JAIReportDebug.analysis.header.join('|'), n: JAIReportDebug.store.rows.length, sel: document.querySelector('[data-ch="header"]').value, first: document.querySelector('.rec-tr .rec-td:nth-child(2)').textContent })`);
+    assert(/No header row detected/.test(m.note) && /names below are ours/.test(m.note), m.note); assert.strictEqual(m.names, "Type|Date|Description|Amount|Column 5|Balance|Column 7|Column 8"); assert.strictEqual(m.sel, "data");
+    const n0 = m.n; await pick('[data-ch="header"]', "header"); await waitFor(`JAIReportDebug.store.rows.length === ${n0 - 1}`);
+    const f = await js(`({ note: document.querySelector('.hdr-note').textContent, names: JAIReportDebug.analysis.header.join('|'), sel: document.querySelector('[data-ch="header"]').value })`);
+    assert(/^.{0,3}Header: The first row is read as the header/.test(f.note) && f.sel === "header", f.note); assert.notStrictEqual(f.names, m.names);
+    await pick('[data-ch="header"]', "data"); await waitFor(`JAIReportDebug.store.rows.length === ${n0}`); assert.strictEqual(await js(`JAIReportDebug.analysis.header.join('|')`), m.names);
+    return `${n0} rows; flipped to ${n0 - 1} and back`;
+  });
+  await check("a title row above the header is skipped and said so; row numbers in the table are the file's own", async () => {
+    await loadFx("ledger_title.csv");
+    const m = await js(`({ note: document.querySelector('.hdr-note').textContent, names: JAIReportDebug.analysis.header.slice(0, 4).join('|'), row: document.querySelector('.rec-tr .rec-td.first').textContent })`);
+    assert(/1 title row above it skipped/.test(m.note) && /Synthetic checking activity/.test(m.note), m.note); assert.strictEqual(m.names, "Details|Posting Date|Description|Amount"); assert.strictEqual(m.row, "3");
+  });
+
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {
     await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") + "#sample" }); await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && document.querySelectorAll('.rec-tr').length > 0", 20000);
     assert.strictEqual(await js(`JAIReportDebug.engine`), "main"); assert.strictEqual(await js(`JAIReportDebug.store.rows.length`), 5000);

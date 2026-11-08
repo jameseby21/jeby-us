@@ -1,0 +1,19 @@
+{
+ "duplicate_rows": [
+  55,
+  56
+ ],
+ "refund_pair": [
+  74,
+  75
+ ],
+ "rows": 223,
+ "recurring": [
+  "Netflix",
+  "Spotify",
+  "Planet Fitness"
+ ],
+ "big_purchase": [
+  107
+ ]
+}

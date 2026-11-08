@@ -162,8 +162,8 @@
   const median = a => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
   function domainItems(ctx, dups, repeats) {
-    const { body, cols, num, nominal } = ctx, items = [];
-    const first = r => byRole(cols, r)[0] || null, rowList = (cells, k = 3) => cells.slice(0, k).map(c => c.ri + 2).join(", ") + (cells.length > k ? ` and ${cells.length - k} more` : "");
+    const { body, cols, num, nominal } = ctx, items = [], RB = ctx.rowBase || 2;   // RB: the file row of the first row of data
+    const first = r => byRole(cols, r)[0] || null, rowList = (cells, k = 3) => cells.slice(0, k).map(c => c.ri + RB).join(", ") + (cells.length > k ? ` and ${cells.length - k} more` : "");
     const push = (id, sev, title, detail, score, cells, crumb) => { const chk = CHK[id] || {}; items.push({ id, kind: chk.kind || "qa", cls: chk.cls || null, sev, title, detail, rule: chk.rule || "", todo: chk.todo || "", score, crumb: crumb || title, cells }); };
 
     byRole(cols, "identifier").filter(c => c.type === "id" || c.roleBy === "name").forEach(c => {   // an identifier on two rows that are not copies of each other
@@ -180,8 +180,8 @@
       const cells = [], ch = repeats.filter(g => g.change), moneyC = dups.moneyC, addrC = first("address");
       repeats.forEach(g => g.rows.forEach((ri, k) => { if (k === 0) return; const pr = g.rows[k - 1], nomSet = moneyC && nominal.get(moneyC.i) ? nominal.get(moneyC.i).set : new Set();
         const ch2 = moneyC && num(body[ri][moneyC.i]) > 0 && num(body[pr][moneyC.i]) > 0 && !nomSet.has(ri) && !nomSet.has(pr) ? num(body[ri][moneyC.i]) / num(body[pr][moneyC.i]) - 1 : null;
-        cells.push({ ri, ci: addrC.i, sev: "ctx", why: `<b>Seen again on ${esc(body[ri][dups.dateC.i])}${ch2 != null ? `, ${esc(moneyC.name)} ${pctS(ch2)} against row ${pr + 2}` : ""}.</b> The same place appears on ${g.rows.length} different dates.`, eff: 0 });
-        if (k === 1) cells.push({ ri: pr, ci: addrC.i, sev: "ctx", why: `<b>Seen again later (row ${ri + 2}).</b> The same place appears on ${g.rows.length} different dates.`, eff: 0 }); }));
+        cells.push({ ri, ci: addrC.i, sev: "ctx", why: `<b>Seen again on ${esc(body[ri][dups.dateC.i])}${ch2 != null ? `, ${esc(moneyC.name)} ${pctS(ch2)} against row ${pr + RB}` : ""}.</b> The same place appears on ${g.rows.length} different dates.`, eff: 0 });
+        if (k === 1) cells.push({ ri: pr, ci: addrC.i, sev: "ctx", why: `<b>Seen again later (row ${ri + RB}).</b> The same place appears on ${g.rows.length} different dates.`, eff: 0 }); }));
       cells.sort((a, b) => a.ri - b.ri);
       const detail = ch.length ? `Between the first and last row, ${moneyC.name} changed by a median of ${pctS(median(ch.map(g => g.change.pct)))} (about ${pctS(median(ch.map(g => g.change.annual)))} a year) across ${nf(ch.length)} of them. Nominal rows are left out of the comparison.` : "";
       push("repeat", "ctx", `${nf(repeats.length)} place${repeats.length > 1 ? "s" : ""} appear${repeats.length > 1 ? "" : "s"} on more than one date`, `${detail} Rows ${rowList(cells)}.`, 50, cells, "The same place over time");
