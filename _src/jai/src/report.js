@@ -270,6 +270,9 @@
     const checks = [], findings = [], flags = new Map(), fr = new Map();
     const link = (id, ri, ci, sev, why, fam, eff = 0) => { const k = ri + ":" + ci; if (flags.has(k)) return; flags.set(k, { sev, why, id, fam: fam || "", eff }); (fr.get(id) || fr.set(id, new Set()).get(id)).add(ri); };
     const add = (sev, title, detail, score, solo = true, id = null, crumb = null, noCheck = false) => { if (!noCheck) checks.push({ sev, title, detail }); if (sev !== "ok" && solo) findings.push({ id, sev, title, detail, score, crumb: crumb || title }); };
+    const notShown = [], gctx = { looksLikeValue: n => Shape.looksLikeValue(n, { num, dt }) };   // the insight gate (CONS-0074): a candidate that fails a check is listed here with the reason, never shown
+    const passes = c => { const g = Dom.gate([c], gctx); notShown.push(...g.held); return g.shown.length === 1; };
+    const measureMoney = !!measure && measure.role === "money", moneyText = v => (measureMoney ? "$" : "") + full(v, 0);
     const total = measure ? body.reduce((a, r) => a + (num(r[measure.i]) || 0), 0) : 0, mval = ri => measure ? num(body[ri][measure.i]) : NaN;
     const idCols = cols.filter(c => c.type === "id"), firstCol = idCols[0] ? idCols[0].i : 0;
 
@@ -429,12 +432,14 @@
 
     // role-driven checks and insights (CONS-0063): repeat occurrences of a place over time, identifier uniqueness, coordinates, top and bottom by ratio, concentration
     const repeats = Dom.repeatOccurrences(dctx, dups);
-    Dom.domainItems(dctx, dups, repeats).forEach(it => {
+    const dItems = Dom.domainItems(dctx, dups, repeats), gated = Dom.gate(dItems.filter(it => it.kind === "insight"), gctx); notShown.push(...gated.held);
+    dItems.filter(it => it.kind !== "insight" || gated.shown.includes(it)).forEach(it => {
       it.cells.forEach(c => link(it.id, c.ri, c.ci, c.sev, c.why, "", c.eff));
       meta.set(it.id, { kind: it.kind, cls: it.cls, rule: it.rule, todo: it.todo, repeat: it.repeat });
       if (it.kind === "qa") add(it.sev, it.title, it.detail, it.score, true, it.id, it.crumb);
-      else findings.push({ id: it.id, kind: "insight", sev: it.sev, title: it.title, detail: it.detail, score: it.score, crumb: it.crumb });
+      else findings.push({ id: it.id, kind: "insight", sev: it.sev, title: it.title, detail: it.detail, score: it.score, crumb: it.crumb, why: it.why });
     });
+    Dom.ratioCandidates(cols, calc).held.forEach(h => notShown.push({ id: "ratio:" + h.col, title: h.label[0].toUpperCase() + h.label.slice(1), check: "ratio-unit", reason: h.reason }));
 
     // an optional rule pack (CONS-0068): none unless the visitor loads one; its findings are tagged with the pack and never change the generic ones
     let packInfo = null;
@@ -477,7 +482,9 @@
       }
       { const inner = series.slice(partialFirst ? 1 : 0, series.length - (partialLast ? 1 : 0)), empty = inner.filter(p => p.v === 0 && !agg.has(p.t));
         if (series.length >= 6 && empty.length) { findings.push({ id: "tlgaps", kind: "qa", cls: "missing", sev: "look", title: `${empty.length} empty ${unit}${empty.length > 1 ? "s" : ""} inside the timeline`, detail: `No rows in ${empty.slice(0, 4).map(p => label(p.t)).join(", ")}${empty.length > 4 ? " and more" : ""}, between months that have data. A gap in the export, or a quiet period?`, score: 57, crumb: "Gaps in the timeline", rule: "A period with no rows between periods that have rows is a gap in the data or a real pause.", todo: "Ask whether the export skipped those dates." }); } }
-      if (spike) findings.push({ id: null, kind: "insight", sev: "look", title: `${unit === "month" ? new Date(spike.t).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "The " + unit + " of " + label(spike.t)} is ${spike.r.toFixed(1)}× a typical ${unit}`, detail: `${measure ? measure.name : "Rows"}: ${full(spike.v, 0)} against a typical ${full(pm, 0)}. Worth knowing why.`, score: 70 });
+      if (spike) { const c = { id: null, kind: "insight", sev: "look", title: `${unit === "month" ? new Date(spike.t).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "The " + unit + " of " + label(spike.t)} is ${spike.r.toFixed(1)}× a typical ${unit}`, detail: `${measure ? measure.name : "Rows"}: ${moneyText(spike.v)} against a typical ${moneyText(pm)}. Worth knowing why.`, score: 70,
+          why: { method: "period total against the median period", n: core.length, names: [measure ? measure.name : "Rows", dateCol.name], roles: [measure ? measure.role : "rows", "date"], valueKind: measure ? (measureMoney ? "money" : "measure") : "count", aggregate: measure ? "sum" : "count" } };
+        if (passes(c)) findings.push(c); }
     }
 
     // breakdown
@@ -487,7 +494,9 @@
       let items2 = [...g.entries()].sort((a, b) => b[1][0] - a[1][0]); const top = items2.slice(0, 7).map(([k, e]) => [k, e[0], false, e[1]]), rest = items2.slice(7);
       if (rest.length) top.push([`Other (${rest.length})`, rest.reduce((a, x) => a + x[1][0], 0), true, rest.reduce((a, x) => a + x[1][1], 0)]);
       breakdown = { col: cat.name, ci: cat.i, items: top, total: items2.reduce((a, x) => a + x[1][0], 0) };
-      if (items2.length > 1 && items2[0][1][0] / breakdown.total >= .5) findings.push({ id: null, kind: "insight", sev: "look", title: `${items2[0][0]} is ${pct(items2[0][1][0], breakdown.total).toFixed(0)}% of ${measure ? measure.name : "rows"}`, detail: `One ${cat.name} carries most of the total. Good to know before you plan around averages.`, score: 40 });
+      if (items2.length > 1 && items2[0][1][0] / breakdown.total >= .5) { const c = { id: null, kind: "insight", sev: "look", title: `${items2[0][0]} is ${pct(items2[0][1][0], breakdown.total).toFixed(0)}% of ${measure ? "total " + measure.name : "rows"}`, detail: `One ${cat.name} carries most of the total. Good to know before you plan around averages.`, score: 40,
+          why: { method: "share of the largest group", kind: "share", groups: items2.length, n: N, names: [cat.name, ...(measure ? [measure.name] : [])], roles: ["category", measure ? measure.role : "rows"], valueKind: measure ? (measureMoney ? "money" : "measure") : "count", aggregate: measure ? "sum" : "count" } };
+        if (passes(c)) findings.push(c); }
     }
 
     findings.forEach(f => { Object.assign(f, meta.get(f.id) || {}); if (!f.kind) f.kind = "qa"; if (f.kind === "qa" && !f.cls) f.cls = classOfFinding(f); });
@@ -501,7 +510,15 @@
     const rank = { fix: 0, look: 1, ok: 2 }; checks.sort((a, b) => rank[a.sev] - rank[b.sev]);
     const needsCleanup = checks.some(c => c.sev === "fix");
     const qaSample = N >= 10 ? qaSampleOf({ N, header, cat, flags, findingsList: findings }, body, choice.seed) : null;
-    return { name: data.name, sheet: data.sheet, N, hdr: { isHeader: frm.isHeader, detected: frm.detected, forced: frm.forced, conf: frm.conf, why: frm.why, note: frm.note, titleRows: frm.titleRows, bodyStart: frm.bodyStart, replaced: frm.replaced }, rowBase: RB, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, pack: packInfo, classCounts, qaSample, notChecked: Dom.notChecked(cols), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+    const res = { name: data.name, sheet: data.sheet, N, hdr: { isHeader: frm.isHeader, detected: frm.detected, forced: frm.forced, conf: frm.conf, why: frm.why, note: frm.note, titleRows: frm.titleRows, bodyStart: frm.bodyStart, replaced: frm.replaced }, rowBase: RB, notShown, measureMoney, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, pack: packInfo, classCounts, qaSample, notChecked: Dom.notChecked(cols), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+    res.kpi = kpiOf(res); return res;
+  }
+
+  // the tiles at the top of the sheet. Rows is always a count of rows; Total <column> is a sum of that column and carries a money sign only when the column is money (CONS-0074)
+  function kpiOf(a) {
+    const yr = t => new Date(t).getUTCFullYear(), md = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; }, my = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${yr(t)}`; };
+    const range = !a.trend ? "No date column" : yr(a.trend.lo) === yr(a.trend.hi) ? `${md(a.trend.lo)} – ${md(a.trend.hi)}, ${yr(a.trend.hi)}` : `${my(a.trend.lo)} – ${my(a.trend.hi)}`;
+    return [["Rows", a.N.toLocaleString("en-US")], ["Columns", a.cols.length], ["Dates", range], a.measure ? ["Total " + a.measure.name, (a.measureMoney ? "$" : "") + full(a.total, 0)] : ["Measure", "None found"]];
   }
 
   // ---------- classes and review verbs
@@ -715,11 +732,10 @@
   <span class="sp"></span><button class="btn small" type="button" data-print>Print or save as PDF</button><button class="btn small" type="button" data-reset>Start over</button>
 </div>`;
   }
+  const notShownHTML = a => a.notShown && a.notShown.length ? `<details class="not-shown print-hide"><summary>Not shown (${a.notShown.length})</summary><p class="hint">Held back by the insight gate, so the report shows fewer insights rather than wrong ones.</p><ul>${a.notShown.map(h => `<li><b>${esc(h.title)}</b> ${esc(h.reason)}</li>`).join("")}</ul></details>` : "";
   function sheetHTML(a, notable, ed) {
     const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    const yr = t => new Date(t).getUTCFullYear(), md = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; }, my = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${yr(t)}`; };
-    const range = !a.trend ? "No date column" : yr(a.trend.lo) === yr(a.trend.hi) ? `${md(a.trend.lo)} – ${md(a.trend.hi)}, ${yr(a.trend.hi)}` : `${my(a.trend.lo)} – ${my(a.trend.hi)}`;
-    const kpi = [["Rows", a.N.toLocaleString("en-US")], ["Columns", a.cols.length], ["Dates", range], [a.measure ? "Total " + a.measure.name : "Measure", a.measure ? full(a.total, 0) : "None found"]];
+    const kpi = a.kpi;
     const roleOpts = c => { const set = Rules.ROLES.userRoles[c.type === "number" ? "number" : c.type === "date" ? "date" : "other"], cur = c.roleBy === "you" ? c.role : "auto"; return `<option value="auto"${cur === "auto" ? " selected" : ""}>${esc(Dom.roleLabel({ ...c, role: c.detected, roleBy: c.roleBy === "you" ? "values" : c.roleBy }))} (detected)</option>` + set.filter(r => r !== c.detected).map(r => `<option value="${r}"${cur === r ? " selected" : ""}>${r}</option>`).join(""); };
     const prof = a.cols.slice(0, 12).map(c => `<tr><td>${esc(c.name)}</td><td>${c.type}<span class="role-print"> · ${esc(Dom.roleLabel(c))}</span><select class="role-pick print-hide" data-role="${esc(c.name)}" aria-label="Role of ${esc(c.name)}">${roleOpts(c)}</select></td><td>${pct(c.filled, a.N).toFixed(0)}%</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="3" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
     const next = a.needsCleanup ? ["Data health check", 8, "a person reads the data and writes down what to fix first"] : ["Focused analysis", 20, "one question answered properly, with the uncertainty stated"];
@@ -746,6 +762,7 @@
     </div>
     ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measure ? a.measure.name : "Rows")} by ${a.trend.unit}${a.trend.split ? `, split by ${esc(a.trend.split.col)}${a.trend.split.top5 ? " (top five and Other)" : ""}` : ""} <span class="hint">date column: ${esc(a.dateCol.name)}</span></h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div>${repNote}</section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
     ${worthHTML(sec.insights.notable, "Worth a look", "ins")}
+    ${notShownHTML(a)}
   </section>
   <section class="sh-sec sh-qa" aria-label="QA"><h2>QA <span class="sec-n">${sec.qa.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="qa">Show ${fmtCount(qaRows.size)} QA rows</button></h2>
     <div class="sh-two">

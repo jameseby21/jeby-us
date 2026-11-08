@@ -228,24 +228,50 @@
       const detail = ch.length ? `Between the first and last row, ${moneyC.name} changed by a median of ${pctS(median(ch.map(g => g.change.pct)))} (about ${pctS(median(ch.map(g => g.change.annual)))} a year) across ${nf(ch.length)} of them. Nominal rows are left out of the comparison.` : "";
       push("repeat", "ctx", `${nf(repeats.length)} place${repeats.length > 1 ? "s" : ""} appear${repeats.length > 1 ? "" : "s"} on more than one date`, `${detail} Rows ${rowList(cells)}.`, 50, cells, "The same place over time");
       items[items.length - 1].repeat = { n: repeats.length, pct: ch.length ? median(ch.map(g => g.change.pct)) : null, annual: ch.length ? median(ch.map(g => g.change.annual)) : null, nPriced: ch.length };
+      items[items.length - 1].why = { method: "same place on more than one date, change between the first and last non-nominal row", n: repeats.length, names: [addrC.name, dups.dateC.name, ...(moneyC ? [moneyC.name] : [])], roles: ["address", "date", ...(moneyC ? ["money"] : [])], valueKind: "change", aggregate: "median" };
     }
     const rp = ratioPairs(cols, ctx.calc)[0];
     if (rp) {
       const nomSet = nominal.get(rp.a.i) ? nominal.get(rp.a.i).set : new Set(), L = [];
       body.forEach((r, ri) => { const p = num(r[rp.a.i]), a = num(r[rp.b.i]); if (p > 0 && a > 0 && !nomSet.has(ri)) L.push({ ri, v: p / a }); });
-      if (L.length >= 40) {
+      if (L.length >= 1) {
         L.sort((a, b) => a.v - b.v || a.ri - b.ri); const lo = L.slice(0, 5), hi = L.slice(-5).reverse(), fmt = v => (v >= 100 ? mon(v) : "$" + v.toFixed(2)), cells = [];
         hi.forEach((x, k) => cells.push({ ri: x.ri, ci: rp.a.i, sev: "ctx", why: `<b>#${k + 1} highest ${rp.label}: ${fmt(x.v)}.</b> Among the five highest of ${nf(L.length)} non-nominal rows.`, eff: 0 }));
         lo.forEach((x, k) => cells.push({ ri: x.ri, ci: rp.a.i, sev: "ctx", why: `<b>#${k + 1} lowest ${rp.label}: ${fmt(x.v)}.</b> Among the five lowest of ${nf(L.length)} non-nominal rows.`, eff: 0 }));
-        push("extremes", "ctx", `The five highest and lowest ${rp.label}`, `Highest ${hi.map(x => fmt(x.v)).join(", ")}; lowest ${lo.map(x => fmt(x.v)).join(", ")}.`, 45, cells, `Highest and lowest ${rp.label}`);
+        push("extremes", "ctx", `The five highest and lowest ${rp.label}`, `Highest ${hi.map(x => fmt(x.v)).join(", ")}; lowest ${lo.map(x => fmt(x.v)).join(", ")}. Based on ${rp.basis}.`, 45, cells, `Highest and lowest ${rp.label}`);
+        items[items.length - 1].why = { method: "ratio", numeratorRole: rp.a.role, denominatorRole: rp.b.role, units: rp.unit, denominator: rp.b.name, n: L.length, names: [rp.a.name, rp.b.name], roles: [`${rp.a.role}:${rp.a.name}`, `${rp.b.role}:${rp.b.name}`], valueKind: "money", aggregate: "ratio" };
       }
     }
     const cityC = first("city");
     if (cityC) {
       const m = new Map(); body.forEach(r => { const c = String(r[cityC.i]).trim(); if (c) m.set(c, (m.get(c) || 0) + 1); }); const tot = [...m.values()].reduce((a, b) => a + b, 0), top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-      if (m.size > 4 && tot) items.push({ id: "concentration", kind: "insight", cls: null, sev: "look", title: `${Math.round(top.reduce((a, x) => a + x[1], 0) / tot * 100)}% of the rows are in three ${keyName(cityC.name)} values`, detail: `${top.map(x => `${x[0]} (${nf(x[1])})`).join(", ")} of ${nf(m.size)}.`, rule: CHK.concentration.rule, todo: CHK.concentration.todo, score: 42, crumb: "Concentration by place", cells: [] });
+      if (m.size >= 1 && tot) items.push({ id: "concentration", kind: "insight", cls: null, sev: "look", why: { method: "share of rows in the three busiest values", kind: "concentration", groups: m.size, n: tot, names: [cityC.name], roles: ["city"], valueKind: "count", aggregate: "count" }, title: `${Math.round(top.reduce((a, x) => a + x[1], 0) / tot * 100)}% of the rows are in three ${keyName(cityC.name)} values`, detail: `${top.map(x => `${x[0]} (${nf(x[1])})`).join(", ")} of ${nf(m.size)}.`, rule: CHK.concentration.rule, todo: CHK.concentration.todo, score: 42, crumb: "Concentration by place", cells: [] });
     }
     return items;
+  }
+
+  // =====================================================================================================
+  // The insight gate (CONS-0074). A candidate is { id, kind, title, detail, why: { method, kind?, numeratorRole?, denominatorRole?, units?, n, groups?, names[], valueKind, aggregate } }.
+  // Each function returns null when the candidate passes and a sentence (the reason) when it does not. The checks and the minimums are data in rules.js (GATE).
+  const GATE_FN = {
+    "ratio-unit": (c, g) => { const w = c.why; if (w.method !== "ratio") return null;
+      return w.numeratorRole === "money" && w.denominatorRole === "measure" && w.units ? null : `A ratio is money over a measure that carries a unit; ${w.denominator || "the denominator"} is ${w.denominatorRole === "measure" ? "a measure with no unit" : "a " + w.denominatorRole + ", not a quantity"}.`; },
+    "min-rows": (c) => { const w = c.why, m = Rules.GATE.minimums.extremes; return w.method === "ratio" && c.id === "extremes" && w.n < m ? `Top and bottom needs at least ${m} non-nominal rows and the file has ${w.n}.` : null; },
+    "min-groups": (c) => { const w = c.why, M = Rules.GATE.minimums;
+      if (w.kind === "share" && w.groups < M.share) return `A share needs at least ${M.share} groups and ${w.names[0] || "the column"} has ${w.groups}.`;
+      if (w.kind === "concentration" && w.groups < M.concentration) return `A concentration needs at least ${M.concentration} groups and ${w.names[0] || "the column"} has ${w.groups}.`; return null; },
+    "label-vocab": (c) => { const w = c.why, text = c.title + " " + (c.detail || ""); if (w.aggregate === "sum") return null;
+      const bad = (w.names || []).find(n => new RegExp("\\btotal\\s+" + String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(text)); return bad ? `“Total ${bad}” is for a sum; this is a ${w.aggregate}. It reads Rows.` : null; },
+    "count-not-money": (c) => { const w = c.why, text = c.title + " " + (c.detail || "");
+      if (w.valueKind === "count" && /\$\s?\d/.test(text)) return "A count is shown with a money sign."; if (w.valueKind === "money" && /\d/.test(text) && !/\$/.test(text)) return "A money value is shown without its money sign."; return null; },
+    "value-name": (c, g) => { const bad = (c.why.names || []).find(n => g.looksLikeValue && g.looksLikeValue(n)); return bad ? `The column name “${bad}” looks like a value, so it is not quoted.` : null; },
+  };
+  function gate(cands, g) {
+    const shown = [], held = [];
+    cands.forEach(c => { if (!c.why) { shown.push(c); return; }
+      const fail = Rules.GATE.checks.map(k => [k.id, GATE_FN[k.id](c, g || {})]).find(x => x[1]);
+      if (fail) held.push({ id: c.id, title: c.title, check: fail[0], reason: fail[1], why: c.why }); else shown.push(c); });
+    return { shown, held };
   }
 
   // What the file could not be checked for: every check whose roles are missing
@@ -257,6 +283,6 @@
   }
   const classOf = id => (CHK[id] ? CHK[id].cls : null);
 
-  const API = { DOMAIN, assignRoles, roleLabel, ratioPairs, ratioCandidates, unitOf, normAddress, normUnit, normPostal, findNominal, duplicates, repeatOccurrences, domainItems, notChecked, listWords, classOf, CHK, byRole };
+  const API = { DOMAIN, GATE_FN, gate, assignRoles, roleLabel, ratioPairs, ratioCandidates, unitOf, normAddress, normUnit, normPostal, findNominal, duplicates, repeatOccurrences, domainItems, notChecked, listWords, classOf, CHK, byRole };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.JAIDomain = API;
 })(typeof self !== "undefined" ? self : this);

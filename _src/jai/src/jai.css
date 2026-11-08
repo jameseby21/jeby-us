@@ -341,7 +341,7 @@ table.prof td:first-child{font-weight:500}table.prof td.more{color:var(--muted);
 /* free report: finding links, records worth a look (CONS-0050), the records table (CONS-0049) with editing and export (CONS-0054).
    Colours follow the CONS-0052 design: Fix red tint with a red rule, Look slate, Edited blue. Text on each tint is at least 5.6:1. */
 :root{--slate-tint:#e6eaf0;--edit:#2f5e9e;--edit-tint:#e9f0fa;--rowh:34px}
-.print-only{display:none}.role-print{display:none}.role-pick{font:inherit;font-size:12px;max-width:100%;margin-left:6px;padding:1px 2px;border:1px solid var(--rule);border-radius:4px;background:var(--paper);color:var(--ink)}
+.print-only{display:none}.role-print{display:none}.not-shown{margin-top:12px;font-size:13px;color:var(--ink-2)}.not-shown summary{cursor:pointer;font-weight:600}.not-shown ul{margin:6px 0 0;padding-left:18px}.not-shown li{margin:3px 0}.role-pick{font:inherit;font-size:12px;max-width:100%;margin-left:6px;padding:1px 2px;border:1px solid var(--rule);border-radius:4px;background:var(--paper);color:var(--ink)}
 .finds li .rec-link{grid-column:2;justify-self:start;margin-top:2px}
 .rec-link{border:0;background:transparent;padding:2px 0;font:500 13px/1.3 var(--sans);color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule-2);text-underline-offset:3px;cursor:pointer;white-space:nowrap}
 .rec-link:hover{text-decoration-color:var(--red)}

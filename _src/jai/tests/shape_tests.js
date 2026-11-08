@@ -104,5 +104,50 @@ module.exports = function (h) {
     assert(!c.findingsAll.some(f => f.id === "extremes"), "the top and bottom by area goes away with the area");
     const d = R.analyse(SR, { roles: { "Year built": "auto" } }); assert.strictEqual(roleOf(d, "Year built"), "year");
   });
+
+  // ---------- CONS-0074
+  console.log("the insight gate (CONS-0074)");
+  const Rules = require("../src/rules.js"), cand = (id, why, title = "A candidate", detail = "") => ({ id, kind: "insight", title, detail, why });
+  const gateOf = (c) => { const g = Dom.gate([c], { looksLikeValue: n => Shape.looksLikeValue(n, T) }); return { ok: g.shown.length === 1, reason: g.held[0] && g.held[0].reason, check: g.held[0] && g.held[0].check }; };
+  const ratioWhy = (o) => ({ method: "ratio", numeratorRole: "money", denominatorRole: "measure", units: "square foot", n: 100, names: ["Sale price", "Living area sqft"], valueKind: "money", aggregate: "ratio", ...o });
+  test("the gate's checks are data: every check in rules.js has a rule sentence and a function, and the minimums are numbers", () => {
+    assert(Rules.GATE.checks.length >= 6); Rules.GATE.checks.forEach(c => { assert(c.id && c.label && c.rule.length > 20, c.id); assert.strictEqual(typeof Dom.GATE_FN[c.id], "function", "no function for " + c.id); });
+    assert.deepStrictEqual(Rules.GATE.minimums, { extremes: 30, share: 3, concentration: 5 });
+  });
+  test("gate: a ratio needs money over a measure with a unit (fails and passes)", () => {
+    assert.strictEqual(gateOf(cand("extremes", ratioWhy())).ok, true);
+    const noUnit = gateOf(cand("extremes", ratioWhy({ units: null }))); assert.strictEqual(noUnit.ok, false); assert.strictEqual(noUnit.check, "ratio-unit");
+    const perYear = gateOf(cand("extremes", ratioWhy({ denominatorRole: "year" }))); assert.strictEqual(perYear.ok, false); assert.strictEqual(perYear.check, "ratio-unit");
+    assert.strictEqual(gateOf(cand("extremes", ratioWhy({ numeratorRole: "measure" }))).ok, false);
+  });
+  test("gate: top and bottom needs 30 non-nominal rows; a share needs 3 groups; concentration needs 5 (each fails below and passes at the minimum)", () => {
+    assert.strictEqual(gateOf(cand("extremes", ratioWhy({ n: 29 }))).ok, false); assert(/at least 30/.test(gateOf(cand("extremes", ratioWhy({ n: 29 }))).reason)); assert.strictEqual(gateOf(cand("extremes", ratioWhy({ n: 30 }))).ok, true);
+    assert.strictEqual(gateOf(cand("share", { kind: "share", groups: 2, n: 50, names: ["Region"], valueKind: "measure", aggregate: "sum" })).ok, false);
+    assert.strictEqual(gateOf(cand("share", { kind: "share", groups: 3, n: 50, names: ["Region"], valueKind: "measure", aggregate: "sum" })).ok, true);
+    assert.strictEqual(gateOf(cand("concentration", { kind: "concentration", groups: 4, n: 50, names: ["City"], valueKind: "count", aggregate: "count" })).ok, false);
+    assert.strictEqual(gateOf(cand("concentration", { kind: "concentration", groups: 5, n: 50, names: ["City"], valueKind: "count", aggregate: "count" })).ok, true);
+  });
+  test("gate: labels. 'Total <column>' only for a sum; a count never carries a money sign; a finding never names a column that looks like a value", () => {
+    const base = { kind: "share", groups: 5, n: 50, names: ["Orders (#)"], valueKind: "count", aggregate: "count" };
+    assert.strictEqual(gateOf(cand("share", base, "Retail is 52% of total Orders (#)")).ok, false); assert.strictEqual(gateOf(cand("share", base, "Retail is 52% of rows")).ok, true);
+    assert.strictEqual(gateOf(cand("share", base, "Retail is 52% of rows", "$1,200 of 40 orders")).ok, false);
+    assert.strictEqual(gateOf(cand("share", { ...base, aggregate: "sum", valueKind: "measure" }, "Retail is 52% of total Orders (#)")).ok, true);
+    assert.strictEqual(gateOf(cand("share", { ...base, names: ["11/19/2018"] })).ok, false); assert.strictEqual(gateOf(cand("share", { ...base, names: ["Region"] })).ok, true);
+  });
+  test("the sales fixture: the header tile reads Rows 1,200 and no Total Sales (#); no insight per year built; every shown insight carries its justification", () => {
+    assert.strictEqual(aSR.kpi.find(k => k[0] === "Rows")[1], "1,200"); assert(!aSR.kpi.some(k => /sales \(#\)/i.test(k[0])), JSON.stringify(aSR.kpi));
+    assert.strictEqual(aSR.kpi[3][0], "Total Sale price"); assert(/^\$/.test(aSR.kpi[3][1]), "money carries its sign: " + aSR.kpi[3][1]);
+    const ins = aSR.findingsList.filter(f => f.kind === "insight"); assert(ins.length >= 2);
+    ins.forEach(f => { assert(f.why && f.why.method && "n" in f.why && Array.isArray(f.why.names), "no justification on " + f.title); });
+    const ex = ins.find(f => f.id === "extremes"); assert.strictEqual(ex.why.units, "square foot"); assert.deepStrictEqual(ex.why.names, ["Sale price", "Living area sqft"]); assert.strictEqual(ex.why.n, 1200);
+  });
+  test("Not shown: what was held back and why (a ratio per year built, a top-and-bottom with too few rows, a share with two groups)", () => {
+    const held = aSR.notShown.map(h => h.title + " | " + h.reason).join("\n");
+    assert(/price per year built/i.test(held) && /Year built is a year, not a quantity/.test(held), held); assert(/price per zip/i.test(held) && /price per sales \(#\)/i.test(held), held);
+    const rows = [["id", "price", "area sqft", "region"]]; for (let i = 0; i < 20; i++) rows.push(["r" + i, String(200000 + i * 1000), String(1000 + i * 10), i % 2 ? "East" : "West"]);
+    const small = R.analyse({ name: "t", rows }); assert(!small.findingsList.some(f => f.id === "extremes"));
+    const x = small.notShown.find(h => h.id === "extremes"); assert(x && x.check === "min-rows" && /at least 30 non-nominal rows/.test(x.reason) && /has 20/.test(x.reason), JSON.stringify(small.notShown));
+    assert([...small.flags.values()].every(f => f.id !== "extremes"), "a held insight leaves no flags in the table");
+  });
 };
 

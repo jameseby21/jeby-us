@@ -307,12 +307,22 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
 
   await check("sales fixture: year built is a year, no line mentions price per year built, and a role changed in the Columns table recomputes the report", async () => {
     await loadFx("sales_roles.csv");
-    const m = await js(`({ sheet: document.querySelector('.sheet').textContent, roles: JAIReportDebug.analysis.cols.map(c => c.name + ':' + c.role).join('|'), sel: document.querySelector('[data-role="Year built"]').selectedOptions[0].textContent })`);
-    assert(/Year built:year/.test(m.roles) && /Zip:postal/.test(m.roles) && /year \(not a quantity\)/.test(m.sel), m.roles + " | " + m.sel); assert(!/per year built|per zip|year built.{0,6}(highest|lowest)/i.test(m.sheet), "a ratio on year built is still on the page");
+    const m = await js(`({ sheet: (() => { const c = document.querySelector('.sheet').cloneNode(true); c.querySelectorAll('details.not-shown').forEach(e => e.remove()); return c.textContent; })(), roles: JAIReportDebug.analysis.cols.map(c => c.name + ':' + c.role).join('|'), sel: document.querySelector('[data-role="Year built"]').selectedOptions[0].textContent })`);
+    assert(/Year built:year/.test(m.roles) && /Zip:postal/.test(m.roles) && /year \(not a quantity\)/.test(m.sel), m.roles + " | " + m.sel); assert(!/per year built|per zip|year built.{0,6}(highest|lowest)/i.test(m.sheet), "a ratio on year built is still on the page (outside Not shown)");
     assert(/price per square foot/.test(m.sheet), "the area ratio is missing");
     await pick('[data-role="Beds"]', "identifier"); await waitFor(`JAIReportDebug.analysis.cols.find(c => c.name === 'Beds').role === 'identifier'`);
     const after = await js(`({ role: document.querySelector('[data-role="Beds"]').value, by: JAIReportDebug.analysis.cols.find(c => c.name === 'Beds').roleBy })`); assert.deepStrictEqual(after, { role: "identifier", by: "you" });
     return "Beds set to identifier by the picker; the page recomputed";
+  });
+
+  await check("the header tile reads Rows, the money total carries its sign, and 'Not shown' is collapsed and explains what the gate held back", async () => {
+    await loadFx("sales_roles.csv");
+    const m = await js(`(() => { const k = [...document.querySelectorAll('.sh-kpis > div')].map(d => d.querySelector('.label').textContent + '=' + d.querySelector('b').textContent); const d = document.querySelector('details.not-shown');
+      return { k, open: d && d.open, summary: d && d.querySelector('summary').textContent, text: d && d.textContent, sections: [...document.querySelectorAll('.sheet .sh-sec > h2')].length }; })()`);
+    assert.strictEqual(m.k[0], "Rows=1,200"); assert(/^Total Sale price=\$/.test(m.k[3]), m.k.join()); assert(!m.k.some(x => /sales \(#\)/i.test(x)), m.k.join());
+    assert.strictEqual(m.open, false); assert(/^Not shown \(\d+\)$/.test(m.summary), m.summary); assert(/Year built is a year, not a quantity/.test(m.text) && /Zip is a postal code/.test(m.text), m.text.slice(0, 300));
+    await js(`document.querySelector('details.not-shown summary').click()`); assert.strictEqual(await js(`document.querySelector('details.not-shown').open`), true);
+    return m.summary;
   });
 
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {
