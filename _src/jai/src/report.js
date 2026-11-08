@@ -521,7 +521,7 @@
   <span class="sp"></span><button class="btn small" type="button" data-print>Print or save as PDF</button><button class="btn small" type="button" data-reset>Start over</button>
 </div>`;
   }
-  function sheetHTML(a, notable, edits) {
+  function sheetHTML(a, notable, ed) {
     const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     const yr = t => new Date(t).getUTCFullYear(), md = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; }, my = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${yr(t)}`; };
     const range = !a.trend ? "No date column" : yr(a.trend.lo) === yr(a.trend.hi) ? `${md(a.trend.lo)} – ${md(a.trend.hi)}, ${yr(a.trend.hi)}` : `${my(a.trend.lo)} – ${my(a.trend.hi)}`;
@@ -532,7 +532,7 @@
     const tableRows = (a.trend ? a.trend.series.map(p => `<tr><td>${a.trend.label(p.t)}</td><td>${full(p.v, 0)}</td></tr>`).join("") : "");
     const finds = a.findings.length ? `<ol class="finds">${a.findings.map(f => `<li><b>${esc(f.title)}</b><span>${esc(f.detail)}</span>${f.id && f.n ? `<button class="rec-link print-hide" type="button" data-find="${esc(f.id)}">Show ${fmtCount(f.n)} ${f.n === 1 ? "row" : "rows"}</button>` : ""}</li>`).join("")}</ol>` : `<p class="calm">Nothing jumped out. That's rarer than you'd think.</p>`;
     const worth = notable.length ? `<section class="sh-worth"><h3>Records worth a look <span class="hint print-hide">Click one to find it in the table.</span></h3><ol class="worth">${notable.map(w => `<li><button class="wrow" type="button" data-row="${w.ri}"><i class="sev ${w.sev}" aria-hidden="true">${w.sev === "fix" ? "×" : w.sev === "look" ? "!" : "·"}</i><span><b>${esc(w.title)}</b><span class="wreason">${esc(w.reason)}</span></span></button></li>`).join("")}</ol></section>` : "";
-    return `<article class="sheet${edits ? "" : ""}" aria-label="One-page report">
+    return `<article class="sheet" aria-label="One-page report">
   <header class="sh-head"><div><span class="wm"><b>JA</b>Insights</span><span class="label">One-page report</span></div>
     <div class="sh-meta"><b>${esc(a.name)}${a.sheet ? " · " + esc(a.sheet) : ""}</b><span>${today} · made in your browser, nothing uploaded${a.truncated ? ` · free limit: ${Math.min(a.allRows, MAXR).toLocaleString("en-US")} rows × ${Math.min(a.allCols, MAXC)} columns` : ""}</span></div></header>
   <div class="sh-kpis">${kpi.map(([l, v]) => `<div><span class="label">${esc(l)}</span><b${String(v).length > 14 ? ' class="long"' : ""}>${esc(v)}</b></div>`).join("")}</div>
@@ -546,7 +546,7 @@
     <section>${a.breakdown ? `<h3>${esc(a.measure ? a.measure.name : "Rows")} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
     <section><h3>Columns</h3><table class="prof"><thead><tr><th>Column</th><th>Type</th><th>Filled</th><th>Distinct</th></tr></thead><tbody>${prof}</tbody></table></section>
   </div>
-  ${edits ? `<p class="print-only edit-note">${edits} cell${edits > 1 ? "s were" : " was"} corrected in this browser session; the findings above are recalculated from the corrected values.</p>` : ""}
+  ${ed && ed.n ? `<p class="print-only edit-note">${ed.n} edit${ed.n > 1 ? "s were" : " was"} made in this browser session${ed.cells !== ed.n ? ` (${ed.cells} cells changed, counting totals worked out again)` : ""}; the findings above are recalculated from the corrected values.</p>` : ""}
   <footer class="sh-foot"><div><span class="label">What I'd do next</span><p><b>${next[0]}</b>, ${next[1]} h × $${RATE} = $${(next[1] * RATE).toLocaleString("en-US")}: ${next[2]}. This page is an automatic first pass; that's the human one.</p></div>
     <span class="stamp">Checked</span></footer>
 </article>
@@ -558,8 +558,8 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   let current = null, choice = {}, store = null, table = null, last = null;
   const out = $("#report-out"), status = msg => { $("#report-status").textContent = msg; };
   function paint(a, first) {
-    last = a; const edits = store ? store.edited.size : 0, notable = pickNotable(a, store);
-    $("#rep-sheet").innerHTML = sheetHTML(a, notable, edits); if (!first) $(".sheet", out).style.animation = "none";
+    last = a; const ed = store ? { n: store.edits.length, cells: store.edited.size } : null, notable = pickNotable(a, store);
+    $("#rep-sheet").innerHTML = sheetHTML(a, notable, ed); if (!first) $(".sheet", out).style.animation = "none";
     $$(".chart-wrap", out).forEach(wrap => {
       const tip = $(".tip", wrap), svg = $("svg", wrap), xh = $(".xh", wrap);
       const show = (el, ev) => { tip.innerHTML = el.dataset.tip; tip.hidden = false; const r = wrap.getBoundingClientRect(); tip.style.left = Math.min(r.width - 10, Math.max(10, ev.clientX - r.left)) + "px"; tip.style.top = (ev.clientY - r.top) + "px";

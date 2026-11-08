@@ -129,6 +129,28 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await js(`document.querySelector('[data-undo]').click()`); assert.strictEqual(await js(`document.querySelector('.rec-edits .n').textContent`), "11 edits");
     assert(await js(`!!document.querySelector('[data-find="unit:unit_price"]')`), "undo should bring the finding back");
   });
+  await check("keyboard: Enter opens the editor on a focused cell, '$1,150.00' is kept as 1150.00, a quantity edit recomputes the total, Undo puts both back", async () => {
+    await js(`document.querySelector('[data-crumbs] .rec-x') && document.querySelector('[data-crumbs] .rec-x').click(); document.querySelector('.rec-win').scrollTop = 0`);
+    const before = await js(`JAIReportDebug.store.rows[0].slice()`), hdr = await js(`JAIReportDebug.store.names`), q = hdr.indexOf("qty"), t = hdr.indexOf("total"), pr = hdr.indexOf("unit_price");
+    const n0 = +(await js(`document.querySelector('.rec-edits .n').textContent`)).split(" ")[0];
+    const type = async (c, v) => { await js(`(() => { const cell = document.querySelector('.rec-tr [data-r="0"][data-c="${c}"]'); cell.focus(); cell.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
+      assert(await js(`!!document.querySelector('[data-edit]')`), "Enter should open the editor on column " + c);
+      await js(`(() => { const inp = document.querySelector('[data-edit]'); inp.value = ${JSON.stringify(v)}; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`); };
+    await type(pr, "$1,150.00"); assert.strictEqual(await js(`JAIReportDebug.store.rows[0][${pr}]`), "1150.00");
+    await js(`JAIReportDebug.store.edits.length`); const qty0 = +before[q], newQ = String(qty0 + 2); await type(q, newQ);
+    const row = await js(`JAIReportDebug.store.rows[0].slice()`); assert.strictEqual(row[t], (Math.round((qty0 + 2) * 1150 * 100) / 100).toFixed(2), "total " + row[t]);
+    assert.strictEqual(await js(`document.querySelector('.rec-edits .n').textContent`), `${n0 + 2} edits`);
+    await js(`document.querySelector('[data-undo]').click(); document.querySelector('[data-undo]').click()`);
+    assert.deepStrictEqual(await js(`JAIReportDebug.store.rows[0].slice()`), before); assert.strictEqual(await js(`document.querySelector('.rec-edits .n').textContent`), `${n0} edits`);
+  });
+  await check("Download hands the visitor the corrected CSV and the change log as files, made here (no network)", async () => {
+    await js(`window.__dl = []; const real = URL.createObjectURL.bind(URL); URL.createObjectURL = b => { window.__dl.push(b); return real(b); }; HTMLAnchorElement.prototype.click = function () { window.__names = (window.__names || []).concat(this.download); };`);
+    await js(`document.querySelector('[data-export]').click()`);
+    await js(`document.querySelector('[data-dl]').click()`); await js(`document.querySelector('[data-tab="log"]').click()`); await js(`document.querySelector('[data-dl]').click()`);
+    const m = await js(`(async () => ({ names: window.__names, texts: await Promise.all(window.__dl.map(b => b.text())), csv: JAIRecords.exportCSV(JAIReportDebug.store), log: JAIRecords.changeLogCSV(JAIReportDebug.store) }))()`);
+    await js(`document.querySelector('[data-close]').click()`);
+    assert.deepStrictEqual(m.names, ["cafe-sales-sample-corrected.csv", "cafe-sales-sample-change-log.csv"]); assert.strictEqual(m.texts[0], m.csv); assert.strictEqual(m.texts[1], m.log);
+  });
   await check("export: the corrected CSV re-imports equal to the table, the change log has the edits", async () => {
     await js(`document.querySelector('[data-export]').click()`);
     const m = await js(`({ shown: !document.querySelector('[data-modal]').hidden, csv: JAIRecords.exportCSV(JAIReportDebug.store), log: JAIRecords.changeLogCSV(JAIReportDebug.store), rows: JAIReportDebug.store.rows })`);
@@ -139,9 +161,9 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
   });
   await check("print hides the table and keeps at most five records worth a look", async () => {
     await send("Emulation.setEmulatedMedia", { media: "print" });
-    const m = await js(`({ rec: getComputedStyle(document.querySelector('.records')).display, sixth: getComputedStyle(document.querySelectorAll('.worth li')[5]).display, fifth: getComputedStyle(document.querySelectorAll('.worth li')[4]).display, controls: getComputedStyle(document.querySelector('.report-controls')).display, note: getComputedStyle(document.querySelector('.edit-note')).display })`);
+    const m = await js(`({ rec: getComputedStyle(document.querySelector('.records')).display, sixth: getComputedStyle(document.querySelectorAll('.worth li')[5]).display, fifth: getComputedStyle(document.querySelectorAll('.worth li')[4]).display, controls: getComputedStyle(document.querySelector('.report-controls')).display, note: getComputedStyle(document.querySelector('.edit-note')).display, note_txt: document.querySelector('.edit-note').textContent })`);
     await send("Emulation.setEmulatedMedia", { media: "" });
-    assert.strictEqual(m.rec, "none"); assert.strictEqual(m.sixth, "none"); assert.notStrictEqual(m.fifth, "none"); assert.strictEqual(m.controls, "none"); assert.notStrictEqual(m.note, "none");
+    assert.strictEqual(m.rec, "none"); assert.strictEqual(m.sixth, "none"); assert.notStrictEqual(m.fifth, "none"); assert.strictEqual(m.controls, "none"); assert.notStrictEqual(m.note, "none"); assert(/^11 edits were made in this browser session \(\d+ cells changed, counting totals worked out again\); the findings/.test(m.note_txt), m.note_txt);
   });
   await check("records worth a look prints as part of the one page: the printed report is a single page and the list holds at most five records", async () => {
     const pdf = await send("Page.printToPDF", { preferCSSPageSize: true, printBackground: true }), txt = Buffer.from(pdf.data, "base64").toString("latin1");
@@ -151,10 +173,11 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     return `1 printed page at zoom ${f.z}, ${f.rows} worth-a-look rows`;
   });
   await check("nothing leaves the browser: no request while working, none that is a POST or PUT, ever", async () => {
-    const quiet = requests.filter(r => r.t >= quietFrom && !r.url.startsWith("data:") && !r.url.startsWith("blob:"));
+    // a web font the page's own stylesheet asks for the first time a glyph style is drawn is a plain GET for a public file, carrying nothing of the visitor's
+    const quiet = requests.filter(r => r.t >= quietFrom && !r.url.startsWith("data:") && !r.url.startsWith("blob:") && !(r.method === "GET" && /^https:\/\/fonts\.(gstatic|googleapis)\.com\//.test(r.url)));
     assert.strictEqual(quiet.length, 0, "requests during use: " + quiet.map(r => r.method + " " + r.url).join(", "));
     const writes = requests.filter(r => r.method !== "GET"); assert.strictEqual(writes.length, 0, "non-GET requests: " + writes.map(r => r.method + " " + r.url).join(", "));
-    return `${requests.length} requests in total, all at page start-up (fonts, Excel reader warm-up); 0 after`;
+    return `${requests.length} requests in total, the page start-up and public font files only; nothing else, no POST or PUT`;
   });
 
   console.log("10,000 rows");
