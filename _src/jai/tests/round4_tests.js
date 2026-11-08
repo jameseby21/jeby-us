@@ -32,4 +32,43 @@ module.exports = function (h) {
   test("the first group is the most specific one, and the general group comes last", () => {
     const g = Src.pick(R.analyse(load("venues.csv"))).map(x => x.id); assert.strictEqual(g[0], "places"); assert.strictEqual(g[g.length - 1], "any");
   });
+
+  // ---------- CONS-0041: stronger grouping
+  console.log("stronger grouping (CONS-0041)");
+  const cafeD = { name: "cafe", rows: R.cafeSample() }, num = R.num;
+  const sumBy = (d, a, gcol, mcol) => { const gi = a.header.indexOf(gcol), mi = a.header.indexOf(mcol), m = new Map(); d.rows.slice(1).forEach(r => m.set(r[gi].trim() || "(blank)", (m.get(r[gi].trim() || "(blank)") || 0) + (num(r[mi]) || 0))); return m; };
+  test("grouping: one level by default with count, share of total, sum and mean on each row; the shares add up to the whole", () => {
+    const a = R.analyse(cafeD), g = a.grouping; assert(g && g.cat === a.cat.name && g.cat2 === null && g.agg === "sum", JSON.stringify(g && { c: g.cat, a: g.agg }));
+    const want = sumBy(cafeD, a, g.cat, a.measure.name); assert(g.rows.length <= 8);
+    g.rows.filter(r => !r.other).forEach(r => { assert(Math.abs(r.v - want.get(r.k)) < 0.01, r.k); assert(r.n > 0 && Math.abs(r.mean - r.v / r.n) < 1e-9, "mean " + r.k); assert(Math.abs(r.share - r.v / g.total) < 1e-9, "share " + r.k); });
+    assert(Math.abs(g.rows.reduce((t, r) => t + r.share, 0) - 1) < 1e-9, "shares add to 1"); assert.strictEqual(g.rows.reduce((t, r) => t + r.n, 0), a.N, "every row is in one group");
+  });
+  test("grouping: a second group-by column nests the biggest groups under each parent, with its own Other bucket and shares of the parent and of the total", () => {
+    const d = load("venues.csv"), a = R.analyse(d, { cat: "city", cat2: "category" }), g = a.grouping; assert(g.cat === "city" && g.cat2 === "category" && g.rows.length === 5, JSON.stringify(g.rows.map(r => r.k)));
+    g.rows.forEach(p => { assert(p.kids.length >= 1 && p.kids.length <= 4, p.k + " kids " + p.kids.length); assert.strictEqual(p.kids.reduce((t, k) => t + k.n, 0), p.n, p.k + ": the children hold every row of the parent");
+      p.kids.forEach(k => { assert(Math.abs(k.within - k.n / p.n) < 1e-9, "share within the parent"); assert(Math.abs(k.share - k.n / a.N) < 1e-9, "share of the total"); }); });
+    assert(g.rows.some(p => p.kids.some(k => k.other)), "a parent with more than three kinds has an Other child");
+    assert.strictEqual(R.analyse(d, { cat: "city", cat2: "city" }).grouping.cat2, null, "a column cannot be nested under itself");
+  });
+  test("grouping: top N with an Other bucket, N adjustable, and nothing is lost", () => {
+    const g3 = R.analyse(cafeD, { cat: "item", topN: 3 }).grouping, g5 = R.analyse(cafeD, { cat: "item", topN: 5 }).grouping;
+    assert.strictEqual(g3.rows.length, 4); assert(g3.rows[3].other && /^Other \(4\)$/.test(g3.rows[3].k), g3.rows[3].k); assert.strictEqual(g5.rows.length, 6);
+    assert.strictEqual(g3.rows.reduce((t, r) => t + r.n, 0), R.analyse(cafeD).N); assert(Math.abs(g3.rows.reduce((t, r) => t + r.v, 0) - g3.total) < 0.01, "Other holds the rest of the total");
+    const all = R.analyse(cafeD, { cat: "item", topN: 20 }).grouping; assert(!all.rows.some(r => r.other), "no Other when everything fits");
+  });
+  test("grouping: count distinct is a measure, and the distinct count is not added across groups", () => {
+    const a = R.analyse(cafeD, { cat: "location", distinct: "order_id" }), g = a.grouping; assert.strictEqual(g.agg, "distinct"); assert.strictEqual(g.measureName, "Distinct order_id");
+    const gi = a.header.indexOf("location"), oi = a.header.indexOf("order_id"), m = new Map(); cafeD.rows.slice(1).forEach(r => { const k = r[gi].trim() || "(blank)"; (m.get(k) || m.set(k, new Set()).get(k)).add(r[oi]); });
+    g.rows.filter(r => !r.other).forEach(r => assert.strictEqual(r.v, m.get(r.k).size, r.k)); assert(g.rows.some(r => !r.other && r.v < r.n), "the nine repeated order ids make a distinct count smaller than a row count");
+    assert.strictEqual(g.total, new Set(cafeD.rows.slice(1).map(r => r[oi])).size, "the share is of the distinct count of the whole file");
+  });
+  test("grouping: a second measure is summed beside the first, per group", () => {
+    const a = R.analyse(cafeD, { cat: "location", measure2: "qty" }), g = a.grouping, want = sumBy(cafeD, a, "location", "qty"); assert.strictEqual(g.measure2Name, "qty");
+    g.rows.filter(r => !r.other).forEach(r => assert(Math.abs(r.v2 - want.get(r.k)) < 0.01, r.k)); assert.strictEqual(R.analyse(cafeD, { cat: "location", measure2: a.measure.name }).grouping.measure2Name, null, "the second measure differs from the first");
+  });
+  test("grouping: with no measure the groups are counted, a ledger keeps its merchant list, and the controls offer the new choices", () => {
+    const v = R.analyse(load("venues.csv"), { cat: "city" }).grouping; assert.strictEqual(v.agg, "rows"); assert.strictEqual(v.measureName, "Rows"); assert.strictEqual(v.rows[0].mean, null);
+    assert.strictEqual(R.analyse(load("ledger_header.csv")).grouping, null, "a ledger's grouping is its merchant list");
+    const a = R.analyse(cafeD); assert(a.catCands.length >= 2 && a.distinctCands.some(c => c.name === "order_id") && a.numCols.length >= 2, "choices for the second column, count distinct and the second measure");
+  });
 };

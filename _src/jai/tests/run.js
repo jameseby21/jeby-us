@@ -237,14 +237,14 @@ test("recalculates after an edit: fixing a record removes it from the list", () 
   const a2 = R.analyse({ name: d.name, rows: [d.rows[0], ...s.rows] }); assert(!R.pickNotable(a2, s).some(x => x.ri === w[0].ri && x.col === p));
 });
 
+// the round 4 modules run first: their many analyses must not count against the timing test in qa_tests.js, which waits on the event loop
+require("./screen_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
+require("./round4_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
+
 // ---------- CONS-0058, 0059, 0062, 0060, 0061, 0063 live in qa_tests.js (same helpers)
 require("./qa_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
 
 require("./shape_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
-
-require("./screen_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
-require("./round4_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
-
 Promise.all(asyncTests).then(() => {
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) { console.log("failed: " + failures.join("; ")); process.exit(1); }

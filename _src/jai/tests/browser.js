@@ -143,16 +143,16 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
 
   console.log("editing and export (CONS-0054)");
   await check("fix the twelve $115.00 prices with Enter: the finding disappears, '12 edits' shows, the location average drops", async () => {
-    const before = await js(`document.querySelector('.chart.bars [data-g="Sunny Isles Beach"]').dataset.tip`);
+    const before = await js(`document.querySelector('.grp [data-g="Sunny Isles Beach"] .grp-mean').textContent`);
     await js(`document.querySelector('[data-find="unit:unit_price"]').click()`);
     for (let i = 0; i < 12; i++) {
       await js(`(() => { const c = document.querySelector('.rec-td.look[data-c="5"]'); c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); })()`);
       await js(`(() => { const inp = document.querySelector('[data-edit]'); inp.value = '$11.50'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
     }
     await waitFor("document.querySelector('.rec-edits .n').textContent === '12 edits' && !/unit price values/.test(document.querySelector('#rep-sheet .finds').textContent)");
-    const m = await js(`(() => ({ n: document.querySelector('.rec-edits .n').textContent, finds: document.querySelector('#rep-sheet .finds').textContent, edited: document.querySelectorAll('.rec-td.edited').length, tip: document.querySelector('.chart.bars [data-g="Sunny Isles Beach"]').dataset.tip }))()`);
+    const m = await js(`(() => ({ n: document.querySelector('.rec-edits .n').textContent, finds: document.querySelector('#rep-sheet .finds').textContent, edited: document.querySelectorAll('.rec-td.edited').length, tip: document.querySelector('.grp [data-g="Sunny Isles Beach"] .grp-mean').textContent }))()`);
     assert.strictEqual(m.n, "12 edits"); assert(!/unit price values/.test(m.finds), m.finds.slice(0, 200)); assert(m.edited >= 12, "edited cells " + m.edited);
-    const avg = t => +(t.match(/average (?:&lt;b&gt;|<b>)?([\d,.]+)/) || [0, "0"])[1].replace(/,/g, "");
+    const avg = t => +String(t).replace(/,/g, "");
     assert(avg(m.tip) < avg(before), `average ${avg(before)} -> ${avg(m.tip)}`);
     return `average ${avg(before)} -> ${avg(m.tip)}`;
   });
@@ -393,6 +393,23 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     const n = await js(`({ items: [...document.querySelectorAll('.sh-screen .scr-list li')].map(l => l.dataset.col + ':' + (l.querySelector('[data-confirm]') ? 'button' : 'none') + ':' + l.textContent.includes('Never processed')), cols: JAIReportDebug.analysis.header.join('|') })`);
     assert.deepStrictEqual(n.items, ["ssn:none:true"]); assert.strictEqual(n.cols, "name|age|city");
     return "venues: 11 of 12 columns, confirm brings it back, ssn has no button; nothing was requested from the network (checked by the quiet-window test)";
+  });
+
+  await check("CONS-0041: group by two columns without a reload: nested rows with shares, Top N with Other, count distinct and a second measure are offered; clicking a nested row filters the table; the report still prints on one page", async () => {
+    await loadFx("venues.csv");
+    await pick('[data-ch="cat"]', "city"); await waitFor(`document.querySelectorAll('.grp-parent').length === 5`); await pick('[data-ch="cat2"]', "category"); await waitFor(`document.querySelectorAll('.grp-child').length > 5`);
+    const m = await js(`(() => ({ head: document.querySelector('table.grp thead').textContent, parents: [...document.querySelectorAll('.grp-parent')].map(r => r.querySelector('.grp-name').textContent), kids: document.querySelectorAll('.grp-child').length, share: document.querySelector('.grp-parent .grp-share').textContent, within: document.querySelector('.grp-child .grp-within').textContent, ctl: ['cat2', 'topN'].map(k => !!document.querySelector('[data-ch="' + k + '"]')), pending: JAIReportDebug.pending }))()`);
+    assert(/then category/.test(m.head) && /Share of total/.test(m.head) && /Of group/.test(m.head), m.head); assert(/%$/.test(m.share) && /%$/.test(m.within), m.share + " " + m.within); assert(m.ctl.every(Boolean), "controls");
+    await js(`document.querySelector('.grp-child[data-g2]').click()`); await waitFor(`/·/.test(document.querySelector('[data-crumbs]').textContent)`);
+    const crumb = await js(`document.querySelector('[data-crumbs]').textContent`); await js(`document.querySelector('[data-crumbs] .rec-x').click()`);
+    const pdf = await send("Page.printToPDF", { preferCSSPageSize: true, printBackground: true }), txt = Buffer.from(pdf.data, "base64").toString("latin1"), pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length;
+    assert.strictEqual(pages, 1, "the nested grouping must still print on one page, got " + pages);
+    await pick('[data-ch="topN"]', "3"); await waitFor(`document.querySelectorAll('.grp-parent').length === 4`);
+    const t = await js(`({ other: document.querySelector('.grp-parent.other .grp-name').textContent, hint: document.querySelector('.sh-insights h3 .hint, .grp-wrap').parentElement.textContent.slice(0, 120) })`); assert(/^Other \(2\)$/.test(t.other), t.other);
+    await loadFx("sales_roles.csv");
+    const c = await js(`({ distinct: [...document.querySelectorAll('[data-ch="measure"] optgroup option')].length, m2: !!document.querySelector('[data-ch="measure2"]') })`); assert(c.distinct >= 2 && c.m2, JSON.stringify(c));
+    await pick('[data-ch="measure"]', "distinct:" + (await js(`document.querySelector('[data-ch="measure"] optgroup option').value.slice(9)`))); await waitFor(`/Distinct counts do not add up/.test(document.querySelector('.sh-insights').textContent)`);
+    return `nested by city then category, ${m.kids} child rows, crumb "${crumb.slice(0, 40)}", printed on ${pages} page, Top 3 gives ${t.other}, ${c.distinct} columns offered for count distinct`;
   });
 
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {

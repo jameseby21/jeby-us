@@ -543,6 +543,26 @@
         if (passes(c)) findings.push(c); }
     }
 
+    // grouping (CONS-0041): by one column or nested under a second, top N with an Other bucket, share of the total, the count, the mean, count distinct, a second measure
+    const distinctCands = cols.filter(c => ["category", "text", "id", "date"].includes(c.type) && c.filled > 0 && c.distinct >= 2), m2Cands = numCols.filter(c => isMeasureCol(c) && !allOnes(c));
+    let grouping = null;
+    if (!ledger && cat) {
+      const topN = Math.max(1, Math.min(50, Math.round(+choice.topN) || 7)), cat2 = choice.cat2 && choice.cat2 !== cat.name ? catCands.find(c => c.name === choice.cat2) || null : null;
+      const dcol = choice.distinct ? distinctCands.find(c => c.name === choice.distinct) || null : null, m2 = choice.measure2 && !(measure && choice.measure2 === measure.name) ? m2Cands.find(c => c.name === choice.measure2) || null : null;
+      const agg = dcol ? "distinct" : measure ? "sum" : "rows", blank = v => v.trim() || "(blank)";
+      const mk = () => ({ n: 0, sum: 0, v2: 0, set: dcol ? new Set() : null, kids: cat2 ? new Map() : null });
+      const add1 = (e, r) => { e.n++; if (measure) e.sum += num(r[measure.i]) || 0; if (m2) e.v2 += num(r[m2.i]) || 0; if (dcol) { const x = r[dcol.i].trim(); if (x) e.set.add(x); } };
+      const all = new Map(), whole = mk();
+      body.forEach(r => { const k = blank(r[cat.i]), e = all.get(k) || all.set(k, mk()).get(k); add1(e, r); add1(whole, r); if (cat2) { const k2 = blank(r[cat2.i]), c = e.kids.get(k2) || e.kids.set(k2, mk()).get(k2); add1(c, r); } });
+      const val = e => (agg === "distinct" ? e.set.size : agg === "sum" ? e.sum : e.n), total = val(whole);
+      const order = m => [...m.entries()].sort((x, y) => val(y[1]) - val(x[1]) || y[1].n - x[1].n || (x[0] < y[0] ? -1 : 1));
+      const merge = list => { const o = mk(); list.forEach(([, e]) => { o.n += e.n; o.sum += e.sum; o.v2 += e.v2; if (dcol) e.set.forEach(x => o.set.add(x)); }); return o; };
+      const row = (k, e, other, parent) => ({ k, v: val(e), n: e.n, share: total ? val(e) / total : 0, mean: agg === "sum" && e.n ? e.sum / e.n : null, v2: m2 ? e.v2 : null, other: !!other, within: parent ? (val(parent) ? val(e) / val(parent) : 0) : null });
+      const ranked = order(all), top = ranked.slice(0, topN), rest = ranked.slice(topN), rows = top.map(([k, e]) => ({ ...row(k, e, false), kids: cat2 ? (() => { const kr = order(e.kids), kt = kr.slice(0, 3), kx = kr.slice(3); return [...kt.map(([k2, c]) => row(k2, c, false, e)), ...(kx.length ? [row(`Other (${kx.length})`, merge(kx), true, e)] : [])]; })() : [] }));
+      if (rest.length) rows.push({ ...row(`Other (${rest.length})`, merge(rest), true), kids: [] });
+      grouping = { cat: cat.name, ci: cat.i, cat2: cat2 ? cat2.name : null, ci2: cat2 ? cat2.i : null, topN, agg, measureName: agg === "distinct" ? `Distinct ${dcol.name}` : agg === "sum" ? measure.name : "Rows", measure2Name: m2 ? m2.name : null, total, nTotal: N, rows, distinctOf: dcol ? dcol.name : null };
+    }
+
     findings.forEach(f => { Object.assign(f, meta.get(f.id) || {}); if (!f.kind) f.kind = "qa"; if (f.kind === "qa" && !f.cls) f.cls = classOfFinding(f); });
     const byFid = new Map(findings.filter(f => f.id).map(f => [f.id, f])), CL = Dom.DOMAIN.classes;
     findings.forEach(f => { if (f.kind === "qa" && f.cls && CL[f.cls] && f.sev !== "ok" && !f.pack) { f.hard = CL[f.cls].hard; f.pri = f.sev; f.sev = f.hard ? "fix" : "look"; const ck = checks.find(c => c.title === f.title); if (ck) ck.sev = f.sev; } });
@@ -559,7 +579,7 @@
         outflow: LD_.outflow, inflow: LD_.inflow, net: LD_.net, nOut: LD_.nOut, nIn: LD_.nIn, first: LD_.first, last: LD_.last, months: LD_.months, merchantCount: LD_.merchants.length,
         merchants: LD_.merchants.slice(0, Rules.LEDGER.topMerchants).map(m => ({ name: m.name, out: m.out, n: m.n, variants: m.variants.slice(0, 6) })), recurring: LD_.recurring.map(({ rows, ...r }) => ({ ...r, nRows: rows.length })),
         largest: LD_.largest, weekday: LD_.weekday, dupPairs: LD_.dupPairs.length, refundPairs: LD_.refundPairs.length, balanceBreaks: LD_.balanceBreaks ? LD_.balanceBreaks.length : null, gaps: LD_.gaps, unreadable: LD_.unreadable } : null,
-      truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, pack: packInfo, classCounts, qaSample, notChecked: Dom.notChecked(cols, ledger), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+      truncated, allRows, allCols, cols, header, measure, dateCol, cat, grouping, distinctCands, m2Cands, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, pack: packInfo, classCounts, qaSample, notChecked: Dom.notChecked(cols, ledger), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
     res.kpi = kpiOf(res); return res;
   }
 
@@ -778,12 +798,27 @@
     const opt = (list, cur, none) => (none ? `<option value=""${cur ? "" : " selected"}>${none}</option>` : "") + list.map(c => `<option${cur && c.name === cur.name ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     return `<div class="report-controls print-hide" role="group" aria-label="Report settings">
   <label>First row <select data-ch="header" title="Is the first row of the file column names, or data?"><option value="header"${a.hdr.isHeader ? " selected" : ""}>is a header</option><option value="data"${a.hdr.isHeader ? "" : " selected"}>is data</option></select></label>
-  ${a.kind === "transactions" ? "" : `<label>Measure <select data-ch="measure">${opt(a.numCols, a.measure, a.numCols.length ? "" : "Row count")}</select></label>`}
+  ${a.kind === "transactions" ? "" : `<label>Measure <select data-ch="measure">${opt(a.numCols, a.grouping && a.grouping.agg === "distinct" ? null : a.measure, a.numCols.length ? "" : "Row count")}${a.distinctCands.length ? `<optgroup label="Count distinct of">${a.distinctCands.map(c => `<option value="distinct:${esc(c.name)}"${a.grouping && a.grouping.distinctOf === c.name ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>` : ""}</select></label>`}
   <label>Date <select data-ch="date">${opt(a.dateCands, a.dateCol, a.dateCands.length ? "" : "None")}</select></label>
   <label>Group by <select data-ch="cat">${opt(a.catCands, a.cat, "None")}</select></label>
+  ${a.grouping ? `<label>Then by <select data-ch="cat2">${opt(a.catCands.filter(c => c.name !== a.cat.name), a.grouping.cat2 ? { name: a.grouping.cat2 } : null, "None")}</select></label>
+  <label>Top <select data-ch="topN">${[3, 5, 7, 10, 15, 20].map(n => `<option${n === a.grouping.topN ? " selected" : ""}>${n}</option>`).join("")}</select></label>
+  ${a.m2Cands.filter(c => !a.measure || c.name !== a.measure.name).length ? `<label>Second measure <select data-ch="measure2">${opt(a.m2Cands.filter(c => !a.measure || c.name !== a.measure.name), a.grouping.measure2Name ? { name: a.grouping.measure2Name } : null, "None")}</select></label>` : ""}` : ""}
   ${a.trend ? `<label>Split timeline by <select data-ch="split">${opt(a.catCands.filter(c => c.distinct <= 60), a.trend.split ? { name: a.trend.split.col } : null, "None")}</select></label>` : ""}
   <span class="sp"></span><button class="btn small" type="button" data-print>Print or save as PDF</button><button class="btn small" type="button" data-reset>Start over</button>
 </div>`;
+  }
+  // The grouping table (CONS-0041): bars with the share of the total, the rows and the mean; a second column nests the biggest kinds under each group; Other holds the rest of the top N
+  const pctText = x => (x * 100).toFixed(x < 0.1 && x > 0 ? 1 : 0) + "%";
+  function groupHTML(a) {
+    const g = a.grouping, mx = Math.max(...g.rows.map(r => Math.max(0, r.v)), 1), mean = g.agg === "sum", cell = (r, kid) => {
+      const w = Math.max(r.v > 0 ? 2 : 0, 100 * Math.max(0, r.v) / mx), shown = g.agg === "sum" ? fmt(r.v) : fmtCount(r.v);
+      return `<td class="grp-bar"><span class="grp-barbox"><i style="width:${w.toFixed(1)}%"></i><b>${esc(shown)}</b></span></td><td class="grp-share">${pctText(r.share)}</td>${g.cat2 ? `<td class="grp-within">${kid ? pctText(r.within) : ""}</td>` : ""}<td class="grp-n">${fmtCount(r.n)}</td>${mean ? `<td class="grp-mean">${r.mean == null ? "" : esc(full(r.mean, 2))}</td>` : ""}${g.measure2Name ? `<td class="grp-m2">${r.v2 == null ? "" : esc(fmt(r.v2))}</td>` : ""}`; };
+    const body = g.rows.map(r => `<tr class="grp-parent${r.other ? " other" : ""}"${r.other ? "" : ` data-g="${esc(r.k)}" title="Show these rows"`}><td class="grp-name">${esc(r.k)}</td>${cell(r, false)}</tr>`
+      + r.kids.map(k => `<tr class="grp-child"${k.other ? "" : ` data-g="${esc(r.k)}" data-g2="${esc(k.k)}"`}><td class="grp-name">${esc(k.k)}</td>${cell(k, true)}</tr>`).join("")).join("");
+    const head = `<tr><th>${esc(g.cat)}${g.cat2 ? ` <span class="then">then ${esc(g.cat2)}</span>` : ""}</th><th>${esc(g.measureName)}</th><th>Share of total</th>${g.cat2 ? "<th>Of group</th>" : ""}<th>Rows</th>${mean ? "<th>Mean</th>" : ""}${g.measure2Name ? `<th>${esc(g.measure2Name)}</th>` : ""}</tr>`;
+    return `<h3>${esc(g.measureName)} by ${esc(g.cat)}${g.cat2 ? `, then ${esc(g.cat2)}` : ""} <span class="hint">top ${g.topN}${g.rows.some(r => r.other) ? " and Other" : ""}</span></h3><div class="grp-wrap"><table class="grp"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+      ${g.agg === "distinct" ? `<p class="trend-note">Distinct counts do not add up across groups: a value found in two groups is counted in both. Share is of the ${fmtCount(g.total)} distinct values in the whole file.</p>` : ""}`;
   }
   const notShownHTML = a => a.notShown && a.notShown.length ? `<details class="not-shown print-hide"><summary>Not shown (${a.notShown.length})</summary><p class="hint">Held back by the insight gate, so the report shows fewer insights rather than wrong ones.</p><ul>${a.notShown.map(h => `<li><b>${esc(h.title)}</b> ${esc(h.reason)}</li>`).join("")}</ul></details>` : "";
   // How to supplement your data (CONS-0042): the last section of every report, chosen by the detected shape from sources.js; screen only, so the one-page print is unchanged
@@ -833,7 +868,7 @@
   <section class="sh-sec sh-insights" aria-label="Insights"><h2>Insights <span class="sec-n">${sec.insights.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="insight">Show ${fmtCount(insRows.size)} insight rows</button></h2>
     <div class="sh-two">
       <section><h3>What the data says</h3>${listHTML(sec.insights.findings, "Nothing stands out yet. Add a date, a place or a category column and this space fills.")}</section>
-      <section>${a.breakdown ? `<h3>${esc(a.measureName)} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
+      <section>${a.grouping ? groupHTML(a) : a.breakdown ? `<h3>${esc(a.measureName)} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
     </div>
     ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measureName)} by ${a.trend.unit}${a.trend.split ? `, split by ${esc(a.trend.split.col)}${a.trend.split.top5 ? " (top five and Other)" : ""}` : ""} <span class="hint">date column: ${esc(a.dateCol.name)}</span></h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div>${repNote}</section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
     ${worthHTML(sec.insights.notable, "Worth a look", "ins")}
@@ -933,8 +968,11 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   }
   out.innerHTML = `<div id="rep-controls"></div><div id="rep-sheet"></div><section class="records print-hide" id="rep-records" aria-label="All records"></section>`;
   out.addEventListener("change", e => { const rp = e.target.closest("[data-role]"); if (rp && current) { choice.roles = { ...(choice.roles || {}), [rp.dataset.role]: rp.value }; show2(); return; }   // a role changed in the Columns table: everything is worked out again
-    const s = e.target.closest("[data-ch]"); if (!s || !current) return; choice[s.dataset.ch] = s.value;
-    if (s.dataset.ch === "header") { delete choice.measure; delete choice.date; delete choice.cat; delete choice.split; delete choice.roles; delete choice.carry; show2(true); } else show2(); });
+    const s = e.target.closest("[data-ch]"); if (!s || !current) return;
+    if (s.dataset.ch === "measure") { if (s.value.startsWith("distinct:")) { choice.distinct = s.value.slice(9); delete choice.measure; } else { delete choice.distinct; choice.measure = s.value; } show2(); return; }
+    if (s.dataset.ch === "topN") { choice.topN = +s.value; show2(); return; }
+    choice[s.dataset.ch] = s.value;
+    if (s.dataset.ch === "header") { delete choice.measure; delete choice.date; delete choice.cat; delete choice.split; delete choice.roles; delete choice.carry; delete choice.cat2; delete choice.distinct; delete choice.measure2; show2(true); } else show2(); });
   out.addEventListener("click", e => {
     if (e.target.closest("[data-print]")) window.print();
     if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
@@ -951,7 +989,11 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
       else if (qs.dataset.qs === "csv") { const url = URL.createObjectURL(new Blob([Rec.qaSampleCSV(store, last.qaSample)], { type: "text/csv;charset=utf-8" })), link = document.createElement("a"); link.href = url; link.download = "QA sample.csv"; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000); }
     }
     const w = e.target.closest("[data-row]"); if (w && table && w.classList.contains("wrow")) table.jumpTo(+w.dataset.row);
-    const g = e.target.closest("[data-g]"); if (g && table && last && last.breakdown) table.showGroup(last.breakdown.ci, g.dataset.g);
+    const g = e.target.closest("[data-g]");
+    if (g && table && last && last.grouping) { const gr = last.grouping;
+      if (g.dataset.g2 != null && gr.ci2 != null) { const bl = v => v.trim() || "(blank)", rows = []; store.rows.forEach((r, i) => { if (bl(r[gr.ci]) === g.dataset.g && bl(r[gr.ci2]) === g.dataset.g2) rows.push(i); }); table.showRows(rows, `${g.dataset.g} · ${g.dataset.g2}`); }
+      else table.showGroup(gr.ci, g.dataset.g); }
+    else if (g && table && last && last.breakdown) table.showGroup(last.breakdown.ci, g.dataset.g);
   });
   // One printed page: letter paper with .4in margins is 739 x 979 css px. Lay the sheet out at the printed width, then keep the most worth-a-look rows (5, then 3, then none)
   // at the largest zoom that fits. The floor is .6 (about 6 pt): a dense sheet with five findings only fits that small, and the list gives way before the report does.
@@ -961,10 +1003,11 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     body.classList.add("print-fit"); sh.style.zoom = "1";
     try {
       let set = false;
-      fit: for (const rows of [5, 3, 0]) for (const drop of [0, 1, 2]) {   // keep everything if it fits; else give up the Columns table and shrink the chart (1), then worth-a-look rows, before the type gets smaller than 0.6
+      fit: for (const rows of [5, 3, 0]) for (const drop of [0, 1, 2]) for (const kids of [1, 0]) {   // the nested rows of the grouping table go first at each level (data-pk=0), then the Columns table and the chart, then worth-a-look rows   // keep everything if it fits; else give up the Columns table and shrink the chart (1), then worth-a-look rows, before the type gets smaller than 0.6
         if (rows === 5) sh.removeAttribute("data-pw"); else sh.dataset.pw = rows;
         if (!drop) sh.removeAttribute("data-ph"); else sh.dataset.ph = drop;
-        for (let z = 0.76; z >= 0.595 && !set; z -= 0.02) { sh.style.width = PW / z + "px"; if (z < 0.61) fitLog.push(`${rows}/${drop}:${Math.round(sh.offsetHeight * z)}`); if (sh.offsetHeight * z <= PH) { sh.style.setProperty("--pz", z.toFixed(2)); set = true; } }
+        if (kids) sh.removeAttribute("data-pk"); else sh.dataset.pk = "0";
+        for (let z = 0.76; z >= 0.595 && !set; z -= 0.02) { sh.style.width = PW / z + "px"; if (z < 0.61) fitLog.push(`${rows}/${drop}/${kids}:${Math.round(sh.offsetHeight * z)}`); if (sh.offsetHeight * z <= PH) { sh.style.setProperty("--pz", z.toFixed(2)); set = true; } }
         if (set) break fit;
       }
       if (!set) sh.style.setProperty("--pz", "0.6");

@@ -482,3 +482,19 @@ body.print-fit .sh-foot{padding-top:8px}body.print-fit .sh-foot p{font-size:12px
 .chip.never{background:var(--red-tint);border-color:#e3b9b9;color:var(--red-hi)}.chip.may{background:var(--slate-tint);border-color:#c3ccd8;color:var(--slate)}
 .screen-note{margin:0;font-size:12px;line-height:1.45;color:var(--ink-2)}
 @media (max-width:760px){.scr-list li{grid-template-columns:1fr}.scr-choice{grid-column:1}}
+
+/* grouping (CONS-0041): bars with share, rows and mean; a second column nests under each group; Other holds the rest of the top N */
+.grp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.grp{width:100%;border-collapse:collapse;font-size:13px}
+table.grp th{text-align:right;font:500 12px/1.3 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 8px 6px;border-bottom:1px solid var(--ink);vertical-align:bottom}
+table.grp th:first-child{text-align:left;padding-left:0}table.grp th .then{text-transform:none;letter-spacing:0;font-family:var(--sans)}
+table.grp td{padding:6px 8px;border-top:1px solid var(--rule);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.grp td.grp-name{text-align:left;padding-left:0;max-width:190px;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+table.grp td.grp-bar{text-align:left;min-width:150px;width:36%}
+.grp-barbox{display:flex;align-items:center;gap:8px}.grp-barbox i{display:block;height:14px;background:var(--slate);border-radius:0 4px 4px 0;flex:none;max-width:70%}.grp-barbox b{font:500 12px/1 var(--mono)}
+tr.grp-parent[data-g]{cursor:pointer}tr.grp-parent[data-g]:hover td,tr.grp-child[data-g]:hover td{background:var(--paper-2)}
+tr.grp-parent.other td{color:var(--ink-2)}tr.grp-parent.other .grp-barbox i{background:#a9a79f}
+tr.grp-child td{font-size:13px;color:var(--ink-2);border-top-color:transparent}tr.grp-child td.grp-name{padding-left:20px;font-size:13px}tr.grp-child .grp-barbox i{height:9px;background:#6b7a8f}
+tr.grp-parent+tr.grp-child td{border-top-color:var(--rule)}
+@media print{.sheet[data-pk="0"] .grp-child{display:none}}
+body.print-fit .sheet[data-pk="0"] .grp-child{display:none}
