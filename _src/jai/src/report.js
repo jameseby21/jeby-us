@@ -12,6 +12,7 @@
   const Pack = typeof module !== "undefined" && module.exports ? require("./pack.js") : self.JAIPack;
   const Rules = typeof module !== "undefined" && module.exports ? require("./rules.js") : self.JAIRules;
   const Shape = typeof module !== "undefined" && module.exports ? require("./shape.js") : self.JAIShape;
+  const Sources = typeof module !== "undefined" && module.exports ? require("./sources.js") : self.JAISources;   // the page loads it; the worker does not need it
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 0) => (Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(1) + "K" : v.toLocaleString("en-US", { maximumFractionDigits: d }));
   const full = (v, d = 2) => v.toLocaleString("en-US", { maximumFractionDigits: d });
@@ -780,6 +781,14 @@
 </div>`;
   }
   const notShownHTML = a => a.notShown && a.notShown.length ? `<details class="not-shown print-hide"><summary>Not shown (${a.notShown.length})</summary><p class="hint">Held back by the insight gate, so the report shows fewer insights rather than wrong ones.</p><ul>${a.notShown.map(h => `<li><b>${esc(h.title)}</b> ${esc(h.reason)}</li>`).join("")}</ul></details>` : "";
+  // How to supplement your data (CONS-0042): the last section of every report, chosen by the detected shape from sources.js; screen only, so the one-page print is unchanged
+  function suppHTML(a) {
+    if (!Sources) return "";
+    const groups = Sources.pick(a); if (!groups.length) return "";
+    const chip = (cls, t) => `<span class="chip ${cls}">${t}</span>`;
+    return `<section class="sh-sec sh-supp print-hide" aria-label="${esc(Sources.SOURCES.title)}"><h2>${esc(Sources.SOURCES.title)}</h2><p class="supp-lead">${esc(Sources.SOURCES.lead)}</p>
+      ${groups.map(g => `<section class="supp-group" data-group="${esc(g.id)}"><h3>${esc(g.title)} <span class="hint">${esc(g.why)}</span></h3><ul class="supp-list">${g.items.map(s => `<li><span class="supp-name"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a></span> ${chip(s.cost, Sources.COST[s.cost])} ${chip(s.access, Sources.ACCESS[s.access])}<span class="supp-adds">${esc(s.adds)}</span></li>`).join("")}</ul></section>`).join("")}</section>`;
+  }
   function sheetHTML(a, notable, ed) {
     const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     const kpi = a.kpi;
@@ -827,6 +836,7 @@
     </div>
     <p class="hdr-note${a.hdr.isHeader && a.hdr.conf !== "low" && !a.hdr.forced && !a.hdr.titleRows.length && !a.hdr.replaced.length ? " print-hide" : ""}"><b>Header:</b> ${esc(a.hdr.note)}${a.hdr.titleRows.length ? ` Skipped: “${esc(a.hdr.titleRows[0])}”${a.hdr.titleRows.length > 1 ? ` and ${a.hdr.titleRows.length - 1} more` : ""}.` : ""} <span class="print-hide">Wrong? Change “First row” at the top.</span></p>
   </section>
+  ${suppHTML(a)}
   ${ed && ed.n ? `<p class="print-only edit-note">${ed.n} edit${ed.n > 1 ? "s were" : " was"} made in this browser session${ed.cells !== ed.n ? ` (${ed.cells} cells changed, counting totals worked out again)` : ""}; the findings above are recalculated from the corrected values.</p>` : ""}
   <footer class="sh-foot"><div><span class="label">What I'd do next</span><p><b>${next[0]}</b>, ${next[1]} h × $${RATE} = $${(next[1] * RATE).toLocaleString("en-US")}: ${next[2]}. This page is an automatic first pass; that's the human one.</p></div>
     <span class="stamp">Checked</span></footer>

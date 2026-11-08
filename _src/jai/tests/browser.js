@@ -365,6 +365,21 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await send("Emulation.clearDeviceMetricsOverride"); return out.join(", ");
   });
 
+  await check("CONS-0042: every report ends with How to supplement your data: at least three free and two paid sources, each a link that opens in a new tab, chosen by shape; it is not printed", async () => {
+    const out = [];
+    for (const [fx, want, not] of [["venues.csv", /OpenStreetMap/, /NOAA/], ["sales_clean.csv", /NOAA/, /retail trade/], ["ledger_header.csv", /retail trade/, /OpenStreetMap/], ["numeric_header.csv", /Data\.gov/, /OpenStreetMap|NOAA|Consumer Price/]]) {
+      await loadFx(fx);
+      const m = await js(`(() => { const s = document.querySelector('.sheet .sh-supp'), secs = [...document.querySelectorAll('.sheet .sh-sec')], items = [...s.querySelectorAll('.supp-list li')];
+        return { last: secs[secs.length - 1] === s, h: s.querySelector('h2').textContent, free: items.filter(l => l.querySelector('.chip.free')).length, paid: items.filter(l => l.querySelector('.chip.paid')).length, open: items.filter(l => l.querySelector('.chip.open')).length, licensed: items.filter(l => l.querySelector('.chip.licensed')).length,
+          links: items.every(l => { const a = l.querySelector('a'); return a && /^https:/.test(a.href) && a.target === '_blank' && /noopener/.test(a.rel); }), text: s.textContent, printHidden: s.classList.contains('print-hide') }; })()`);
+      assert(m.last && m.h === "How to supplement your data", fx + ": the section is not the last one"); assert(m.free >= 3 && m.paid >= 2, `${fx}: ${m.free} free, ${m.paid} paid`); assert(m.links, fx + ": links must open in a new tab");
+      assert(m.open + m.licensed === m.free + m.paid && m.licensed >= 2, fx + ": every source is marked open or licensed"); assert(want.test(m.text) && !not.test(m.text), fx + ": sources do not follow the shape"); assert(m.printHidden, "the section must not print");
+      await send("Emulation.setEmulatedMedia", { media: "print" }); const shown = await js(`getComputedStyle(document.querySelector('.sh-supp')).display`); await send("Emulation.setEmulatedMedia", { media: "" }); assert.strictEqual(shown, "none", "hidden in print");
+      out.push(`${fx}: ${m.free} free, ${m.paid} paid`);
+    }
+    return out.join("; ");
+  });
+
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {
     await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") + "#sample" }); await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && document.querySelectorAll('.rec-tr').length > 0", 20000);
     assert.strictEqual(await js(`JAIReportDebug.engine`), "main"); assert.strictEqual(await js(`JAIReportDebug.store.rows.length`), 5000);

@@ -68,7 +68,7 @@ def page(key, title, desc, body):
 {FONTS}<link rel="stylesheet" href="assets/jai.css">
 <script type="speculationrules">{{"prerender":[{{"where":{{"href_matches":"/*"}},"eagerness":"moderate"}}]}}</script>{ld}
 </head><body>{header(key)}<main id="main">{body}</main>{footer()}
-<script src="assets/jai.js" defer></script>{'<script src="assets/records.js" defer></script><script src="assets/rules.js" defer></script><script src="assets/domain.js" defer></script><script src="assets/shape.js" defer></script><script src="assets/pack.js" defer></script><script src="assets/report.js" defer></script>' if key == "report" else ""}<script src="assets/brand.js" defer></script><script src="assets/family.js" data-site="jai" defer></script></body></html>'''
+<script src="assets/jai.js" defer></script>{'<script src="assets/records.js" defer></script><script src="assets/rules.js" defer></script><script src="assets/domain.js" defer></script><script src="assets/shape.js" defer></script><script src="assets/pack.js" defer></script><script src="assets/sources.js" defer></script><script src="assets/report.js" defer></script>' if key == "report" else ""}<script src="assets/brand.js" defer></script><script src="assets/family.js" data-site="jai" defer></script></body></html>'''
     (OUT / f"{key}.html").write_text(doc, encoding="utf-8")
 
 def mark(it):
@@ -252,7 +252,7 @@ page("contact", "Contact · JA Insights", "Book a free 30-minute intro call with
 
 # assets
 S2 = ROOT.parent / "jeby" / "out" / "assets"; FAM = ROOT.parent / "family"
-shutil.copy(ROOT / "src" / "jai.css", OUT / "assets" / "jai.css"); shutil.copy(ROOT / "src" / "jai.js", OUT / "assets" / "jai.js"); shutil.copy(ROOT / "src" / "report.js", OUT / "assets" / "report.js"); shutil.copy(ROOT / "src" / "records.js", OUT / "assets" / "records.js"); shutil.copy(ROOT / "src" / "domain.js", OUT / "assets" / "domain.js"); shutil.copy(ROOT / "src" / "pack.js", OUT / "assets" / "pack.js"); shutil.copy(ROOT / "src" / "rules.js", OUT / "assets" / "rules.js"); shutil.copy(ROOT / "src" / "shape.js", OUT / "assets" / "shape.js"); shutil.copy(ROOT / "src" / "report-worker.js", OUT / "assets" / "report-worker.js")
+shutil.copy(ROOT / "src" / "jai.css", OUT / "assets" / "jai.css"); shutil.copy(ROOT / "src" / "jai.js", OUT / "assets" / "jai.js"); shutil.copy(ROOT / "src" / "report.js", OUT / "assets" / "report.js"); shutil.copy(ROOT / "src" / "records.js", OUT / "assets" / "records.js"); shutil.copy(ROOT / "src" / "domain.js", OUT / "assets" / "domain.js"); shutil.copy(ROOT / "src" / "pack.js", OUT / "assets" / "pack.js"); shutil.copy(ROOT / "src" / "rules.js", OUT / "assets" / "rules.js"); shutil.copy(ROOT / "src" / "shape.js", OUT / "assets" / "shape.js"); shutil.copy(ROOT / "src" / "sources.js", OUT / "assets" / "sources.js"); shutil.copy(ROOT / "src" / "report-worker.js", OUT / "assets" / "report-worker.js")
 shutil.copytree(ROOT / "packs", OUT / "assets" / "packs", dirs_exist_ok=True)
 shutil.copy(FAM / "family.js", OUT / "assets" / "family.js")
 for f in ("plantriloquist.png", "musicalgames.svg", "lighting-lab.svg", "desk.svg"): shutil.copy(S2 / f, OUT / "assets" / f)

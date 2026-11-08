@@ -240,6 +240,8 @@ require("./qa_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFla
 
 require("./shape_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
 
+require("./round4_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
+
 Promise.all(asyncTests).then(() => {
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) { console.log("failed: " + failures.join("; ")); process.exit(1); }
