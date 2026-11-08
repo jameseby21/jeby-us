@@ -1,0 +1,11 @@
+# James Eby (jeby)
+> Interdisciplinary problem-solver in Miami, FL: statistics, software, business intelligence and teaching.
+
+- [Professional](https://jeby.us/professional): Director-level BI and data science; experience, timeline, résumé.
+- [Teach](https://jeby.us/teach): tutoring (math, SAT/ACT math, statistics, data analysis), first-job mentorship, résumé services. English and Spanish.
+- [Lab](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, Fraud, a band game, Lighting Lab, Quorum, Plantriloquist, AppForge.
+- [Research](https://jeby.us/research): Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression (Carnegie Mellon, 2015).
+- [About](https://jeby.us/about): the story so far, and Drew.
+- [Free data report](https://jainsights.com/report): a one-page report on any spreadsheet, run in the browser.
+- [Dog QR prompt](https://jeby.us/qr): a prompt that makes an AI build a picture QR code that scans.
+Contact: jeby@jainsights.com · https://www.instagram.com/jeby_d/ · https://www.linkedin.com/in/jeby-d · https://github.com/jameseby21
