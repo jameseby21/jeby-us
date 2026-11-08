@@ -69,7 +69,7 @@ def page(key, title, desc, body, extra_head="", extra_js="", artifact=False):
 <meta name="theme-color" content="#0c0b0a">
 <meta property="og:title" content="{E(title)}"><meta property="og:description" content="{E(desc)}"><meta property="og:image" content="https://jeby.us/og.png"><meta property="og:url" content="https://jeby.us/{'' if key=='home' else key}">
 <meta name="twitter:card" content="summary_large_image">
-{BR.favicon_links("jeby")}
+{BR.favicon_links("jeby", default_theme="dark")}
 {FONTS}
 <link rel="stylesheet" href="assets/site.css">
 {extra_head}
@@ -413,7 +413,6 @@ for d in (OUT, ART):
     shutil.copy(ROOT / "src/site.css", d / "assets/site.css"); shutil.copy(ROOT / "src/site.js", d / "assets/site.js")
     (d / "assets/research.css").write_text((RS / "visuals.css").read_text(encoding="utf-8"), encoding="utf-8")
     (d / "assets/research.js").write_text("\n".join((RS / f).read_text(encoding="utf-8") for f in ["common.js", "model.js", "los-orbit.js", "slides.js"]), encoding="utf-8")
-    shutil.copy(ST / "jebynote.svg", d / "assets/jebynote.svg")
     shutil.copy(ST / "lighting-lab.svg", d / "assets/lighting-lab.svg")
     for f in ("desk.svg", "james-drew.jpg", "james-drew-600.jpg"): shutil.copy(ST / f, d / "assets" / f)
     shutil.copy(ST / "drew-qr.png", d / "drew-qr.png")

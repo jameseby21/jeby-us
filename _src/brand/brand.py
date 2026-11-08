@@ -34,15 +34,17 @@ def tile(pid, themed, prefix="assets/brand/"):
     return f'<span class="mark brand" data-brand="{pid}" data-cands="{data}" data-prefix="{prefix}">{imgs}</span>'
 
 
-def favicon_links(site, prefix="assets/brand/"):
+def favicon_links(site, prefix="assets/brand/", default_theme=None):
     """Static icons for both OS themes (first candidate), plus the list brand.js rotates."""
     fav = MANIFEST["favicons"][site]
     cands = candidates(fav) if isinstance(fav, str) else _live(fav)
     first = cands[0]
     data = html.escape(json.dumps([[c[1], c[2]] for c in cands]), quote=True)
+    product = f' data-product="{fav}"' if isinstance(fav, str) else ""  # the favicon shares the pick of this product's mark on the page
+    default = f' data-default="{default_theme}"' if default_theme else ""  # a site with its own toggle names the theme it starts in
     return (f'<link rel="icon" type="image/svg+xml" href="{prefix}{first[1]}" media="(prefers-color-scheme: light)" data-fav="light">'
             f'<link rel="icon" type="image/svg+xml" href="{prefix}{first[2]}" media="(prefers-color-scheme: dark)" data-fav="dark">'
-            f'<meta name="jeby-favicons" content="{data}" data-site="{site}" data-prefix="{prefix}">')
+            f'<meta name="jeby-favicons" content="{data}" data-site="{site}" data-prefix="{prefix}"{product}{default}>')
 
 
 def copy_assets(dest_assets):
