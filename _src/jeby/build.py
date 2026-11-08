@@ -50,15 +50,15 @@ def header(active):
 def footer():
     site = "".join(f'<li><a href="{k}.html">{n}</a></li>' for k, n in PAGES)
     return f'''<footer class="site-footer"><div class="wrap">
-  <div><p class="sig">Interdisciplinary problem-solver.</p><small>© <span data-year>2026</span> James Eby · Miami, FL</small></div>
+  <div><p class="sig">No trackers and no pop-ups. Just pages.</p><small>© <span data-year>2026</span> James Eby · Miami, FL</small></div>
   <div><h3>Site</h3><ul><li><a href="index.html">Home</a></li>{site}</ul></div>
-  <div><h3>Free</h3><ul><li><a data-x="jai" data-p="report.html">Data report</a></li><li><a href="qr.html">Dog QR prompt</a></li><li><a href="lab.html">Open-source projects</a></li><li><a href="about.html#story">The story</a></li></ul></div>
+  <div><h3>Free</h3><ul><li><a data-x="jai" data-p="report.html">Data report</a></li><li><a href="qr.html">Dog QR prompt</a></li><li><a href="lab.html">Open-source projects</a></li></ul></div>
   <div><h3>Elsewhere</h3><ul><li><a href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">Instagram</a></li><li><a href="{C.CONFIG["linkedin"]}" target="_blank" rel="noopener">LinkedIn</a></li><li><a href="{C.CONFIG["github"]}" target="_blank" rel="noopener">GitHub</a></li>{f'<li><a href="{C.CONFIG["youtube"]}" target="_blank" rel="noopener">YouTube</a></li>' if C.CONFIG["youtube"] else ""}<li><a href="#" data-copy-email="{C.CONFIG["email"]}">Email</a></li></ul></div>
   <div><h3>Family</h3><ul><li><a data-x="jai" data-p="index.html">JA Insights</a> <span class="muted">· data consulting</span></li><li><a href="lab.html">jebyLabs</a> <span class="muted">· open source</span></li><li>jeby Real Estate</li><li>jeby Industries</li></ul></div>
 </div></footer>'''
 
 PERSON = {"@context": "https://schema.org", "@type": "Person", "name": "James Eby", "alternateName": "jeby", "url": "https://jeby.us/",
-          "jobTitle": "Business intelligence leader and data scientist", "description": "Interdisciplinary problem-solver: statistics, software, business intelligence and teaching.",
+          "jobTitle": "Business intelligence leader and data scientist", "description": "Statistician in Miami, FL.",
           "address": {"@type": "PostalAddress", "addressLocality": "Miami", "addressRegion": "FL", "addressCountry": "US"},
           "alumniOf": {"@type": "CollegeOrUniversity", "name": "Carnegie Mellon University"}, "knowsLanguage": ["en", "es"],
           "sameAs": [C.CONFIG["instagram"], C.CONFIG["linkedin"], C.CONFIG["github"]]}
@@ -106,31 +106,32 @@ def rows(items, name=None):
     return f'<div class="rows">{"".join(out)}</div>'
 
 # ---------------------------------------------------------------- home
-def free_strip(title="Free, right now"):
+def free_strip(title="Free things"):
     return f'''<section class="wrap free-strip" aria-labelledby="free-h">
   <div class="free-head"><div class="eyebrow" id="free-h"><b>●</b> {title}</div></div>
   <div class="free-grid">
-    <a class="free-card" data-x="jai" data-p="report.html"><span class="free-ico" aria-hidden="true">{ICON_REPORT}</span><span><b>A one-page report on your data</b><small>Drop in a spreadsheet. Nothing is uploaded.</small></span>{ARROW}</a>
-    <a class="free-card" href="qr.html"><span class="free-ico qr" aria-hidden="true"><img src="drew-qr.png" alt=""></span><span><b>The dog QR prompt</b><small>Turn your pet into a QR code that scans.</small></span>{ARROW}</a>
-    <a class="free-card" href="lab.html"><span class="free-ico marks-mini" aria-hidden="true">{"".join(mark(i) for g in C.LAB for i in g["items"][:1])}</span><span><b>{sum(len(g["items"]) for g in C.LAB)} open projects</b><small>Every one gets a free version.</small></span>{ARROW}</a>
+    <a class="free-card" data-x="jai" data-p="report.html"><span class="free-ico" aria-hidden="true">{ICON_REPORT}</span><span><b>A one-page report on your data</b><small>Drop in a spreadsheet. It never leaves your browser.</small></span>{ARROW}</a>
+    <a class="free-card" href="qr.html"><span class="free-ico qr" aria-hidden="true"><img src="drew-qr.png" alt=""></span><span><b>The dog QR prompt</b><small>How I turned Drew into a QR code that scans.</small></span>{ARROW}</a>
+    <a class="free-card" href="lab.html"><span class="free-ico marks-mini" aria-hidden="true">{"".join(mark(i) for g in C.LAB for i in g["items"][:1])}</span><span><b>{sum(len(g["items"]) for g in C.LAB)} open projects</b><small>Every one has a free version.</small></span>{ARROW}</a>
   </div>
 </section>'''
 
 stars = "".join(f'<circle cx="{(i*73)%400}" cy="{(i*131)%300}" r="{0.6 + (i%5)*0.35}" fill="{["#eeecf2","#4084ff","#ff2b3d"][i%7==0 and 2 or (i%5==0 and 1) or 0]}" opacity="{0.25 + (i%4)*0.18:.2f}"/>' for i in range(90))
 home = f'''
 <section class="hero wrap">
-  <div class="eyebrow">James Eby · Miami, FL</div>
-  <h1 class="page-title">Interdisciplinary <span style="white-space:nowrap"><em>problem-solver</em><span class="dot-slot" aria-hidden="true"></span></span></h1>
-  <ul class="disciplines" aria-label="Disciplines">{"".join(f"<li>{E(d)}</li>" for d in C.DISCIPLINES)}</ul>
-  <p class="lede">I'm a statistician who builds software, a BI lead who teaches, and a tinkerer who can't leave a hard problem alone. The best work happens where those overlap.</p>
+  <div class="eyebrow">Miami, FL</div>
+  <h1 class="page-title">James <span style="white-space:nowrap"><em>Eby</em><span class="dot-slot" aria-hidden="true"></span></span></h1>
+  <ul class="disciplines" aria-label="Some of what I spend time on">{"".join(f"<li>{E(d)}</li>" for d in C.DISCIPLINES)}</ul>
+  <p class="lede">This is the personal site: Drew, side projects, a ten-year-old research poster, and whatever's on the smoker. Work has its own pages.</p>
+  <p class="hero-work">Work: <a href="professional.html">Professional</a> · <a data-x="jai" data-p="index.html">JA Insights</a> · <a href="teach.html">Teach</a></p>
 </section>
 {free_strip()}
 <section class="wrap block" aria-label="Start here">
   <div class="bento">
     <div class="tile span-7 about-tile">
       <picture class="me"><img src="assets/james-drew-600.jpg" srcset="assets/james-drew-600.jpg 600w, assets/james-drew.jpg 1000w" sizes="(max-width:640px) 90vw, 280px" alt="James holding Drew, his black Scottish Terrier, in a Miami backyard" width="600" height="750" loading="lazy"></picture>
-      <div class="about-text"><div class="eyebrow">About me</div>
-      <h2>Hi, I'm James. Most people call me jeby.</h2>
+      <div class="about-text"><div class="eyebrow">About</div>
+      <h2>Hi, I'm James.</h2>
       <p>{E(C.ABOUT_SHORT)}</p>
       <dl class="facts">{"".join(f"<dt>{E(a)}</dt><dd>{E(b)}</dd>" for a, b in C.FACTS)}</dl>
       <a class="go" href="about.html">More about me {ARROW}</a></div>
@@ -141,45 +142,34 @@ home = f'''
       <h2>{E(C.DREW["title"])}</h2>
       <p>{E(C.DREW["short"])}</p>
     </div>
-    <a class="tile span-12 story-tile" href="about.html#story">
-      <div><div class="eyebrow">{E(C.STORY["title"])}</div>
-      <h3>Carnegie Mellon, six years building teams, open-heart surgery, and still building.</h3>
-      <p>The short version of how I got here, and how you can help.</p>
-      <span class="go">Read the story {ARROW}</span></div>
-      <svg class="mini-rail" viewBox="0 0 400 40" aria-hidden="true"><path d="M10 20H170M250 20H390" stroke="var(--red)" stroke-width="2"/><path d="M170 20H250" stroke="var(--red)" stroke-width="2" stroke-dasharray="3 6"/>
-      {"".join(f'<circle cx="{10 + i * 95}" cy="20" r="6" fill="{"var(--card)" if i == 2 else "var(--red)"}" stroke="var(--red)" stroke-width="2"/>' for i in range(5))}</svg>
-    </a>
-    <a class="tile span-4" href="professional.html">
-      <div class="eyebrow">Professional</div>
-      <h3>Director-level BI and data science</h3>
-      <p>Six years, two analytics teams built from zero, and the Power BI and Snowflake work behind them.</p>
-      <span class="go">Experience and résumé {ARROW}</span>
-    </a>
-    <a class="tile span-4" href="teach.html">
-      <div class="eyebrow">Teach</div>
-      <h3>Tutoring and mentorship</h3>
-      <p>Math, SAT, statistics and data analysis, plus a path into your first data job. English or Spanish.</p>
-      <span class="go">Book a trial lesson {ARROW}</span>
-    </a>
-    <a class="tile span-4" href="lab.html">
+    <div class="tile span-4 work-tile">
+      <div class="eyebrow">Work</div>
+      <h3>Kept on its own pages.</h3>
+      <ul class="work-links">
+        <li><a href="professional.html"><b>Professional</b><span>Experience and résumé</span>{ARROW}</a></li>
+        <li><a data-x="jai" data-p="index.html"><b>JA Insights</b><span>Data consulting</span>{ARROW}</a></li>
+        <li><a href="teach.html"><b>Teach</b><span>Tutoring and mentorship</span>{ARROW}</a></li>
+      </ul>
+    </div>
+    <a class="tile span-8" href="lab.html">
       <div class="eyebrow">Lab</div>
-      <h3>jebyLabs</h3>
-      <p>A real-estate analytics platform, a band game, open-source tools and a houseplant with opinions.</p>
-      <div class="marks">{"".join(mark(i) for g in C.LAB for i in g["items"])}</div>
-      <span class="go">See the lab {ARROW}</span>
+      <h3>Things I build in my spare time</h3>
+      <p>A real-estate database, a band game, keyboard lighting, a houseplant that heckles people. Each one has a free version.</p>
+      <div class="marks">{"".join(mark(i) for g in C.LAB for i in g["items"] if i["id"] != "jebyus")}</div>
+      <span class="go">All {sum(len(g["items"]) for g in C.LAB)} projects {ARROW}</span>
     </a>
     <a class="tile span-12 research-tile" href="research.html">
       <svg class="starfield" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">{stars}</svg>
       <div class="eyebrow">Research · Carnegie Mellon, 2015</div>
       <h3 style="max-width:18ch">Weighing galaxy clusters by how their galaxies move</h3>
-      <p style="max-width:52ch">My undergraduate poster, rebuilt as an animated slideshow: why astronomers' calibration double-counted its data, and what weighted regression changed.</p>
+      <p style="max-width:52ch">My undergraduate poster, rebuilt so the figures move. The short version: the standard calibration counted each cluster about ten times.</p>
       <span class="go">Open the slideshow {ARROW}</span>
     </a>
   </div>
 </section>
 <section class="wrap block" aria-labelledby="now-h">
   <div class="block-head"><div><div class="eyebrow">November 2026</div><h2 id="now-h">Now</h2></div></div>
-  <ul class="now">{"".join(f"<li><b>{E(a)}</b><span>{E(b)}</span></li>" for a, b in C.NOW)}</ul>
+  <ul class="now">{"".join(f'<li><b>{E(a)}</b><span>{E(b)} <a class="now-go" href="{l}" aria-label="{E(a)}: more">{ARROW}</a></span></li>' for a, b, l in C.NOW)}</ul>
 </section>'''
 
 # ---------------------------------------------------------------- professional
@@ -253,8 +243,8 @@ packages = lambda items: '<div class="packages">' + "".join(f'<div class="pkg"><
 teach = f'''
 <section class="wrap page-head">
   <div class="eyebrow">Teach</div>
-  <h1 class="page-title">Math, data and careers, explained by someone who uses them.</h1>
-  <p class="lede">One-on-one tutoring and mentorship, online or in Miami, in English or Spanish. Every subject starts with a short, low-cost trial.</p>
+  <h1 class="page-title">Tutoring in math, statistics and data.</h1>
+  <p class="lede">One-on-one, online or in Miami, in English or Spanish. Every subject starts with a short, cheap trial lesson, so you find out whether we work well together before you pay for more.</p>
   <div class="actions"><a class="btn solid" {booking("Free 20-minute intro")}>Book a free 20-minute intro {ARROW}</a><a class="btn" href="#faq">Questions first</a></div>
 </section>
 <section class="wrap block">
@@ -265,9 +255,9 @@ teach = f'''
   </div></div>
   <div class="tabpanel" role="tabpanel" id="o-tut" aria-labelledby="ot-tut"><div class="offer-grid">
     <div class="why">
-      <div><b>790 on SAT Math, a statistics degree from Carnegie Mellon</b><span>I know the material cold, and I know where students get stuck.</span></div>
-      <div><b>I use this math for a living</b><span>Six years running analytics teams means I can show where every formula ends up.</span></div>
-      <div><b>Patient, step by step, bilingual</b><span>We stay on a topic until it clicks, in English or Spanish. Clases en español.</span></div>
+      <div><b>790 on SAT Math, a statistics degree from Carnegie Mellon</b><span>Good scores don't make a good tutor, but they do mean I won't be learning it alongside you.</span></div>
+      <div><b>Six years of using it at work</b><span>So when someone asks what this is for, there's a real answer.</span></div>
+      <div><b>English or Spanish</b><span>We stay on a topic until it clicks, in whichever language it clicks in. Clases en español.</span></div>
       <p class="note">Launch offer: 25% off for the first five students in each subject, in exchange for an honest written review.</p>
     </div>
     <div>{'<div class="rows">' + subjects + '</div>'}</div>
@@ -283,7 +273,7 @@ teach = f'''
   <div class="tabpanel" role="tabpanel" id="o-res" aria-labelledby="ot-res" hidden><div class="offer-grid">
     <div class="why">
       <div><b>Written the way hiring managers read</b><span>What you did and the number it moved, in words screening software can parse.</span></div>
-      <div><b>Tested against the robots</b><span>Every draft goes through a text-extraction check, so nothing important gets lost.</span></div>
+      <div><b>Checked against the screening software</b><span>Every draft goes through a text-extraction check, so nothing important gets lost.</span></div>
       <div><b>Any field, any level</b><span>Tech and data roles are my specialty, but the method works anywhere.</span></div>
     </div>
     <div>{packages(C.RESUME_SERVICES)}<div style="margin-top:20px"><a class="btn solid" {booking("Résumé services")}>Start with a tune-up {ARROW}</a></div></div>
@@ -313,7 +303,7 @@ lab = f'''
   <div class="eyebrow">Lab</div>
   <h1 class="page-title">Every project, open by default.</h1>
   <p class="lede">{nproj} projects across data, games, hardware and tools. Each one gets a free version under jebyLabs, and where it makes sense, a supported paid version through <a data-x="jai" data-p="products.html">JA Insights</a>. Open any row for the details.</p>
-  <div class="actions"><a class="btn" href="{C.CONFIG["github"]}" target="_blank" rel="noopener">{ICON_GH} All code on GitHub</a><a class="btn" href="about.html#support">Support the open work</a></div>
+  <div class="actions"><a class="btn" href="{C.CONFIG["github"]}" target="_blank" rel="noopener">{ICON_GH} All code on GitHub</a></div>
 </section>
 <section class="wrap block">{groups}</section>'''
 
@@ -322,7 +312,7 @@ research = f'''
 <section class="wrap page-head">
   <div class="eyebrow">Research · Carnegie Mellon University, 2015</div>
   <h1 class="page-title">Predicting the masses of galaxy clusters.</h1>
-  <p class="lede">My undergraduate poster as a slideshow, one slide per section. Use the arrows, your keyboard, or swipe.</p>
+  <p class="lede">My 2015 undergraduate poster at Carnegie Mellon, rebuilt so the figures move. The short version: the standard calibration counted each cluster about ten times, and counting each one honestly makes clusters a few percent lighter.</p>
 </section>
 <section class="wrap block" style="padding-top:0">{(RS / "section.html").read_text(encoding="utf-8")}</section>'''
 
@@ -362,16 +352,14 @@ about = f'''
   <h1 class="page-title">Hi, I'm James.</h1>
 </section>
 <section class="wrap block" style="padding-top:0"><div class="about-grid">
-  <div class="prose">{"".join(f"<p>{E(p)}</p>" for p in C.ABOUT_LONG)}</div>
+  <div class="prose">{"".join(f"<p>{E(p)}</p>" for p in C.ABOUT_LONG)}<p class="work-line">Work lives on other pages: <a href="professional.html">Professional</a>, <a data-x="jai" data-p="index.html">JA Insights</a> and <a href="teach.html">Teach</a>.</p>
+    <div class="tile" style="margin-top:28px"><dl class="facts">{"".join(f"<dt>{E(a)}</dt><dd>{E(b)}</dd>" for a, b in C.FACTS)}</dl><a class="go" href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">@jeby_d on Instagram {ARROW}</a></div></div>
   <div style="display:grid;gap:16px">
     <figure class="photo"><img src="assets/james-drew.jpg" srcset="assets/james-drew-600.jpg 600w, assets/james-drew.jpg 1000w" sizes="(max-width:860px) 92vw, 460px" alt="James holding Drew, his black Scottish Terrier, in a Miami backyard" width="1000" height="1250"><figcaption>Drew and me.</figcaption></figure>
     <div class="tile drew-tile"><div class="eyebrow">{E(C.DREW["role"])}</div>{DREW}<h2>{E(C.DREW["title"])}</h2><p>{E(C.DREW["short"])}</p></div>
-    <div class="tile"><dl class="facts">{"".join(f"<dt>{E(a)}</dt><dd>{E(b)}</dd>" for a, b in C.FACTS)}</dl><a class="go" href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">@jeby_d on Instagram {ARROW}</a></div>
   </div>
 </div></section>
-{story_html()}
-{support_html()}
-<section class="wrap block" id="contact" aria-labelledby="contact-h"><div class="callout"><div><div class="eyebrow">Contact</div><h3 id="contact-h">The fastest way to reach me is email.</h3><p class="muted" style="margin-top:6px" data-email="{email}" data-show>{email}</p></div>
+<section class="wrap block" id="contact" aria-labelledby="contact-h"><div class="callout"><div><div class="eyebrow">Contact</div><h3 id="contact-h">Email is the fastest way to reach me.</h3><p class="muted" style="margin-top:6px" data-email="{email}" data-show>{email}</p></div>
   <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn solid" href="#" data-copy-email="{email}">{ICON_MAIL} Copy email</a><a class="btn" href="{C.CONFIG["linkedin"]}" target="_blank" rel="noopener">{ICON_LI} LinkedIn</a><a class="btn" href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">{ICON_IG} Instagram</a><a class="btn" href="{C.CONFIG["github"]}" target="_blank" rel="noopener">{ICON_GH} GitHub</a></div></div></section>'''
 
 
@@ -391,15 +379,15 @@ def qr_page(src):
 {free_strip("More free things")}'''
 # ---------------------------------------------------------------- write
 research_head = '<link rel="stylesheet" href="assets/research.css">'
-research_js = '<script src="assets/research.js"></script><script>mountDeck(document.getElementById("rsdeck"), { cover: { eyebrow: "<b>●</b>&nbsp; Carnegie Mellon · Statistics · 2015", title: "Predicting the masses of galaxy clusters <span>with weighted regression</span>", sub: "A cluster\'s mass can\'t be observed. The spread of its galaxies\' speeds can. Watch how much the answer depends on where you look from." } });</script>'
+research_js = '<script src="assets/research.js"></script><script>mountDeck(document.getElementById("rsdeck"), { cover: { eyebrow: "<b>●</b>&nbsp; Carnegie Mellon · Statistics · 2015", title: "Predicting the masses of galaxy clusters <span>with weighted regression</span>", sub: "Nobody can put a galaxy cluster on a scale. What you can measure is how fast its galaxies move, and that depends on where you\'re standing." } });</script>'
 tl_js = f'<script>window.TIMELINE={json.dumps(timeline)}</script>'
 SPECS = [
-    ("home", "James Eby · jeby.us", "James Eby, interdisciplinary problem-solver in Miami: statistics, software, business intelligence and teaching.", home, "", ""),
-    ("professional", "Professional · James Eby", "Director-level business intelligence and data science: experience, timeline and résumé.", pro, "", tl_js),
+    ("home", "James Eby · jeby.us", "James Eby's personal site: Miami, Drew, side projects and a galaxy-cluster research slideshow.", home, "", ""),
+    ("professional", "Professional · James Eby", "James Eby (jeby): business intelligence and data science leadership. Experience, timeline and résumé.", pro, "", tl_js),
     ("teach", "Teach · James Eby", "Math, SAT, statistics and data-analysis tutoring, first-job mentorship and résumé services in Miami and online, in English or Spanish.", teach, "", ""),
     ("lab", "Lab · jebyLabs", "jebyLabs: real-estate analytics, a band game, open-source tools and hardware experiments by James Eby.", lab, "", ""),
     ("research", "Research · James Eby", "Predicting the masses of galaxy clusters using weighted linear regression: an animated slideshow of the 2015 Carnegie Mellon poster.", research, research_head, research_js),
-    ("about", "About · James Eby", "About James Eby (jeby) and Drew, Chief Morale Officer.", about, "", ""),
+    ("about", "About · James Eby", "About James Eby, and Drew.", about, "", ""),
     ("qr", "The dog QR prompt · jeby.us", "How to turn your dog into a QR code that actually scans: a free prompt that makes the AI write, blend and test the code.", qr_page("qr"), "", ""),
     ("yt", "The dog QR prompt · jeby.us", "How to turn your dog into a QR code that actually scans: a free prompt that makes the AI write, blend and test the code.", qr_page("yt"), '<link rel="canonical" href="https://jeby.us/qr">', ""),
 ]
@@ -428,13 +416,13 @@ shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT 
 (OUT / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
     "".join(f"  <url><loc>https://jeby.us/{'' if k == 'home' else k}</loc></url>\n" for k, *_ in SPECS if k != "yt") + "</urlset>\n", encoding="utf-8")
 (OUT / "llms.txt").write_text(f"""# James Eby (jeby)
-> Interdisciplinary problem-solver in Miami, FL: statistics, software, business intelligence and teaching.
+> James Eby's personal site, Miami, FL. Work is on the Professional page and at JA Insights.
 
 - [Professional](https://jeby.us/professional): Director-level BI and data science; experience, timeline, résumé.
 - [Teach](https://jeby.us/teach): tutoring (math, SAT/ACT math, statistics, data analysis), first-job mentorship, résumé services. English and Spanish.
 - [Lab](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, learningLabs (a free learning library with a data analysis course), a band game, Lighting Lab, Quorum, Plantriloquist, AppForge, a route optimizer and driver tracking for small businesses, and a dog territory app.
 - [Research](https://jeby.us/research): Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression (Carnegie Mellon, 2015).
-- [About](https://jeby.us/about): the story so far, and Drew.
+- [About](https://jeby.us/about): James, and Drew.
 - [Free data report](https://jainsights.com/report): a one-page report on any spreadsheet, run in the browser.
 - [Dog QR prompt](https://jeby.us/qr): a prompt that makes an AI build a picture QR code that scans.
 Contact: {C.CONFIG["email"]} · {C.CONFIG["instagram"]} · {C.CONFIG["linkedin"]} · {C.CONFIG["github"]}

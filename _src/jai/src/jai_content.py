@@ -108,8 +108,8 @@ ABOUT = {
     "facts": [("Legal name", "JA Insights LLC"), ("Based", "Miami, Florida"), ("Works", "Remote, and on site in South Florida"),
               ("Languages", "English and Spanish"), ("Founder", "James Eby, B.S. Statistics, Carnegie Mellon"),
               ("Part of", "the jeby family: jeby.us, jebyLabs and jeby Real Estate")],
-    "founder": ("James Eby", "Statistician and analyst. Six years building analytics teams and BI platforms, research on weighing galaxy "
-                "clusters, and a habit of building the tool when the right one doesn't exist yet. The whole story is on jeby.us."),
+    "founder": ("James Eby", "Known as jeby in tech. A statistics degree from Carnegie Mellon, six years building analytics teams and BI platforms, "
+                "and an undergraduate poster on weighing galaxy clusters. When the right tool doesn't exist, he builds it. More on jeby.us."),
 }
 
 # Paid editions of jebyLabs projects; the free edition lives on jeby.us/lab. Statuses are honest about what is for sale today.

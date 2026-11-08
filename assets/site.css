@@ -383,3 +383,16 @@ figure.photo figcaption{font:500 12px/1.3 var(--mono);letter-spacing:.12em;text-
   *,*::before,*::after{animation:none!important;transition:none!important}
   @view-transition{navigation:none}
 }
+
+/* copy pass 2026-11-08: work as links on the personal pages */
+.hero-work{margin-top:14px;font-size:15px;color:var(--muted)}
+.hero-work a{color:var(--fg);text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:4px}
+.work-links{list-style:none;margin:14px 0 0;padding:0}
+.work-links a{display:flex;align-items:baseline;gap:10px;padding:11px 0;border-top:1px solid var(--line);color:var(--fg);text-decoration:none}
+.work-links a b{font-weight:600}
+.work-links a span{color:var(--muted);font-size:14px;margin-right:auto}
+.work-links a:hover b{text-decoration:underline;text-underline-offset:4px}
+.work-line{color:var(--muted)}
+.work-line a{color:var(--fg)}
+.now-go{color:var(--muted);text-decoration:none;margin-left:4px}
+.now-go:hover{color:var(--fg)}
