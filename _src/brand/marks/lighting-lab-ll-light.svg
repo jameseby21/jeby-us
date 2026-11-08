@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Lighting Lab">
+<title>Lighting Lab</title>
+<rect width="64" height="64" rx="14" fill="#D9D7E2"/>
+<rect x="4" y="3" width="56" height="54" rx="11" fill="#FFFFFF"/>
+<rect x="17" y="12" width="7.5" height="36" rx="3.75" fill="#111116"/>
+<rect x="29" y="12" width="7.5" height="36" rx="3.75" fill="#111116"/>
+<circle cx="45.5" cy="43.5" r="5" fill="#7C5CFF"/>
+<circle cx="45.5" cy="43.5" r="2.4" fill="#E3262F"/>
+</svg>

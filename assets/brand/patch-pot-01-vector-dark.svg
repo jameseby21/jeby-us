@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Plantriloquist">
+<title>Plantriloquist</title>
+<path d="M31 30C25 22 16 18 9 20c5 6 12 10 22 10ZM33 30c2-10 9-17 17-18-1 8-7 15-17 18ZM32 30c-3-9-2-18 3-25 4 8 3 17-3 25Z" fill="#3E9B3A" stroke="#F2F1EC" stroke-width="2" stroke-linejoin="round"/>
+<path d="M31 29C24 24 18 21 12 21M33 29c4-6 9-11 15-15M32 29c-1-7 0-14 3-21" fill="none" stroke="#A6D84A" stroke-width="1.3" stroke-linecap="round"/>
+<path d="M17 31h34l-4 25c-.3 2-2 3-4 3H25c-2 0-3.7-1-4-3Z" fill="#D2602F" stroke="#F2F1EC" stroke-width="2" stroke-linejoin="round"/>
+<rect x="14.5" y="28" width="39" height="6.5" rx="2" fill="#E2743F" stroke="#F2F1EC" stroke-width="2"/>
+<path d="M24 40c5 3 14 3 19 0-1 8-5 12-9.5 12S25 48 24 40Z" fill="#7A1E14"/>
+<path d="M28.5 48c3 1.7 7 1.7 10 0-1.5 2.5-3 3.5-5 3.5s-3.5-1-5-3.5Z" fill="#F0857D"/>
+<path d="M24.5 40.5c5 2.2 13.5 2.2 18.5 0" fill="none" stroke="#FFFFFF" stroke-width="1.6"/>
+<path d="M3 44v4M6.5 40v12M10 37v18M13.5 41v10" stroke="#3E9B3A" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

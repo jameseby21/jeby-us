@@ -4,6 +4,8 @@ ROOT = pathlib.Path(__file__).parent
 sys.path.insert(0, str(ROOT / "src")); sys.path.insert(0, str(ROOT.parent / "jeby" / "src"))
 import jai_content as J
 from content import LAB
+sys.path.insert(0, str(ROOT.parent / "brand"))
+import brand as BR  # marks.json: the cycling rule's candidates
 E = html.escape
 OUT = ROOT / "out"; shutil.rmtree(OUT, ignore_errors=True); (OUT / "assets").mkdir(parents=True, exist_ok=True)
 RATE = J.CONFIG["rate"]; EMAIL = J.CONFIG["email"]
@@ -62,14 +64,16 @@ def page(key, title, desc, body):
     doc = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{E(title)}</title><meta name="description" content="{E(desc)}"><meta name="theme-color" content="#fafaf7">
 <meta property="og:title" content="{E(title)}"><meta property="og:description" content="{E(desc)}"><meta property="og:type" content="website">
-<link rel="canonical" href="https://jainsights.com/{"" if key == "index" else key}"><link rel="icon" href="assets/favicon.svg">
+<link rel="canonical" href="https://jainsights.com/{"" if key == "index" else key}">{BR.favicon_links("jai")}
 {FONTS}<link rel="stylesheet" href="assets/jai.css">
 <script type="speculationrules">{{"prerender":[{{"where":{{"href_matches":"/*"}},"eagerness":"moderate"}}]}}</script>{ld}
 </head><body>{header(key)}<main id="main">{body}</main>{footer()}
-<script src="assets/jai.js" defer></script>{'<script src="assets/records.js" defer></script><script src="assets/domain.js" defer></script><script src="assets/report.js" defer></script>' if key == "report" else ""}<script src="assets/family.js" data-site="jai" defer></script></body></html>'''
+<script src="assets/jai.js" defer></script>{'<script src="assets/records.js" defer></script><script src="assets/domain.js" defer></script><script src="assets/report.js" defer></script>' if key == "report" else ""}<script src="assets/brand.js" defer></script><script src="assets/family.js" data-site="jai" defer></script></body></html>'''
     (OUT / f"{key}.html").write_text(doc, encoding="utf-8")
 
 def mark(it):
+    t = BR.tile(it["id"], themed=False)
+    if t: return t
     if it.get("mark_img"): return f'<span class="mark" style="background:{it["accent"]}"><img src="assets/{it["mark_img"]}" alt=""></span>'
     return f'<span class="mark" style="background:{it["accent"]}">{E(it["mark"])}</span>'
 
@@ -250,7 +254,8 @@ S2 = ROOT.parent / "jeby" / "out" / "assets"; FAM = ROOT.parent / "family"
 shutil.copy(ROOT / "src" / "jai.css", OUT / "assets" / "jai.css"); shutil.copy(ROOT / "src" / "jai.js", OUT / "assets" / "jai.js"); shutil.copy(ROOT / "src" / "report.js", OUT / "assets" / "report.js"); shutil.copy(ROOT / "src" / "records.js", OUT / "assets" / "records.js"); shutil.copy(ROOT / "src" / "domain.js", OUT / "assets" / "domain.js")
 shutil.copy(FAM / "family.js", OUT / "assets" / "family.js")
 for f in ("plantriloquist.png", "musicalgames.svg", "lighting-lab.svg", "desk.svg"): shutil.copy(S2 / f, OUT / "assets" / f)
-(OUT / "assets" / "favicon.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#fafaf7"/><text x="32" y="44" text-anchor="middle" font-family="Georgia,serif" font-size="32" fill="#b3121a">JA</text></svg>', encoding="utf-8")
+BR.copy_assets(OUT / "assets")
+shutil.copy(OUT / "assets" / "brand" / "jai-monogram-light.svg", OUT / "assets" / "favicon.svg")  # for anything that asks for /assets/favicon.svg
 (OUT / "CNAME").write_text("jainsights.com\n", encoding="utf-8")
 (OUT / "robots.txt").write_text("User-agent: *\nAllow: /\nSitemap: https://jainsights.com/sitemap.xml\n", encoding="utf-8")
 (OUT / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +

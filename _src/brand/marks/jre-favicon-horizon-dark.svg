@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="jeby Real Estate">
+<title>jeby Real Estate</title>
+<defs><linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FF334E"/><stop offset="1" stop-color="#FF9A62"/></linearGradient></defs>
+<rect width="64" height="64" rx="12" fill="#0D1B24"/>
+<circle cx="32" cy="27" r="17" fill="url(#sun)"/>
+<path d="M14 42V31h6v11M23 42V24h7v18M33 42V28h6v14M42 42V22h8v20" fill="none" stroke="#E8F1F4" stroke-width="3.2"/>
+<path d="M9 46c14-4 30 4 46-1M11 52c16-3 28 4 42-1" fill="none" stroke="#00A9C0" stroke-width="3.4" stroke-linecap="round"/>
+</svg>

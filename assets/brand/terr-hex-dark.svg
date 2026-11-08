@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Dog territory app">
+<title>Dog territory app</title>
+<rect width="64" height="64" rx="14" fill="#111116"/>
+
+<path d="M32 8l20 11.5v23L32 54 12 42.5v-23Z" fill="none" stroke="#EEECF2" stroke-width="4" stroke-linejoin="round"/>
+<path d="M32 19l10 5.8v11.5L32 42l-10-5.7V24.8Z" fill="#E3262F"/>
+<circle cx="20" cy="50" r="2.4" fill="#6D6A7C"/><circle cx="46" cy="52" r="2" fill="#6D6A7C"/><circle cx="54" cy="12" r="2" fill="#6D6A7C"/>
+</svg>
