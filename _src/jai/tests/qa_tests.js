@@ -200,7 +200,7 @@ module.exports = function (h) {
   // ---------- CONS-0063
   console.log("role-driven checks (CONS-0063)");
   test("sales shape: money over measure ratio insights, an 1850 date and a 999 value in a measure column are found by role; Not checked names the missing role", () => {
-    const ex = aC.findingsList.find(f => f.id === "extremes"); assert(ex && /sale price per living area sqft/.test(ex.title) && ex.kind === "insight" && ex.rule && ex.todo, "extremes insight");
+    const ex = aC.findingsList.find(f => f.id === "extremes"); assert(ex && /price per square foot/.test(ex.title) && ex.kind === "insight" && ex.rule && ex.todo, "extremes insight");
     assert(aC.findingsList.find(f => f.id === "date").rows.includes(CT.ancient_date[0]), "1850 date"); const b = aC.findingsList.find(f => f.id === "out:beds"); assert(b && b.rows.includes(CT.beds_999[0]), "999 beds by measure role");
     const nc = aC.notChecked.missing.map(m => m.label + "|" + m.because.join()); assert(nc.some(x => /coordinates/.test(x) && /latitude and longitude/.test(x)), nc.join(" ; "));
     assert(!aC.notChecked.missing.some(m => m.id === "nominal" || m.id === "ratio" || m.id === "repeat"), "checks that ran are not listed as not checked");

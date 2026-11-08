@@ -58,4 +58,51 @@ module.exports = function (h) {
     const rows = R.parseDelimited('"Report, run Nov 8, for Q3"\nA;B;C\n1;2;3\n4;5;6\n'); assert.deepStrictEqual(rows[1], ["A", "B", "C"]);
     assert.strictEqual(rows.fmt.delim, ";");
   });
+
+  // ---------- CONS-0070
+  console.log("roles: a year, a zip, a phone and an id are not measures (CONS-0070)");
+  const SR = load("sales_roles.csv"), aSR = R.analyse(SR), roleOf = (a, n) => a.cols.find(c => c.name === n).role;
+  const mk = (name, vals) => ({ name, rows: [[name, "x"], ...vals.map((v, i) => [String(v), "r" + i])] });
+  const solo = (name, vals) => { const a = R.analyse({ name: "t", rows: [[name, "other"], ...vals.map((v, i) => [String(v), "r" + (i % 3)])] }); return a.cols[0].role; };
+  test("role detection: years, zips, phones, codes and ids by name or by their values; areas, prices and counts stay what they are", () => {
+    assert.deepStrictEqual(["Parcel", "Zip", "Year built", "Living area sqft", "Beds", "Sale price", "Sales (#)"].map(n => roleOf(aSR, n)), ["identifier", "postal", "year", "measure", "measure", "money", "measure"]);
+    const yrs = Array.from({ length: 40 }, (_, i) => 1950 + (i * 7) % 70);
+    assert.strictEqual(solo("built", yrs), "year"); assert.strictEqual(solo("col", yrs), "year", "years found by their values alone");
+    assert.strictEqual(solo("yr_founded", yrs), "year"); assert.strictEqual(solo("fiscal year", yrs), "year");
+    assert.strictEqual(solo("phone", Array.from({ length: 20 }, (_, i) => 3055550100 + i * 13)), "phone");
+    assert.strictEqual(solo("contact", Array.from({ length: 20 }, (_, i) => `(305) 555-${String(1000 + i * 7)}`)), "phone", "phone numbers written with separators are not numbers at all, but are not a measure either");
+    assert.strictEqual(solo("sku", Array.from({ length: 30 }, (_, i) => 40000 + i * 3)), "identifier");
+    assert.strictEqual(solo("order number", Array.from({ length: 30 }, (_, i) => 90100 + i)), "identifier");
+    assert.strictEqual(solo("ticket", Array.from({ length: 30 }, (_, i) => 5000 + i * 2 + (i % 2))), "identifier", "an all-different, ever-increasing whole number is a row number");
+    assert.strictEqual(solo("living area", Array.from({ length: 40 }, (_, i) => 1800 + (i * 37) % 301)), "measure", "an area that happens to sit between 1800 and 2100 is still an area");
+    assert.strictEqual(solo("quantity", Array.from({ length: 40 }, (_, i) => 1900 + (i * 11) % 150)), "measure");
+    assert.strictEqual(solo("sale_price", Array.from({ length: 40 }, (_, i) => 100000 + i * 5000)), "money", "a price that rises by a constant is still a price");
+  });
+  test("units: the only ratio on the sales fixture is money over area, named 'price per square foot'; never per year, per zip, per id", () => {
+    const pairs = Dom.ratioPairs(aSR.cols); assert.deepStrictEqual(pairs.map(p => p.label), ["price per square foot"]);
+    const c = Dom.ratioCandidates(aSR.cols); assert.deepStrictEqual(c.held.map(x => x.col).sort(), ["Beds", "Parcel", "Sales (#)", "Year built", "Zip"]);
+    assert(c.held.find(x => x.col === "Year built").reason.includes("year, not a quantity"), JSON.stringify(c.held));
+    assert(c.held.find(x => x.col === "Beds").reason.includes("no unit"), JSON.stringify(c.held));
+  });
+  test("sales fixture: no insight, finding, flag or worth-a-look line mentions price per year built, per zip or per parcel", () => {
+    const t = everyText(aSR, SR).join("\n"); assert(!/per (year|zip|parcel)/i.test(t), t.match(/.{40}per (year|zip|parcel).{20}/i));
+    assert(!/year built.{0,12}(highest|lowest|unusual)|(highest|lowest|unusual).{0,30}year built/i.test(t));
+    assert(aSR.findingsAll.some(f => f.id === "extremes" && /price per square foot/.test(f.title)), aSR.findingsAll.map(f => f.id));
+    assert.strictEqual(aSR.measure.name, "Sale price", "the measure is the price, not the year or the zip");
+  });
+  test("a year or an id is never a measure, an extreme or a metric, even with no help from the name", () => {
+    const rows = [["a", "c", "d"]]; for (let i = 0; i < 200; i++) rows.push([String(1900 + (i * 13) % 120), String(700000 + i * 3), String(Math.round(300000 + ((i * 7919) % 1000) * 400))]);
+    const a = R.analyse({ name: "t", rows }); assert.deepStrictEqual(a.cols.map(c => c.role), ["year", "identifier", "measure"]);
+    assert.strictEqual(a.measure.name, "d", "measure is " + (a.measure && a.measure.name));
+  });
+  test("a person can change a role in the Columns table and the report recomputes", () => {
+    const b = R.analyse(SR, { roles: { "Year built": "measure", Beds: "identifier", Zip: "category" } });
+    assert.strictEqual(roleOf(b, "Year built"), "measure"); assert.strictEqual(roleOf(b, "Beds"), "identifier"); assert.strictEqual(roleOf(b, "Zip"), "category");
+    assert.strictEqual(b.cols.find(c => c.name === "Zip").type, "category"); assert.strictEqual(b.cols.find(c => c.name === "Zip").roleBy, "you");
+    const c = R.analyse(SR, { roles: { "Living area sqft": "year" } }); assert.strictEqual(roleOf(c, "Living area sqft"), "year");
+    assert.deepStrictEqual(Dom.ratioPairs(c.cols), [], "no area, no ratio");
+    assert(!c.findingsAll.some(f => f.id === "extremes"), "the top and bottom by area goes away with the area");
+    const d = R.analyse(SR, { roles: { "Year built": "auto" } }); assert.strictEqual(roleOf(d, "Year built"), "year");
+  });
 };
+

@@ -10,6 +10,7 @@
   const Rec = typeof module !== "undefined" && module.exports ? require("./records.js") : self.JAIRecords;
   const Dom = typeof module !== "undefined" && module.exports ? require("./domain.js") : self.JAIDomain;
   const Pack = typeof module !== "undefined" && module.exports ? require("./pack.js") : self.JAIPack;
+  const Rules = typeof module !== "undefined" && module.exports ? require("./rules.js") : self.JAIRules;
   const Shape = typeof module !== "undefined" && module.exports ? require("./shape.js") : self.JAIShape;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 0) => (Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(1) + "K" : v.toLocaleString("en-US", { maximumFractionDigits: d }));
@@ -81,6 +82,8 @@
   const DATE_RE = /date|time|day|month|created|ordered|posted|period/i;
   const CAT_RE = /category|type|region|store|location|branch|product|item|channel|segment|status|department|city|state|team|source|payment|method/i;
   const NOT_MEASURE = /year|zip|postal|phone|lat|lon|lng/i;
+  // a number column that can be summed, averaged and judged for outliers: not a year, a code, an id or a place, unless the visitor said so in the Columns table
+  const isMeasureCol = c => c.type === "number" && (c.roleBy === "you" ? c.role === "measure" || c.role === "money" : !NOT_MEASURE.test(c.name) && !Dom.DOMAIN.notMeasure.includes(c.role) && c.role !== "balance");
 
   function profileCol(name, vals) {
     const n = vals.length, ne = [];
@@ -123,7 +126,7 @@
 
   function detectOutliers(body, cols, o = {}) {
     const N = body.length, items = new Map(), claimed = new Map(), calc = o.calc;
-    const numCols = cols.filter(c => c.type === "number" && !NOT_MEASURE.test(c.name) && !Dom.DOMAIN.notMeasure.includes(c.role));
+    const numCols = cols.filter(isMeasureCol);
     const nominal = o.nominal || new Map();
     const vals = new Map(); const V = c => vals.get(c.i) || (vals.set(c.i, Float64Array.from(body, (r, ri) => (nominal.has(c.i) && nominal.get(c.i).set.has(ri) ? NaN : num(r[c.i])))), vals.get(c.i));
     const nomWord = c => (nominal.has(c.i) ? "non-nominal " : "");
@@ -137,7 +140,7 @@
     const isCount = c => { const v = V(c); let ints = true, pos = []; for (let i = 0; i < N; i++) { if (v[i] !== v[i]) continue; if (v[i] !== Math.floor(v[i])) { ints = false; break; } if (v[i] > 0) pos.push(v[i]); } return ints && median(pos) <= 12; };
 
     // metrics: every numeric column, then ratios when the columns exist. Ratios go first so a short living area is named for what it is.
-    const metrics = Dom.ratioPairs(cols, calc).map(p => ({ label: p.label, a: p.a, b: p.b, money: true }));   // any money column over any measure column; named by the columns (CONS-0063)
+    const metrics = Dom.ratioPairs(cols, calc).map(p => ({ label: p.label, a: p.a, b: p.b, basis: p.basis, money: true }));   // any money column over any measure column; named by the columns (CONS-0063)
     // a total that is qty x price is judged through the qty and the price, so it is left out here
     numCols.filter(c => !(calc && c.i === calc.total)).forEach(c => metrics.push({ label: human(c.name), col: c, money: MONEY_RE.test(c.name), count: isCount(c) }));
     metrics.forEach(m => { const cs = m.col ? [m.col] : [m.a, m.b]; m.key = cs.map(c => c.i).join("/"); if (m.col) m.v = V(m.col); else { const a = V(m.a), b = V(m.b); m.v = Float64Array.from(a, (x, i) => (b[i] > 0 && x > 0 ? x / b[i] : NaN)); } });
@@ -176,7 +179,7 @@
       const rowM = o.measure && o.measure !== c ? V(o.measure)[ri] : NaN;
       const eff = o.measure === c ? Math.abs(v - rs.refv) : (rowM > 0 ? rowM * Math.min(50, Math.abs(1 - 1 / r)) : 0);
       const ok = addCell(id, how === "shift" ? "shift" : rs.k ? "unit" : m.a ? "ratio" : "out", { ri, ci: c.i, sev: fix ? "fix" : "look", why: rs.why, v, ref: rs.refv, r, k: rs.k, eff, label: m.label });
-      if (ok) { const it = items.get(id); if (m.a) it.via.add(m.label); it.metrics.add(metricName(m)); if (how === "shift") Object.assign(it, { group: extra.group, gcol: extra.gcol, medG: extra.medG, rest: extra.rest }); if (!it.col) it.col = c; if (!it.scope) it.scope = scope; }
+      if (ok) { const it = items.get(id); if (m.a) { it.via.add(m.label); (it.basis || (it.basis = {}))[m.label] = m.basis; } it.metrics.add(metricName(m)); if (how === "shift") Object.assign(it, { group: extra.group, gcol: extra.gcol, medG: extra.medG, rest: extra.rest }); if (!it.col) it.col = c; if (!it.scope) it.scope = scope; }
     }
 
     const medCache = new Map(); const cacheMed = (c, gi, g, l) => { const k = c.i + "|" + g.col.i + "|" + gi; if (!medCache.has(k)) medCache.set(k, l.length ? { med: median(l), sig: .02, n: l.length } : null); return medCache.get(k); };
@@ -245,12 +248,13 @@
       if (vals.length >= 5 && vals.every(v => /^\d{10}(\d{3})?$/.test(v)) && vals.every(v => v.length === vals[0].length)) body.forEach(r => { const v = r[i].trim(); if (v) r[i] = new Date(v.length === 13 ? +v : +v * 1000).toISOString().slice(0, 10); });
     });
     const cols = header.map((h, i) => ({ ...profileCol(h, body.map(r => r[i])), i }));
-    Dom.assignRoles(cols, body, num);
+    Dom.assignRoles(cols, body, num, choice.roles);
     const nominal = Dom.findNominal(body, cols, num, median);   // set aside before any baseline is drawn (CONS-0058)
 
     const pick = (list, re, want) => (want && list.find(c => c.name === want)) || list.find(c => re.test(c.name)) || list[0] || null;
     const numCols = cols.filter(c => c.type === "number");
-    const measureCands = numCols.filter(c => !NOT_MEASURE.test(c.name) && !Dom.DOMAIN.notMeasure.includes(c.role));
+    const allOnes = c => c.filled > 0 && c.distinct === 1 && num(body.find(r => r[c.i].trim() !== "")[c.i]) === 1;
+    const measureCands = numCols.filter(c => isMeasureCol(c) && !allOnes(c));   // a column of all 1s only counts rows, so it is not a measure
     const sumAbs = c => body.reduce((a, r) => a + Math.abs(num(r[c.i]) || 0), 0);
     const measure = (choice.measure && cols.find(c => c.name === choice.measure)) || measureCands.find(c => /total|amount|revenue|sales/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name) && !/qty|quantity|units/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name)) || [...measureCands].sort((a, b) => sumAbs(b) - sumAbs(a))[0] || null;
     const dateCol = pick(cols.filter(c => c.type === "date"), DATE_RE, choice.date);
@@ -354,7 +358,7 @@
 
     // negatives
     let negNote = false;
-    numCols.filter(c => !NOT_MEASURE.test(c.name)).forEach(c => {
+    numCols.filter(c => isMeasureCol(c)).forEach(c => {
       const v = body.map(r => num(r[c.i])), ok = v.filter(x => !isNaN(x)), pos = ok.filter(x => x > 0).length / (ok.length || 1), negs = ok.filter(x => x < 0).length;
       if (pos >= .95 && negs && c.type !== "id") { v.forEach((x, ri) => { if (x < 0) link("neg", ri, c.i, "look", `<b>Negative ${esc(human(c.name))}.</b> A refund entered as a sale, or a typo.`, "", 0); });
         if (!negNote) { negNote = true; add("look", `${negs} negative ${c.name}${negs > 1 ? " values" : ""}`, `Almost every ${c.name} is positive. Refunds or returns are fine if they're meant to be here.`, 35, true, "neg", "Negative values"); } }
@@ -400,7 +404,7 @@
     outItems.forEach(it => {
       const fix = it.cells.some(c => c.sev === "fix"), n = it.cells.length, ex = it.cells[0], rowsTxt = it.cells.slice(0, 3).map(c => c.ri + RB).join(", ") + (n > 3 ? ` and ${n - 3} more` : "");
       it.cells.forEach(c => link(it.id, c.ri, c.ci, c.sev, c.why, "out", c.eff));
-      const via = it.via.size ? ` Found through ${[...it.via].join(" and ")}.` : "", name = human(it.col.name);
+      const via = it.via.size ? ` Found through ${[...it.via].map(v => (it.basis && it.basis[v] ? `${v} (${it.basis[v]})` : v)).join(" and ")}.` : "", name = human(it.col.name);
       let title, detail, score, crumb;
       if (it.kind === "shift") {
         const hi = it.medG > it.rest, mult = hi ? it.medG / it.rest : it.rest / it.medG, rs = it.cells.map(c => c.r), lo = Math.min(...rs.map(r => r >= 1 ? r : 1 / r)), up = Math.max(...rs.map(r => r >= 1 ? r : 1 / r));
@@ -716,7 +720,8 @@
     const yr = t => new Date(t).getUTCFullYear(), md = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; }, my = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${yr(t)}`; };
     const range = !a.trend ? "No date column" : yr(a.trend.lo) === yr(a.trend.hi) ? `${md(a.trend.lo)} – ${md(a.trend.hi)}, ${yr(a.trend.hi)}` : `${my(a.trend.lo)} – ${my(a.trend.hi)}`;
     const kpi = [["Rows", a.N.toLocaleString("en-US")], ["Columns", a.cols.length], ["Dates", range], [a.measure ? "Total " + a.measure.name : "Measure", a.measure ? full(a.total, 0) : "None found"]];
-    const prof = a.cols.slice(0, 12).map(c => `<tr><td>${esc(c.name)}</td><td>${c.type}${Dom.roleLabel(c) && Dom.roleLabel(c) !== c.type ? ` · ${esc(Dom.roleLabel(c))}` : ""}</td><td>${pct(c.filled, a.N).toFixed(0)}%</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="3" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
+    const roleOpts = c => { const set = Rules.ROLES.userRoles[c.type === "number" ? "number" : c.type === "date" ? "date" : "other"], cur = c.roleBy === "you" ? c.role : "auto"; return `<option value="auto"${cur === "auto" ? " selected" : ""}>${esc(Dom.roleLabel({ ...c, role: c.detected, roleBy: c.roleBy === "you" ? "values" : c.roleBy }))} (detected)</option>` + set.filter(r => r !== c.detected).map(r => `<option value="${r}"${cur === r ? " selected" : ""}>${r}</option>`).join(""); };
+    const prof = a.cols.slice(0, 12).map(c => `<tr><td>${esc(c.name)}</td><td>${c.type}<span class="role-print"> · ${esc(Dom.roleLabel(c))}</span><select class="role-pick print-hide" data-role="${esc(c.name)}" aria-label="Role of ${esc(c.name)}">${roleOpts(c)}</select></td><td>${pct(c.filled, a.N).toFixed(0)}%</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="3" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
     const next = a.needsCleanup ? ["Data health check", 8, "a person reads the data and writes down what to fix first"] : ["Focused analysis", 20, "one question answered properly, with the uncertainty stated"];
     const trendSvg = a.trend && a.trend.series.length > 1 ? (a.trend.split ? stackSVG(a.trend, a.measure ? a.measure.name : "Rows") : lineSVG(a.trend, a.measure ? a.measure.name : "Rows")) : "";
     const rep = (a.findingsList || []).find(f => f.id === "repeat" && f.repeat), repNote = rep && trendSvg ? `<p class="trend-note">Repeat occurrences: ${fmtCount(rep.repeat.n)} places appear on more than one date${rep.repeat.pct != null ? `; the median change between their first and last row is ${rep.repeat.pct >= 0 ? "+" : ""}${Math.round(rep.repeat.pct * 100)}%` : ""}.</p>` : "";
@@ -829,7 +834,8 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     catch (e) { status(e.message || "That file couldn't be read."); }
   }
   out.innerHTML = `<div id="rep-controls"></div><div id="rep-sheet"></div><section class="records print-hide" id="rep-records" aria-label="All records"></section>`;
-  out.addEventListener("change", e => { const s = e.target.closest("[data-ch]"); if (!s || !current) return; choice[s.dataset.ch] = s.value;
+  out.addEventListener("change", e => { const rp = e.target.closest("[data-role]"); if (rp && current) { choice.roles = { ...(choice.roles || {}), [rp.dataset.role]: rp.value }; show2(); return; }   // a role changed in the Columns table: everything is worked out again
+    const s = e.target.closest("[data-ch]"); if (!s || !current) return; choice[s.dataset.ch] = s.value;
     if (s.dataset.ch === "header") { delete choice.measure; delete choice.date; delete choice.cat; delete choice.split; delete choice.roles; show2(true); } else show2(); });
   out.addEventListener("click", e => {
     if (e.target.closest("[data-print]")) window.print();

@@ -305,6 +305,16 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     assert(/1 title row above it skipped/.test(m.note) && /Synthetic checking activity/.test(m.note), m.note); assert.strictEqual(m.names, "Details|Posting Date|Description|Amount"); assert.strictEqual(m.row, "3");
   });
 
+  await check("sales fixture: year built is a year, no line mentions price per year built, and a role changed in the Columns table recomputes the report", async () => {
+    await loadFx("sales_roles.csv");
+    const m = await js(`({ sheet: document.querySelector('.sheet').textContent, roles: JAIReportDebug.analysis.cols.map(c => c.name + ':' + c.role).join('|'), sel: document.querySelector('[data-role="Year built"]').selectedOptions[0].textContent })`);
+    assert(/Year built:year/.test(m.roles) && /Zip:postal/.test(m.roles) && /year \(not a quantity\)/.test(m.sel), m.roles + " | " + m.sel); assert(!/per year built|per zip|year built.{0,6}(highest|lowest)/i.test(m.sheet), "a ratio on year built is still on the page");
+    assert(/price per square foot/.test(m.sheet), "the area ratio is missing");
+    await pick('[data-role="Beds"]', "identifier"); await waitFor(`JAIReportDebug.analysis.cols.find(c => c.name === 'Beds').role === 'identifier'`);
+    const after = await js(`({ role: document.querySelector('[data-role="Beds"]').value, by: JAIReportDebug.analysis.cols.find(c => c.name === 'Beds').roleBy })`); assert.deepStrictEqual(after, { role: "identifier", by: "you" });
+    return "Beds set to identifier by the picker; the page recomputed";
+  });
+
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {
     await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") + "#sample" }); await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && document.querySelectorAll('.rec-tr').length > 0", 20000);
     assert.strictEqual(await js(`JAIReportDebug.engine`), "main"); assert.strictEqual(await js(`JAIReportDebug.store.rows.length`), 5000);

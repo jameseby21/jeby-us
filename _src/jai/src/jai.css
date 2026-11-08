@@ -341,7 +341,7 @@ table.prof td:first-child{font-weight:500}table.prof td.more{color:var(--muted);
 /* free report: finding links, records worth a look (CONS-0050), the records table (CONS-0049) with editing and export (CONS-0054).
    Colours follow the CONS-0052 design: Fix red tint with a red rule, Look slate, Edited blue. Text on each tint is at least 5.6:1. */
 :root{--slate-tint:#e6eaf0;--edit:#2f5e9e;--edit-tint:#e9f0fa;--rowh:34px}
-.print-only{display:none}
+.print-only{display:none}.role-print{display:none}.role-pick{font:inherit;font-size:12px;max-width:100%;margin-left:6px;padding:1px 2px;border:1px solid var(--rule);border-radius:4px;background:var(--paper);color:var(--ink)}
 .finds li .rec-link{grid-column:2;justify-self:start;margin-top:2px}
 .rec-link{border:0;background:transparent;padding:2px 0;font:500 13px/1.3 var(--sans);color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule-2);text-underline-offset:3px;cursor:pointer;white-space:nowrap}
 .rec-link:hover{text-decoration-color:var(--red)}
@@ -408,7 +408,7 @@ table.prof td:first-child{font-weight:500}table.prof td.more{color:var(--muted);
 @media (prefers-reduced-motion:reduce){.rec-tip{transition:none}}
 @media print{
   .print-hide,.records,.rec-tip,.rec-back{display:none!important}
-  .print-only{display:block}.edit-note{font-size:12px;color:var(--ink-2);border-top:1px solid var(--rule);padding-top:6px}
+  .print-only{display:block}.role-print{display:inline}.edit-note{font-size:12px;color:var(--ink-2);border-top:1px solid var(--rule);padding-top:6px}
   .sheet:not([data-pw]) .worth li:nth-child(n+6),.sheet[data-pw="3"] .worth li:nth-child(n+4),.sheet[data-pw="0"] .sh-worth{display:none}
   .worth{gap:0 22px}.wrow{padding:5px 0}.sh-worth h3 .hint{display:none}
   .sh-trend .chart-wrap svg{max-height:210px}

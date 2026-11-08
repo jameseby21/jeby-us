@@ -5,6 +5,7 @@
    Pure logic, no page: it runs in the browser, in the worker and in Node (node _src/jai/tests/run.js). Nothing is uploaded or stored. */
 (function (root) {
   "use strict";
+  const Rules = typeof module !== "undefined" && module.exports ? require("./rules.js") : root.JAIRules;
 
   // =====================================================================================================
   // DOMAIN: edit here
@@ -20,8 +21,9 @@
       ["state", /^state([_\s-]|$)|province/],
       ["address", /address|street|addr/],
     ],
+    countName: /\(#\)|(^|[\s_-])#($|[\s_-])|(^|[\s_-])(count|number of|num of|no of)($|[\s_-])/i,   // a name that says "how many", not "how much": Sales (#), order count
     moneyName: /price|amount|total|cost|revenue|sales?\b|value|income|profit|paid|fee|spend|rent|tax|consideration/,
-    notMeasure: ["identifier", "coordinates", "unit", "postal"],   // numbers that are labels, not quantities
+    notMeasure: ["identifier", "coordinates", "unit", "postal", "year", "code", "phone"],   // numbers that are labels, not quantities
     placeRoles: ["address", "unit", "city", "state", "postal"],
     // A repeated tiny value in a money column is a placeholder, not an amount (CONS-0058).
     nominal: { floor: 1000, minTypical: 20000, minRest: 20, typicalShare: 0.01 },
@@ -61,30 +63,70 @@
   // Roles
   const keyName = n => String(n).toLowerCase().replace(/[_\s-]+/g, " ").trim();
   const isCountValues = v => { let ints = true; const pos = []; for (const x of v) { if (x !== x) continue; if (x !== Math.floor(x)) { ints = false; break; } if (x > 0) pos.push(x); } if (!ints || !pos.length) return false; pos.sort((a, b) => a - b); return pos[pos.length >> 1] <= 12; };
-  function assignRoles(cols, body, num) {
+  const unitOf = name => Rules.UNITS.find(u => u.re.test(String(name))) || null;
+  // A number that names something rather than measures it: a phone number, a year, a row number (CONS-0070). Judged on the values when the name says nothing.
+  function roleByValues(c, body, num) {
+    const nm = keyName(c.name), moneyOrUnit = DOMAIN.moneyName.test(nm) || unitOf(c.name);
+    const raw = body.map(r => String(r[c.i]).trim()).filter(Boolean); if (raw.length < 3) return null;
+    if (raw.filter(v => Rules.ROLES.phone.test(v) && v.replace(/\D/g, "").length >= 10).length >= raw.length * 0.9) return "phone";
+    if (c.type !== "number" || moneyOrUnit) return null;
+    const v = raw.map(num), Y = Rules.ROLES.year;
+    if (v.filter(x => Number.isInteger(x) && x >= Y.min && x <= Y.max).length >= raw.length * Y.share && c.distinct <= Y.maxDistinct) return "year";
+    const S = Rules.ROLES.sequence;
+    if (raw.length >= S.minRows && v.every(Number.isInteger) && c.distinct >= raw.length * S.distinct) {
+      let up = 0, down = 0; for (let i = 1; i < v.length; i++) { if (v[i] > v[i - 1]) up++; else if (v[i] < v[i - 1]) down++; }
+      if (Math.max(up, down) >= (v.length - 1) * S.ordered) return "identifier";
+    }
+    return null;
+  }
+  // overrides: { "<column name>": role } from the Columns table; "auto" or nothing leaves the detected role (CONS-0070)
+  function assignRoles(cols, body, num, overrides) {
     cols.forEach(c => {
       const nm = keyName(c.name), nmRaw = String(c.name).toLowerCase(); c.role = null; c.roleBy = null; c.moneyBy = null; c.count = false;
       for (const [role, re] of DOMAIN.roles) { if (re.test(nm) || re.test(nmRaw)) { c.role = role; c.roleBy = "name"; break; } }
+      if (!c.role && c.type === "number") { for (const [role, re] of Rules.ROLES.byName) { if (re.test(nm)) { c.role = role; c.roleBy = "name"; break; } } }
+      if (!c.role) { const r = roleByValues(c, body, num); if (r) { c.role = r; c.roleBy = "values"; } }
       if (!c.role && c.type === "id") { c.role = "identifier"; c.roleBy = "values"; }
-      if (c.role === "identifier" && c.type !== "id" && c.distinct < c.filled * 0.9) { c.role = null; c.roleBy = null; }   // a column called id that repeats is a key to something else, not this row's id
+      if (c.role === "identifier" && c.type !== "id" && c.type !== "number" && c.distinct < c.filled * 0.9) { c.role = null; c.roleBy = null; }   // a column called id that repeats is a key to something else, not this row's id
       if (c.type === "number" && !c.role) {
-        const byName = DOMAIN.moneyName.test(nm) && !/(^|\s)(per|psf)(\s|$)/.test(nm), raw = body.map(r => r[c.i]).filter(v => String(v).trim() !== "");
+        const byName = DOMAIN.moneyName.test(nm) && !/(^|\s)(per|psf)(\s|$)/.test(nm) && !DOMAIN.countName.test(nmRaw), raw = body.map(r => r[c.i]).filter(v => String(v).trim() !== "");
         const byFormat = raw.length >= 10 && raw.filter(v => /^\s*[-(]?\$/.test(v) || /^\s*-?[\d,]+\.\d\d\s*$/.test(v)).length >= raw.length * 0.9;
         if (byName || byFormat) { c.role = "money"; c.moneyBy = byName ? "name" : "format"; c.roleBy = c.moneyBy; }
         else { c.role = "measure"; c.count = isCountValues(body.map(r => num(r[c.i]))); }
       }
       if (!c.role) c.role = c.type === "date" ? "date" : c.type === "category" ? "category" : c.type === "empty" ? "empty" : "text";
+      c.detected = c.role;
+    });
+    const ov = overrides || {};
+    cols.forEach(c => {
+      const o = ov[c.name]; if (!o || o === "auto") return;
+      const allowed = Rules.ROLES.userRoles[c.type === "number" ? "number" : c.type === "date" ? "date" : "other"]; if (!allowed.includes(o)) return;
+      c.role = o; c.roleBy = "you"; c.moneyBy = o === "money" ? "you" : null; c.count = false;
+      if (o === "measure") c.count = isCountValues(body.map(r => num(r[c.i])));
+      if (o === "category" || o === "text") { c.type = o; c.bad = 0; c.mixed = 0; c.mixedId = 0; }
     });
     return cols;
   }
   const byRole = (cols, role) => cols.filter(c => c.role === role);
-  const roleLabel = c => c.role === "money" ? (c.moneyBy === "format" ? "money (by format)" : "money (by name)") : c.role === "identifier" ? "identifier (not matched)" : c.role === "measure" ? "measure" + (c.count ? " (count)" : "") : DOMAIN.placeRoles.includes(c.role) || c.role === "coordinates" ? "place: " + c.role : c.role;
-  // money over measure: the generic ratio pairs (CONS-0063). The money columns that make up a quantity x price = total line are left out.
-  function ratioPairs(cols, calc) {
+  const roleLabel = c => (c.role === "money" ? (c.moneyBy === "format" ? "money (by format)" : c.moneyBy === "you" ? "money" : "money (by name)") : c.role === "identifier" ? "identifier (not matched)" : c.role === "measure" ? "measure" + (c.count ? " (count)" : "") : ["year", "code", "phone"].includes(c.role) ? c.role + " (not a quantity)" : DOMAIN.placeRoles.includes(c.role) || c.role === "coordinates" ? "place: " + c.role : c.role) + (c.roleBy === "you" ? ", set by you" : "");
+  // Money over a measure, offered only when the measure carries a unit (CONS-0063, CONS-0070). The ones held back are returned with a reason, for the Not shown list.
+  // The money columns that make up a quantity x price = total line are left out.
+  const why = { year: "a year", code: "a code", phone: "a phone number", identifier: "an identifier", postal: "a postal code", coordinates: "a coordinate", unit: "a unit number" };
+  function ratioCandidates(cols, calc) {
     const moneys = cols.filter(c => c.role === "money" && c.type === "number" && !(calc && (c.i === calc.total || c.i === calc.price)));
-    const money = moneys.find(c => /price|amount|value|cost/i.test(c.name)) || moneys[0]; if (!money) return [];
-    return cols.filter(c => c.role === "measure" && c.type === "number" && !c.count).slice(0, 2).map(m => ({ a: money, b: m, label: `${keyName(money.name)} per ${keyName(m.name)}` }));
+    const money = moneys.find(c => /price|amount|value|cost/i.test(c.name)) || moneys[0]; if (!money) return { pairs: [], held: [] };
+    const noun = /price/i.test(money.name) ? "price" : keyName(money.name), pairs = [], held = [];
+    cols.filter(c => c.type === "number" && c !== money && c.role !== "money" && c.role !== "balance").forEach(c => {
+      const label = `${noun} per ${keyName(c.name)}`;
+      if (c.role !== "measure") { held.push({ col: c.name, label, reason: `${c.name} is ${why[c.role] || "not a quantity"}, not a quantity, so a price per ${keyName(c.name)} means nothing.` }); return; }
+      const u = unitOf(c.name);
+      if (!u) { held.push({ col: c.name, label, reason: `${c.name} has no unit in its name (area, quantity, hours, miles, weight), so a ratio to it would not say what it is per.` }); return; }
+      pairs.push({ a: money, b: c, unit: u.per, basis: `${keyName(money.name)} over ${keyName(c.name)}`, label: `${noun} per ${u.per}` });
+    });
+    const seen = new Map(); pairs.forEach(p => seen.set(p.label, (seen.get(p.label) || 0) + 1)); pairs.forEach(p => { if (seen.get(p.label) > 1) p.label += ` (${keyName(p.b.name)})`; });
+    return { pairs: pairs.slice(0, 2), held };
   }
+  const ratioPairs = (cols, calc) => ratioCandidates(cols, calc).pairs;
 
   // =====================================================================================================
   // Places: write the same place the same way
@@ -215,6 +257,6 @@
   }
   const classOf = id => (CHK[id] ? CHK[id].cls : null);
 
-  const API = { DOMAIN, assignRoles, roleLabel, ratioPairs, normAddress, normUnit, normPostal, findNominal, duplicates, repeatOccurrences, domainItems, notChecked, listWords, classOf, CHK, byRole };
+  const API = { DOMAIN, assignRoles, roleLabel, ratioPairs, ratioCandidates, unitOf, normAddress, normUnit, normPostal, findNominal, duplicates, repeatOccurrences, domainItems, notChecked, listWords, classOf, CHK, byRole };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.JAIDomain = API;
 })(typeof self !== "undefined" ? self : this);
