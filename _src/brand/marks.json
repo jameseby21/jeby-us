@@ -1,20 +1,218 @@
 {
   "note": "Brand mark candidates for jeby.us and jainsights.com. Source of truth for the drawings: jeby team Drive > Branding assets (README and Register). Each product slot rotates among its candidates per the cycling rule: one at random per browser session, never the same as the previous session, light and dark files by theme. status: candidate | chosen | retired. Only James changes a status.",
   "products": {
-    "jre":            [["jre-horizon", "jre-favicon-horizon-light.svg", "jre-favicon-horizon-dark.svg", "candidate"], ["jre-flamingo", "jre-favicon-flamingo-light.svg", "jre-favicon-flamingo-dark.svg", "candidate"]],
-    "fraud":          [["bada-lens", "bada-lens-light.svg", "bada-lens-dark.svg", "candidate"], ["bada-steps", "bada-steps-light.svg", "bada-steps-dark.svg", "candidate"]],
-    "research":       [["cluster-core", "cluster-core-light.svg", "cluster-core-dark.svg", "candidate"], ["cluster-lens", "cluster-lens-light.svg", "cluster-lens-dark.svg", "candidate"]],
-    "cellcount":      [["cells-dish", "cells-dish-light.svg", "cells-dish-dark.svg", "candidate"], ["cells-tally", "cells-tally-light.svg", "cells-tally-dark.svg", "candidate"]],
-    "musicalgames":   [["musicalgames-current", "musicalgames-current.svg", "musicalgames-current.svg", "candidate"], ["fretway", "fretway-light.svg", "fretway-dark.svg", "candidate"], ["transcribe", "transcribe-light.svg", "transcribe-dark.svg", "candidate"], ["jebynote", "jebynote-light.svg", "jebynote-dark.svg", "candidate"], ["kit", "kit-light.svg", "kit-dark.svg", "candidate"], ["keycap", "keycap-light.svg", "keycap-dark.svg", "candidate"], ["jack", "jack-light.svg", "jack-dark.svg", "candidate"]],
-    "plantriloquist": [["pot-original", "patch-pot-current.png", "patch-pot-current.png", "candidate"], ["pot-01", "patch-pot-01-vector-light.svg", "patch-pot-01-vector-dark.svg", "candidate"], ["pot-02", "patch-pot-02-vector-light.svg", "patch-pot-02-vector-dark.svg", "candidate"], ["pot-03", "patch-pot-03-vector-light.svg", "patch-pot-03-vector-dark.svg", "candidate"]],
-    "desk":           [["desk-tile", "desk-tile-light.svg", "desk-tile-dark.svg", "candidate"], ["desk-ball", "desk-ball-light.svg", "desk-ball-dark.svg", "candidate"]],
-    "lightinglab":    [["ll-squares", "lighting-lab-squares-light.svg", "lighting-lab-squares-dark.svg", "candidate"], ["ll-bars", "lighting-lab-ll-light.svg", "lighting-lab-ll-dark.svg", "candidate"]],
-    "quorum":         [["quorum-ring", "quorum-ring-light.svg", "quorum-ring-dark.svg", "candidate"], ["quorum-q", "quorum-q-light.svg", "quorum-q-dark.svg", "candidate"]],
-    "appforge":       [["appforge-anvil", "appforge-anvil-light.svg", "appforge-anvil-dark.svg", "candidate"], ["appforge-brackets", "appforge-brackets-light.svg", "appforge-brackets-dark.svg", "candidate"]],
-    "jebyus":         [["jeby-j", "jeby-us-j-light.svg", "jeby-us-j-dark.svg", "candidate"], ["jeby-dot", "jeby-us-dot.svg", "jeby-us-dot.svg", "candidate"]]
+    "jre": [
+      [
+        "jre-horizon",
+        "jre-favicon-horizon-light.svg",
+        "jre-favicon-horizon-dark.svg",
+        "candidate"
+      ],
+      [
+        "jre-flamingo",
+        "jre-favicon-flamingo-light.svg",
+        "jre-favicon-flamingo-dark.svg",
+        "candidate"
+      ]
+    ],
+    "learninglabs": [
+      [
+        "bada-lens",
+        "bada-lens-light.svg",
+        "bada-lens-dark.svg",
+        "candidate"
+      ],
+      [
+        "bada-steps",
+        "bada-steps-light.svg",
+        "bada-steps-dark.svg",
+        "candidate"
+      ]
+    ],
+    "research": [
+      [
+        "cluster-core",
+        "cluster-core-light.svg",
+        "cluster-core-dark.svg",
+        "candidate"
+      ],
+      [
+        "cluster-lens",
+        "cluster-lens-light.svg",
+        "cluster-lens-dark.svg",
+        "candidate"
+      ]
+    ],
+    "cellcount": [
+      [
+        "cells-dish",
+        "cells-dish-light.svg",
+        "cells-dish-dark.svg",
+        "candidate"
+      ],
+      [
+        "cells-tally",
+        "cells-tally-light.svg",
+        "cells-tally-dark.svg",
+        "candidate"
+      ]
+    ],
+    "musicalgames": [
+      [
+        "musicalgames-current",
+        "musicalgames-current.svg",
+        "musicalgames-current.svg",
+        "candidate"
+      ],
+      [
+        "fretway",
+        "fretway-light.svg",
+        "fretway-dark.svg",
+        "candidate"
+      ],
+      [
+        "transcribe",
+        "transcribe-light.svg",
+        "transcribe-dark.svg",
+        "candidate"
+      ],
+      [
+        "jebynote",
+        "jebynote-light.svg",
+        "jebynote-dark.svg",
+        "candidate"
+      ],
+      [
+        "kit",
+        "kit-light.svg",
+        "kit-dark.svg",
+        "candidate"
+      ],
+      [
+        "keycap",
+        "keycap-light.svg",
+        "keycap-dark.svg",
+        "candidate"
+      ],
+      [
+        "jack",
+        "jack-light.svg",
+        "jack-dark.svg",
+        "candidate"
+      ]
+    ],
+    "plantriloquist": [
+      [
+        "pot-original",
+        "patch-pot-current.png",
+        "patch-pot-current.png",
+        "candidate"
+      ],
+      [
+        "pot-01",
+        "patch-pot-01-vector-light.svg",
+        "patch-pot-01-vector-dark.svg",
+        "candidate"
+      ],
+      [
+        "pot-02",
+        "patch-pot-02-vector-light.svg",
+        "patch-pot-02-vector-dark.svg",
+        "candidate"
+      ],
+      [
+        "pot-03",
+        "patch-pot-03-vector-light.svg",
+        "patch-pot-03-vector-dark.svg",
+        "candidate"
+      ]
+    ],
+    "desk": [
+      [
+        "desk-tile",
+        "desk-tile-light.svg",
+        "desk-tile-dark.svg",
+        "candidate"
+      ],
+      [
+        "desk-ball",
+        "desk-ball-light.svg",
+        "desk-ball-dark.svg",
+        "candidate"
+      ]
+    ],
+    "lightinglab": [
+      [
+        "ll-squares",
+        "lighting-lab-squares-light.svg",
+        "lighting-lab-squares-dark.svg",
+        "candidate"
+      ],
+      [
+        "ll-bars",
+        "lighting-lab-ll-light.svg",
+        "lighting-lab-ll-dark.svg",
+        "candidate"
+      ]
+    ],
+    "quorum": [
+      [
+        "quorum-ring",
+        "quorum-ring-light.svg",
+        "quorum-ring-dark.svg",
+        "candidate"
+      ],
+      [
+        "quorum-q",
+        "quorum-q-light.svg",
+        "quorum-q-dark.svg",
+        "candidate"
+      ]
+    ],
+    "appforge": [
+      [
+        "appforge-anvil",
+        "appforge-anvil-light.svg",
+        "appforge-anvil-dark.svg",
+        "candidate"
+      ],
+      [
+        "appforge-brackets",
+        "appforge-brackets-light.svg",
+        "appforge-brackets-dark.svg",
+        "candidate"
+      ]
+    ],
+    "jebyus": [
+      [
+        "jeby-j",
+        "jeby-us-j-light.svg",
+        "jeby-us-j-dark.svg",
+        "candidate"
+      ],
+      [
+        "jeby-dot",
+        "jeby-us-dot.svg",
+        "jeby-us-dot.svg",
+        "candidate"
+      ]
+    ]
   },
   "favicons": {
     "jeby": "jebyus",
-    "jai":  [["jai-monogram", "jai-monogram-light.svg", "jai-monogram-dark.svg", "candidate"], ["jai-scottie", "jai-scottie-profile-icon-light.svg", "jai-scottie-profile-icon-dark.svg", "candidate"]]
+    "jai": [
+      [
+        "jai-monogram",
+        "jai-monogram-light.svg",
+        "jai-monogram-dark.svg",
+        "candidate"
+      ],
+      [
+        "jai-scottie",
+        "jai-scottie-profile-icon-light.svg",
+        "jai-scottie-profile-icon-dark.svg",
+        "candidate"
+      ]
+    ]
   }
 }

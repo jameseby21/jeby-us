@@ -49,7 +49,7 @@ LINES = [
      "line": "Teach your people to do it themselves.",
      "body": "Hands-on workshops in Power BI, SQL, Python and fraud analytics, built on your own data where you can share it.",
      "does": ["A half-day or full-day format", "Exercises on your data, or realistic stand-ins", "Notes and recordings your team keeps",
-              "Fraud-analytics material from the open Fraud course"],
+              "Fraud-detection material from the open learningLabs data analysis course"],
      "fit": "You'd rather grow the skill in house than rent it forever.",
      "nofit": "You want a certificate program. These are working sessions.",
      "tools": "Power BI · SQL · Python · R · Excel", "from": "workshop"},
@@ -115,7 +115,7 @@ ABOUT = {
 # Paid editions of jebyLabs projects; the free edition lives on jeby.us/lab. Statuses are honest about what is for sale today.
 PRODUCT_NOTES = {
     "jre": ("Advisory now · data products in development", True),
-    "fraud": ("Team training now · hosted workspace planned", True),
+    "learninglabs": ("Team training now · hosted workspace planned", True),
     "appforge": ("Setup and coaching now", True),
     "musicalgames": ("Planned", False), "plantriloquist": ("Planned", False),
     "lightinglab": ("Planned", False), "quorum": ("Planned", False),

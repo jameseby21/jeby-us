@@ -432,7 +432,7 @@ shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT 
 
 - [Professional](https://jeby.us/professional): Director-level BI and data science; experience, timeline, résumé.
 - [Teach](https://jeby.us/teach): tutoring (math, SAT/ACT math, statistics, data analysis), first-job mentorship, résumé services. English and Spanish.
-- [Lab](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, Fraud, a band game, Lighting Lab, Quorum, Plantriloquist, AppForge.
+- [Lab](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, learningLabs (a free learning library with a data analysis course), a band game, Lighting Lab, Quorum, Plantriloquist, AppForge.
 - [Research](https://jeby.us/research): Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression (Carnegie Mellon, 2015).
 - [About](https://jeby.us/about): the story so far, and Drew.
 - [Free data report](https://jainsights.com/report): a one-page report on any spreadsheet, run in the browser.
