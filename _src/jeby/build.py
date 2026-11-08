@@ -5,6 +5,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import content as C
 sys.path.insert(0, str(ROOT.parent / "brand"))
 import brand as BR  # marks.json: the cycling rule's candidates
+BR.check_coverage([i["id"] for g in C.LAB for i in g["items"]])
 
 OUT = ROOT / "out"; ART = ROOT / "artifact"
 for d in (OUT, ART): shutil.rmtree(d, ignore_errors=True); (d / "assets").mkdir(parents=True, exist_ok=True)

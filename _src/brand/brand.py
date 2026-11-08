@@ -57,3 +57,12 @@ def copy_assets(dest_assets):
         shutil.copy(HERE / "marks" / n, out / n)
     shutil.copy(HERE / "brand.js", Path(dest_assets) / "brand.js")
     return len(names)
+
+
+def check_coverage(ids):
+    """Stop the build when a project shown on the sites has no mark candidates (lesson of 2026-11-08:
+    the brand set existed in Drive while the pages still showed letter placeholders)."""
+    missing = [i for i in ids if not candidates(i)]
+    if missing:
+        raise SystemExit("brand: no mark candidates in _src/brand/marks.json for: " + ", ".join(missing)
+                         + ". Add at least two (light and dark) before building; see Branding assets in the jeby team Drive.")
