@@ -197,7 +197,7 @@
     tbody.addEventListener("keydown", e => {
       const inp = e.target.closest("[data-edit]");
       if (inp) {
-        if (e.key === "Enter") { e.preventDefault(); const e0 = editing, r = commitEdit(s, e0.ri, e0.ci, inp.value); if (!r.ok) { inp.setCustomValidity(r.reason); inp.title = r.reason; inp.classList.add("bad"); o.say && o.say(r.reason); return; } stopEdit(true); if (r.changed) o.onChange(); }
+        if (e.key === "Enter") { e.preventDefault(); const e0 = editing, r = commitEdit(s, e0.ri, e0.ci, inp.value); if (!r.ok) { inp.setCustomValidity(r.reason); inp.title = r.reason; inp.classList.add("bad"); o.say && o.say(r.reason); return; } stopEdit(true); if (r.changed) { toolbar(); o.onChange(); } }
         else if (e.key === "Escape") { e.preventDefault(); stopEdit(true); }
         return;
       }
@@ -215,7 +215,7 @@
     function clearFilters() { filt = { finding: null, group: null, q: "", sortCol: null, sortDir: 0 }; hl = null; $("q").value = ""; }
     $("crumbs").addEventListener("click", e => { if (e.target.closest("[data-all]")) { clearFilters(); refresh(true); } });
     host.addEventListener("click", e => {
-      if (e.target.closest("[data-undo]")) { undoEdit(s); o.onChange(); }
+      if (e.target.closest("[data-undo]")) { undoEdit(s); toolbar(); draw(true); o.onChange(); }
       else if (e.target.closest("[data-export]")) openExport();
     });
 

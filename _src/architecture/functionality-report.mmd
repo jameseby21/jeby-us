@@ -4,8 +4,8 @@ flowchart TB
   pick{"Input"}
   drop["Drop or choose a file<br/>.csv .tsv .txt .xlsx .xlsm .xls"]
   sample["Made-up café sample<br/>seeded generator with planted problems"]
-  read["readFile<br/>CSV or TSV: parseDelimited, delimiter sniffed<br/>Excel: SheetJS, first sheet only"]
-  limit["Free limits · first 5,000 rows, 12 columns<br/>from CONFIG.report_rows and report_cols"]
+  read["readFile, in a Web Worker<br/>CSV or TSV: parseDelimited, delimiter sniffed<br/>Excel: SheetJS, first sheet only"]
+  limit["Free limits · first 10,000 rows, 12 columns<br/>from CONFIG.report_rows and report_cols"]
   analyse["analyse<br/>pick the measure, date and group-by columns"]
   profile["profileCol · type each column:<br/>number, date, id, category, text or empty"]
   checks["Checks · exact duplicates, same row under two IDs,<br/>empty cells and columns, spelling variants,<br/>numbers stored as text, mixed types,<br/>extreme or negative values, odd dates"]

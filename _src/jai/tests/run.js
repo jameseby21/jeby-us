@@ -9,11 +9,11 @@ const read = n => fs.readFileSync(path.join(FX, n), "utf8");
 const truth = n => JSON.parse(read(n));
 const load = (n, name = n) => ({ name, rows: R.parseDelimited(read(n)) });
 
-let passed = 0, failed = 0; const failures = [];
+let passed = 0, failed = 0; const failures = [], asyncTests = [];
 function test(name, fn) {
   const t0 = process.hrtime.bigint();
-  try { fn(); passed++; console.log(`  ok   ${name} (${Number(process.hrtime.bigint() - t0) / 1e6 | 0} ms)`); }
-  catch (e) { failed++; failures.push(name); console.log(`  FAIL ${name}\n       ${String(e.message).split("\n").join("\n       ")}`); }
+  const ok = () => { passed++; console.log(`  ok   ${name} (${Number(process.hrtime.bigint() - t0) / 1e6 | 0} ms)`); }, bad = e => { failed++; failures.push(name); console.log(`  FAIL ${name}\n       ${String(e.message).split("\n").join("\n       ")}`); };
+  try { const r = fn(); if (r && typeof r.then === "function") asyncTests.push(r.then(ok, bad)); else ok(); } catch (e) { bad(e); }
 }
 const outFlags = a => [...a.flags.entries()].filter(([, f]) => f.fam === "out");
 const outRows = a => new Set(outFlags(a).map(([k]) => +k.split(":")[0]));
@@ -221,5 +221,7 @@ test("recalculates after an edit: fixing a record removes it from the list", () 
 // ---------- CONS-0058, 0059, 0062, 0060, 0061, 0063 live in qa_tests.js (same helpers)
 require("./qa_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
 
+Promise.all(asyncTests).then(() => {
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) { console.log("failed: " + failures.join("; ")); process.exit(1); }
+});

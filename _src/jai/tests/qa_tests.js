@@ -249,4 +249,28 @@ module.exports = function (h) {
     const cells = new Set(); county.rows.slice(1).forEach(r => { [0, 1, 2].forEach(i => { if (r[i].length > 6) cells.add(r[i]); }); });   // sale_id, folio, address
     cells.forEach(c => assert(!withPack.includes(c) && !plainOut.includes(c), "bench output contains row text: " + c.slice(0, 4) + "..."));
   });
+
+  // ---------- CONS-0043
+  console.log("worker protocol and the 10,000-row limit (CONS-0043)");
+  const cfg = fs.readFileSync(path.join(FX, "..", "..", "src", "jai_content.py"), "utf8");
+  test("the free limit is 10,000 rows and 12 columns in the content file, so the limit text and the over-limit message say so", () => {
+    assert(/"report_rows": 10000, "report_cols": 12/.test(cfg), "jai_content.py");
+    const build = fs.readFileSync(path.join(FX, "..", "..", "build.py"), "utf8"); assert(/free for up to \{J\.CONFIG\["report_rows"\]:,\} rows/.test(build));
+  });
+  test("the worker's answer is plain data: it survives structured clone, and the page restores the label function", async () => {
+    const r = await R.handle({ op: "analyse", name: "cafe", rows: R.cafeSample(), choice: {} }); const copy = structuredClone(r);
+    assert.strictEqual(copy.a.N, 5000); assert(copy.a.flags instanceof Map && copy.notable.length > 0 && copy.a.trend.label === undefined);
+    const h = R.hydrate(copy); assert.strictEqual(typeof h.a.trend.label, "function"); assert(/\w{3}/.test(h.a.trend.label(h.a.trend.series[0].t)));
+    assert.strictEqual(copy.a.qaSample.size, 500);
+  });
+  test("reading a file in the worker: a File in, rows, quoting format and the analysis out; 10,000 rows x 12 columns inside 3 seconds (Node)", async () => {
+    const rows = R.cafeSample(10000).map((r, i) => [...r, "n" + (i % 7), "c" + (i % 3), String(i * 3 % 101), i % 5 ? "" : "note, with a comma"]); rows[0].splice(8, 4, "extra_a", "extra_b", "extra_c", "extra_d");
+    const text = Rec.rowsToCSV(rows, { delim: ",", eol: "\n" }), t0 = Date.now(); const r = await R.handle({ op: "read", file: new File([text], "big.csv"), choice: {}, maxRows: 10000, maxCols: 12 }), ms = Date.now() - t0;
+    assert.strictEqual(r.a.N, 10000); assert.strictEqual(r.a.cols.length, 12); assert.strictEqual(r.rows.length, 10001); assert.strictEqual(r.fmt.delim, ","); assert(r.mask && r.mask.length === 10001); assert(ms < 3000, ms + " ms");
+    const t = structuredClone(r); assert.strictEqual(t.rows.length, 10001);
+  });
+  test("a file over the limit is cut to 10,000 rows and says so", async () => {
+    const rows = R.cafeSample(10500), r = await R.handle({ op: "analyse", name: "over", rows, choice: {}, maxRows: 10000, maxCols: 12 });
+    assert.strictEqual(r.a.N, 10000); assert.strictEqual(r.a.truncated, true); assert.strictEqual(r.a.allRows, 10500);
+  });
 };

@@ -41,9 +41,10 @@
     return out;
   }
   let xlsxReady = null;
-  const loadXLSX = () => xlsxReady || (xlsxReady = new Promise((res, rej) => {
+  const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+  const loadXLSX = () => typeof importScripts === "function" ? (xlsxReady || (xlsxReady = new Promise((res, rej) => { try { if (!self.XLSX) importScripts(XLSX_URL); res(self.XLSX); } catch (e) { xlsxReady = null; rej(new Error("Excel reader didn't load")); } }))) : xlsxReady || (xlsxReady = new Promise((res, rej) => {
     if (window.XLSX) return res(window.XLSX);
-    const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    const s = document.createElement("script"); s.src = XLSX_URL;
     s.onload = () => res(window.XLSX); s.onerror = () => { xlsxReady = null; rej(new Error("Excel reader didn't load")); }; document.head.appendChild(s);
   }));
 
@@ -626,12 +627,29 @@
     return [["order_id", "date", "location", "item", "qty", "unit_price", "total", "payment"], ...rs.map(r => [r.order, r.date, r.loc, r.item, String(r.qty), r.price.toFixed(2), r.total.toFixed(2), r.pay])];
   }
 
-  const API = { parseDelimited, num, dt, profileCol, analyse, detectOutliers, pickNotable, sections, qaSampleOf, classOfFinding, makeStore, cafeSample, setLimits };
+  // ---------- the engine seen from outside: messages in, plain data out. A Web Worker runs this; so does the page itself if a worker cannot start.
+  const cleanA = a => ({ ...a, trend: a.trend ? { ...a.trend, label: undefined } : a.trend });
+  const labelFor = unit => t => { const d = new Date(t); return unit === "year" ? String(d.getUTCFullYear()) : unit === "month" ? `${MON[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}` : `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+  const hydrate = r => { if (r.a.trend) r.a.trend.label = labelFor(r.a.trend.unit); return r; };
+  async function handle(m) {
+    if (m.maxRows) setLimits(m.maxRows, m.maxCols || MAXC);
+    if (m.op === "warm") { try { await loadXLSX(); } catch (e) {} return { warm: true }; }
+    let data;
+    if (m.op === "read") data = await readFile(m.file); else data = { name: m.name, sheet: m.sheet, rows: m.rows };
+    const a = analyse(data, m.choice || {}), notable = pickNotable(a, makeStore(data, a));
+    const out = { a: cleanA(a), notable };
+    if (m.op === "read") { out.name = data.name; out.sheet = data.sheet; out.rows = Array.from(data.rows, r => r); out.mask = data.rows.mask || null; out.fmt = data.rows.fmt || null; }
+    return out;
+  }
+  function serve(scope) {
+    scope.onmessage = async e => { const m = e.data; try { scope.postMessage({ id: m.id, ok: true, r: await handle(m) }); } catch (err) { scope.postMessage({ id: m.id, ok: false, error: err && err.message || "That file couldn't be read." }); } };
+    scope.postMessage({ ready: true });
+  }
+
+  const API = { handle, serve, hydrate, cleanA, labelFor, parseDelimited, num, dt, profileCol, analyse, detectOutliers, pickNotable, sections, qaSampleOf, classOfFinding, makeStore, cafeSample, setLimits };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else if (typeof self !== "undefined") self.JAIReport = API;
   if (!root) return;
 
-  // warm the Excel reader up front so the offline check holds for .xlsx too
-  ("requestIdleCallback" in window ? requestIdleCallback : setTimeout)(() => loadXLSX().catch(() => {}));
 
   // ---------- drawing
   const niceMax = m => { if (m <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(m))), f = m / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
@@ -750,8 +768,8 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     if (q && /^[a-z0-9-]+$/.test(q)) fetch(`assets/packs/${q}.json`).then(r => { if (!r.ok) throw new Error("not found"); return r.json(); }).then(usePack).catch(() => status("That rule pack could not be loaded, so the report runs without one.")); }
   { const pk = $("#report-pack"); if (pk) pk.addEventListener("change", async () => { try { usePack(JSON.parse(await pk.files[0].text())); } catch (e) { status(e.message || "That file is not a rule pack."); } pk.value = ""; }); }
   const out = $("#report-out"), status = msg => { $("#report-status").textContent = msg; };
-  function paint(a, first) {
-    last = a; const ed = store ? { n: store.edits.length, cells: store.edited.size } : null, notable = pickNotable(a, store);
+  function paint(a, first, nb) {
+    last = a; const ed = store ? { n: store.edits.length, cells: store.edited.size } : null, notable = nb || pickNotable(a, store);
     $("#rep-sheet").innerHTML = sheetHTML(a, notable, ed); if (!first) $(".sheet", out).style.animation = "none";
     $$(".chart-wrap", out).forEach(wrap => {
       const tip = $(".tip", wrap), svg = $("svg", wrap), xh = $(".xh", wrap);
@@ -762,26 +780,50 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     const st = $(".stamp", out); if (st) requestAnimationFrame(() => st.classList.add("hit"));
     if (table) table.update(a);
   }
-  function show(a) {
+  // The engine: a Web Worker when one can start (https, same origin), else this thread. Either way the work is the same handle() above.
+  const engine = (() => {
+    let worker = null, mode = "main", id = 0; const pending = new Map();
+    const ready = new Promise(res => {
+      try { worker = new Worker("assets/report-worker.js"); } catch (e) { return res(false); }
+      const t = setTimeout(() => { if (mode !== "worker") { try { worker.terminate(); } catch (e) {} worker = null; res(false); } }, 3000);
+      worker.onmessage = e => { const d = e.data; if (d.ready) { clearTimeout(t); mode = "worker"; return res(true); } const p = pending.get(d.id); if (p) { pending.delete(d.id); d.ok ? p.res(d.r) : p.rej(new Error(d.error)); } };
+      worker.onerror = () => { clearTimeout(t); if (mode !== "worker") { worker = null; res(false); } };
+    });
+    return { get mode() { return mode; }, ready,
+      async call(m) { m.maxRows = MAXR; m.maxCols = MAXC; const ok = await ready; if (!ok) return handle(m); return new Promise((res, rej) => { m.id = ++id; pending.set(m.id, { res, rej }); worker.postMessage(m); }); } };
+  })();
+  ("requestIdleCallback" in window ? requestIdleCallback : setTimeout)(() => engine.ready.then(() => engine.call({ op: "warm" })).catch(() => {}));   // warm the Excel reader so the offline check holds for .xlsx too
+  let seq = 0, inflight = 0;
+  function show(a, notable) {
     $("#rep-controls").innerHTML = controlsHTML(a); $("#rep-records").innerHTML = ""; table = null;
     store = makeStore(current, a);
     out.hidden = false; $("#report-intake").hidden = true;
-    paint(a, true);
+    paint(a, true, notable);
     table = Rec.mountTable($("#rep-records"), { store, analysis: a, fileName: a.name, truncated: a.truncated, onChange: reanalyse, say: status });
     out.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
-  // an edit changes the rows, so every finding, the chart and the worth-a-look list are worked out again from them
-  function reanalyse() {
-    const t0 = performance.now(), a = analyse({ name: current.name, sheet: current.sheet, rows: [current.rows[0], ...store.rows] }, choice);
-    paint(a, false); status(`${store.edits.length} edit${store.edits.length === 1 ? "" : "s"}. Findings recalculated in ${Math.round(performance.now() - t0)} ms, on this device.`);
+  // the findings, chart and worth-a-look list are worked out again from the current rows (after an edit, a setting change or a resample), off the main thread
+  async function recompute(note) {
+    const my = ++seq, t0 = performance.now(); inflight++;
+    try { const r = hydrate(await engine.call({ op: "analyse", name: current.name, sheet: current.sheet, rows: [current.rows[0], ...store.rows], choice })); if (my !== seq || !current) return;
+      $("#rep-controls").innerHTML = controlsHTML(r.a); paint(r.a, false, r.notable); status(note(Math.round(performance.now() - t0))); } catch (e) { status(e.message || "That could not be worked out."); } finally { inflight--; }
+  }
+  function reanalyse() { recompute(ms => `${store.edits.length} edit${store.edits.length === 1 ? "" : "s"}. Findings recalculated in ${ms} ms, on this device.`); }
+  function show2() { recompute(ms => `Updated in ${ms} ms, on this device.`); }
+  function begin(r, t0, given = {}) {
+    current = { name: r.name || given.name, sheet: r.sheet || given.sheet, rows: r.rows || given.rows }; if (r.mask) current.rows.mask = r.mask; if (r.fmt) current.rows.fmt = r.fmt;
+    show(r.a, r.notable); status(`Read ${r.a.N.toLocaleString("en-US")} rows in ${Math.round(performance.now() - t0)} ms, on this device${engine.mode === "worker" ? " (in a background worker, so the page stayed responsive)" : ""}.`);
   }
   async function run(data) {
-    try { const t0 = performance.now(); current = data; choice = activePack ? { pack: activePack } : {}; const a = analyse(data, choice); show(a); status(`Read ${a.N.toLocaleString("en-US")} rows in ${Math.round(performance.now() - t0)} ms, on this device.`); }
+    try { const t0 = performance.now(); choice = activePack ? { pack: activePack } : {}; status("Reading…"); begin(hydrate(await engine.call({ op: "analyse", name: data.name, sheet: data.sheet, rows: data.rows, choice })), t0, data); }
+    catch (e) { status(e.message || "That file couldn't be read."); }
+  }
+  async function runFile(f) {
+    try { const t0 = performance.now(); choice = activePack ? { pack: activePack } : {}; status("Reading…"); begin(hydrate(await engine.call({ op: "read", file: f, choice })), t0); }
     catch (e) { status(e.message || "That file couldn't be read."); }
   }
   out.innerHTML = `<div id="rep-controls"></div><div id="rep-sheet"></div><section class="records print-hide" id="rep-records" aria-label="All records"></section>`;
   out.addEventListener("change", e => { const s = e.target.closest("[data-ch]"); if (!s || !current) return; choice[s.dataset.ch] = s.value; show2(); });
-  function show2() { const a = analyse({ name: current.name, sheet: current.sheet, rows: [current.rows[0], ...store.rows] }, choice); $("#rep-controls").innerHTML = controlsHTML(a); paint(a, false); }
   out.addEventListener("click", e => {
     if (e.target.closest("[data-print]")) window.print();
     if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
@@ -815,11 +857,11 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   }
   window.addEventListener("beforeprint", fitPrint);
   const file = $("#report-file"), drop = $("#report-drop");
-  file.addEventListener("change", async () => { if (file.files[0]) { status("Reading…"); try { run(await readFile(file.files[0])); } catch (e) { status(e.message); } } });
+  file.addEventListener("change", () => { if (file.files[0]) runFile(file.files[0]); });
   ["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
-  drop.addEventListener("drop", async e => { const f = e.dataTransfer.files[0]; if (f) { status("Reading…"); try { run(await readFile(f)); } catch (x) { status(x.message); } } });
+  drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) runFile(f); });
   $("#report-sample").addEventListener("click", () => run({ name: "cafe-sales-sample.csv (made up)", rows: cafeSample() }));
   if (location.hash === "#sample") $("#report-sample").click();
-  window.JAIReportDebug = { usePack, get pack() { return activePack; }, get table() { return table; }, get store() { return store; }, get analysis() { return last; }, get fitLog() { return fitLog; }, setLimits };
+  window.JAIReportDebug = { get pending() { return inflight; }, get engine() { return engine.mode; }, usePack, get pack() { return activePack; }, get table() { return table; }, get store() { return store; }, get analysis() { return last; }, get fitLog() { return fitLog; }, setLimits };
 })();

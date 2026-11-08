@@ -5,7 +5,7 @@
    the export round-trips, print hides the table, and no network request happens while the visitor works.
    Without a browser the script prints "NOT RUN" and exits 0. It starts one headless browser with a temporary profile and removes both when done. */
 "use strict";
-const fs = require("fs"), os = require("os"), path = require("path"), net = require("net"), cp = require("child_process"), assert = require("assert");
+const fs = require("fs"), os = require("os"), path = require("path"), net = require("net"), http = require("http"), cp = require("child_process"), assert = require("assert");
 const R = require("../src/report.js"), Rec = require("../src/records.js");
 const PAGE = path.resolve(__dirname, "../out/report.html");
 const CANDIDATES = [process.env.JAI_BROWSER, "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
@@ -18,7 +18,14 @@ if (typeof WebSocket === "undefined") { console.log("NOT RUN: this Node has no W
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const freePort = () => new Promise(res => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => res(p)); }); });
-let child = null, profile = null, tmpCsv = null;
+let child = null, profile = null, tmpCsv = null, server = null, BASE = "";
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png" };
+const OUT = path.dirname(PAGE);
+function startServer() {   // serves only _src/jai/out, on 127.0.0.1 and a free port; closed in cleanup
+  return new Promise(res => { server = http.createServer((req, rsp) => { const f = path.join(OUT, decodeURIComponent(req.url.split("?")[0].split("#")[0]).replace(/^[/]+/, "") || "report.html"); if (!f.startsWith(OUT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { rsp.statusCode = 404; return rsp.end("not found"); }
+      rsp.setHeader("content-type", TYPES[path.extname(f)] || "application/octet-stream"); rsp.end(fs.readFileSync(f)); });
+    server.listen(0, "127.0.0.1", () => { BASE = "http://127.0.0.1:" + server.address().port; res(); }); });
+}
 // Edge re-launches itself, so the pid we spawned is not the browser's. Stop every process whose command line carries our temporary profile folder (and nothing else).
 function stopBrowser() {
   try {
@@ -31,6 +38,7 @@ function stopBrowser() {
   child = null;
 }
 function cleanup() {
+  try { if (server) server.close(); } catch (e) {} server = null;
   stopBrowser();
   for (const p of [profile, tmpCsv]) { try { if (p) fs.rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {} }
 }
@@ -40,7 +48,7 @@ let passed = 0, failed = 0;
 const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; console.log(`  ok   ${name}${r ? " (" + r + ")" : ""}`); }, e => { failed++; console.log(`  FAIL ${name}\n       ${String(e.message).split("\n").join("\n       ")}`); });
 
 (async () => {
-  profile = fs.mkdtempSync(path.join(os.tmpdir(), "jai-browser-")); const port = await freePort();
+  await startServer(); profile = fs.mkdtempSync(path.join(os.tmpdir(), "jai-browser-")); const port = await freePort();
   child = cp.spawn(exe, ["--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-background-networking", "--window-size=1280,1000", "about:blank"], { stdio: "ignore", windowsHide: true });
   let ws = null;
   for (let i = 0; i < 60 && !ws; i++) { await sleep(250); try { const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json(); const pg = list.find(t => t.type === "page"); if (pg) ws = pg.webSocketDebuggerUrl; } catch (e) {} }
@@ -51,12 +59,13 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     else if (d.method === "Network.requestWillBeSent") requests.push({ t: Date.now(), url: d.params.request.url, method: d.params.request.method }); };
   const send = (method, params = {}) => new Promise((res, rej) => { const i = ++id; pending.set(i, { res, rej }); sock.send(JSON.stringify({ id: i, method, params })); });
   const js = async (expr) => { const r = await send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error((r.exceptionDetails.exception && r.exceptionDetails.exception.description) || r.exceptionDetails.text); return r.result.value; };
-  const waitFor = async (expr, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await js(expr).catch(() => false)) return Date.now() - t0; await sleep(50); } throw new Error("timed out waiting for " + expr); };
+  const waitFor = async (expr, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await js(expr).catch(() => false)) return Date.now() - t0; await sleep(50); } const why = await js("(document.querySelector('#report-status') || {}).textContent + ' | engine ' + (window.JAIReportDebug ? JAIReportDebug.engine : 'no debug')").catch(() => "?"); throw new Error("timed out waiting for " + expr + " (page says: " + why + ")"); };
   await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable"); await send("Emulation.setFocusEmulationEnabled", { enabled: true });   // a headless page is never "focused" otherwise, and focus-driven reasons would not show
 
   console.log("browser: " + path.basename(exe) + " headless, profile " + path.basename(profile));
-  await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") + "#sample" });
+  await send("Page.navigate", { url: BASE + "/report.html#sample" });
   await waitFor("!!document.querySelector('.rec-win') && document.querySelectorAll('.rec-tr').length > 0");
+  await check("the report runs its work in a Web Worker when the page is served", async () => { assert.strictEqual(await js(`JAIReportDebug.engine`), "worker"); });
   await sleep(1500);   // let the page's own start-up work (fonts, the Excel reader warm-up) finish before the quiet window starts
   const quietFrom = Date.now();
 
@@ -115,7 +124,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     const info = () => js(`(() => { const q = JAIReportDebug.analysis.qaSample; return { size: q.size, flagged: q.flagged, seed: q.seed, rows: q.rows.slice(), text: document.querySelector('.qa-sample').textContent }; })()`);
     const a = await info(); assert.strictEqual(a.size, 500); assert(/500 rows.*flagged.*random/.test(a.text), a.text.slice(0, 200));
     await js(`document.querySelector('[data-qs="show"]').click()`); assert(/Showing 500 of 5,000/.test(await js(`document.querySelector('[data-count]').textContent`))); await js(`document.querySelector('[data-crumbs] .rec-x').click()`);
-    await js(`document.querySelector('[data-qs="resample"]').click()`); const b = await info(); assert.notStrictEqual(b.seed, a.seed); assert.deepStrictEqual(b.rows.slice(0, b.flagged), a.rows.slice(0, a.flagged)); assert.notDeepStrictEqual(b.rows.slice(b.flagged), a.rows.slice(a.flagged));
+    await js(`document.querySelector('[data-qs="resample"]').click()`); await waitFor(`JAIReportDebug.analysis.qaSample.seed !== ${a.seed}`); const b = await info(); assert.notStrictEqual(b.seed, a.seed); assert.deepStrictEqual(b.rows.slice(0, b.flagged), a.rows.slice(0, a.flagged)); assert.notDeepStrictEqual(b.rows.slice(b.flagged), a.rows.slice(a.flagged));
     await js(`(() => { window.__qs = null; const real = URL.createObjectURL.bind(URL); URL.createObjectURL = b => { window.__qs = b; return real(b); }; HTMLAnchorElement.prototype.click = function () { window.__qsName = this.download; }; })()`);
     await js(`document.querySelector('[data-qs="csv"]').click()`); const csv = await js(`window.__qs.text()`), name = await js(`window.__qsName`);
     const rows = R.parseDelimited(csv); assert.strictEqual(name, "QA sample.csv"); assert.strictEqual(rows.length, 501); assert.deepStrictEqual(rows[0].slice(-2), ["qa_issue", "qa_suggestion"]);
@@ -125,10 +134,11 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
   await check("the timeline is a stacked chart split by a small category; switching the split redraws it", async () => {
     const before = await js(`(() => { const svg = document.querySelector('.sh-trend svg.stack'); return svg ? svg.textContent : null; })()`); assert(before, "no stacked timeline");
     await js(`(() => { const sel = document.querySelector('[data-ch="split"]'); sel.value = 'payment'; sel.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await waitFor(`/Apple Pay/.test(document.querySelector('.sh-trend svg.stack').textContent)`);
     const after = await js(`document.querySelector('.sh-trend svg.stack').textContent`), head = await js(`document.querySelector('.sh-trend h3').textContent`);
     assert(/Apple Pay/.test(after) && after !== before, "legend after the switch: " + after.slice(-80)); assert(/split by payment/.test(head), head);
-    await js(`(() => { const sel = document.querySelector('[data-ch="split"]'); sel.value = ''; sel.dispatchEvent(new Event('change', { bubbles: true })); })()`); assert(await js(`!!document.querySelector('.sh-trend svg.line') && !document.querySelector('.sh-trend svg.stack')`), "no split gives the single line");
-    await js(`(() => { const sel = document.querySelector('[data-ch="split"]'); sel.value = 'location'; sel.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await js(`(() => { const sel = document.querySelector('[data-ch="split"]'); sel.value = ''; sel.dispatchEvent(new Event('change', { bubbles: true })); })()`); await waitFor(`!!document.querySelector('.sh-trend svg.line') && !document.querySelector('.sh-trend svg.stack')`);
+    await js(`(() => { const sel = document.querySelector('[data-ch="split"]'); sel.value = 'location'; sel.dispatchEvent(new Event('change', { bubbles: true })); })()`); await waitFor(`!!document.querySelector('.sh-trend svg.stack')`);
   });
 
   console.log("editing and export (CONS-0054)");
@@ -139,12 +149,14 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
       await js(`(() => { const c = document.querySelector('.rec-td.look[data-c="5"]'); c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); })()`);
       await js(`(() => { const inp = document.querySelector('[data-edit]'); inp.value = '$11.50'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
     }
+    await waitFor("document.querySelector('.rec-edits .n').textContent === '12 edits' && !/unit price values/.test(document.querySelector('#rep-sheet .finds').textContent)");
     const m = await js(`(() => ({ n: document.querySelector('.rec-edits .n').textContent, finds: document.querySelector('#rep-sheet .finds').textContent, edited: document.querySelectorAll('.rec-td.edited').length, tip: document.querySelector('.chart.bars [data-g="Sunny Isles Beach"]').dataset.tip }))()`);
     assert.strictEqual(m.n, "12 edits"); assert(!/unit price values/.test(m.finds), m.finds.slice(0, 200)); assert(m.edited >= 12, "edited cells " + m.edited);
     const avg = t => +(t.match(/average (?:&lt;b&gt;|<b>)?([\d,.]+)/) || [0, "0"])[1].replace(/,/g, "");
     assert(avg(m.tip) < avg(before), `average ${avg(before)} -> ${avg(m.tip)}`);
     return `average ${avg(before)} -> ${avg(m.tip)}`;
   });
+  await waitFor("JAIReportDebug.pending === 0");
   await check("Esc cancels an edit; Undo reverts one; text in a number column is refused", async () => {
     await js(`document.querySelector('[data-crumbs] .rec-x').click(); document.querySelector('.rec-win').scrollTop = 0`);
     await js(`document.querySelector('.rec-td[data-c="5"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`);
@@ -154,8 +166,9 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await js(`(() => { const inp = document.querySelector('[data-edit]'); inp.value = 'abc'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
     assert(await js(`!!document.querySelector('[data-edit]')`), "input should stay open on a bad number"); await js(`document.querySelector('[data-edit]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
     await js(`document.querySelector('[data-undo]').click()`); assert.strictEqual(await js(`document.querySelector('.rec-edits .n').textContent`), "11 edits");
-    assert(await js(`!!document.querySelector('[data-find="unit:unit_price"]')`), "undo should bring the finding back");
+    await waitFor(`!!document.querySelector('[data-find="unit:unit_price"]')`);
   });
+  await waitFor("JAIReportDebug.pending === 0");
   await check("keyboard: Enter opens the editor on a focused cell, '$1,150.00' is kept as 1150.00, a quantity edit recomputes the total, Undo puts both back", async () => {
     await js(`document.querySelector('[data-crumbs] .rec-x') && document.querySelector('[data-crumbs] .rec-x').click(); document.querySelector('.rec-win').scrollTop = 0`);
     const before = await js(`JAIReportDebug.store.rows[0].slice()`), hdr = await js(`JAIReportDebug.store.names`), q = hdr.indexOf("qty"), t = hdr.indexOf("total"), pr = hdr.indexOf("unit_price");
@@ -178,6 +191,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await js(`document.querySelector('[data-close]').click()`);
     assert.deepStrictEqual(m.names, ["cafe-sales-sample-corrected.csv", "cafe-sales-sample-change-log.csv"]); assert.strictEqual(m.texts[0], m.csv); assert.strictEqual(m.texts[1], m.log);
   });
+  await waitFor("JAIReportDebug.pending === 0");
   await check("export: the corrected CSV re-imports equal to the table, the change log has the edits", async () => {
     await js(`document.querySelector('[data-export]').click()`);
     const m = await js(`({ shown: !document.querySelector('[data-modal]').hidden, csv: JAIRecords.exportCSV(JAIReportDebug.store), log: JAIRecords.changeLogCSV(JAIReportDebug.store), rows: JAIReportDebug.store.rows })`);
@@ -186,12 +200,14 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     const log = R.parseDelimited(m.log); assert.deepStrictEqual(log[0], ["row", "column", "before", "after", "edited_at"]); assert(log.length >= 12, "log lines " + log.length);
     assert(log.slice(1).every(l => l.length === 5 && /^\d{4}-\d\d-\d\dT/.test(l[4])), "log shape"); await js(`document.querySelector('[data-close]').click()`);
   });
+  await waitFor("JAIReportDebug.pending === 0");
   await check("print hides the table and keeps at most five records worth a look", async () => {
     await send("Emulation.setEmulatedMedia", { media: "print" });
     const m = await js(`({ rec: getComputedStyle(document.querySelector('.records')).display, sixth: getComputedStyle(document.querySelectorAll('.sh-qa .worth li')[5]).display, fifth: getComputedStyle(document.querySelectorAll('.sh-qa .worth li')[4]).display, controls: getComputedStyle(document.querySelector('.report-controls')).display, note: getComputedStyle(document.querySelector('.edit-note')).display, note_txt: document.querySelector('.edit-note').textContent })`);
     await send("Emulation.setEmulatedMedia", { media: "" });
     assert.strictEqual(m.rec, "none"); assert.strictEqual(m.sixth, "none"); assert.notStrictEqual(m.fifth, "none"); assert.strictEqual(m.controls, "none"); assert.notStrictEqual(m.note, "none"); assert(/^11 edits were made in this browser session \(\d+ cells changed, counting totals worked out again\); the findings/.test(m.note_txt), m.note_txt);
   });
+  await waitFor("JAIReportDebug.pending === 0");
   await check("records worth a look prints as part of the one page: the printed report is a single page and the list holds at most five records", async () => {
     const pdf = await send("Page.printToPDF", { preferCSSPageSize: true, printBackground: true }), txt = Buffer.from(pdf.data, "base64").toString("latin1");
     const pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length; const dbg = await js(`(() => { const sh = document.querySelector('.sheet'); return { pz: sh.style.getPropertyValue('--pz'), pw: sh.dataset.pw, ph: sh.dataset.ph, h: sh.offsetHeight, fit: JAIReportDebug.fitLog.join(' ') }; })()`); assert.strictEqual(pages, 1, "printed pages: " + pages + " " + JSON.stringify(dbg));
@@ -210,24 +226,42 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
   await check("rule pack: none by default; loading one names it on the page and marks its findings; it can also be fetched with ?pack= from a served page", async () => {
     assert.strictEqual(await js(`document.querySelector('#pack-name').textContent`), "none"); assert.strictEqual(await js(`JAIReportDebug.pack`), null);
     const pack = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../packs/real-estate.json"), "utf8"));
-    await js(`JAIReportDebug.usePack(${JSON.stringify(pack)})`);
+    await js(`JAIReportDebug.usePack(${JSON.stringify(pack)})`); await waitFor(`/rule pack: Real estate/.test(document.querySelector('.sh-meta').textContent)`);
     const m = await js(`({ name: document.querySelector('#pack-name').textContent, meta: document.querySelector('.sh-meta').textContent, tags: [...document.querySelectorAll('.sheet .finds li b')].map(e => e.textContent), skipped: JAIReportDebug.analysis.pack.skipped.length })`);
     assert(/Real estate/.test(m.name) && /rule pack: Real estate/.test(m.meta), JSON.stringify(m)); assert.strictEqual(m.skipped, 4, "the café file has no area, beds, baths or address columns for four of the six checks");
     return `pack named: ${m.name}`;
   });
 
-  console.log("10,000 rows");
+  console.log("10,000 rows x 12 columns (CONS-0043)");
   tmpCsv = path.join(os.tmpdir(), `jai-10k-${process.pid}.csv`);
-  const rows10 = R.cafeSample(10000); fs.writeFileSync(tmpCsv, Rec.rowsToCSV(rows10, { delim: ",", eol: "\n" }));
-  await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") }); await waitFor("document.readyState === 'complete' && !!window.JAIReportDebug");
-  await js(`JAIReportDebug.setLimits(10000, 12)`);   // the page's own limit comes from the build; this run does not depend on it
-  const doc = await send("DOM.getDocument"), inp = await send("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "#report-file" });
-  const t0 = Date.now(); await send("DOM.setFileInputFiles", { files: [tmpCsv], nodeId: inp.nodeId });
-  await check("10,000 x 8 renders; time to a drawn table and memory are recorded", async () => {
-    await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && JAIReportDebug.store.rows.length === 10000 && document.querySelectorAll('.rec-tr').length > 0", 30000);
-    const ms = Date.now() - t0, heap = await send("Runtime.getHeapUsage"), mb = heap.usedSize / 1048576;
-    assert(ms < 3000, ms + " ms"); assert(mb < 300, mb.toFixed(0) + " MB"); return `${ms} ms from file chosen to table drawn, ${mb.toFixed(0)} MB JS heap`;
+  const rows10 = R.cafeSample(10000).map((r, i) => [...r, "n" + (i % 7), "c" + (i % 3), String(i * 3 % 101), i % 5 ? "" : "note, with a comma"]); rows10[0].splice(8, 4, "extra_a", "extra_b", "extra_c", "extra_d");
+  fs.writeFileSync(tmpCsv, Rec.rowsToCSV(rows10, { delim: ",", eol: "\n" }));
+  const memMB = () => { if (process.platform !== "win32") return null; try { const o = cp.spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `$ids = (Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${profile.replace(/'/g, "''")}*' }).ProcessId; (Get-Process -Id $ids -ErrorAction SilentlyContinue | Measure-Object WorkingSet64 -Sum).Sum / 1MB`], { encoding: "utf8", windowsHide: true }); return Math.round(parseFloat(o.stdout)); } catch (e) { return null; } };
+  async function loadBig(label, throttle) {
+    await send("Page.navigate", { url: BASE + "/report.html" }); await waitFor("document.readyState === 'complete' && !!window.JAIReportDebug && JAIReportDebug.engine === 'worker'");
+    await js(`JAIReportDebug.setLimits(10000, 12); window.__lt = []; try { new PerformanceObserver(l => l.getEntries().forEach(e => window.__lt.push(Math.round(e.duration)))).observe({ entryTypes: ['longtask'] }); } catch (e) {}`);
+    if (throttle) await send("Emulation.setCPUThrottlingRate", { rate: throttle });
+    const before = memMB(), doc = await send("DOM.getDocument"), inp = await send("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "#report-file" });
+    const t0 = Date.now(); await send("DOM.setFileInputFiles", { files: [tmpCsv], nodeId: inp.nodeId });
+    await waitFor("!!JAIReportDebug.store && JAIReportDebug.store.rows.length === 10000 && document.querySelectorAll('.rec-tr').length > 0", 60000);
+    const ms = Date.now() - t0; if (throttle) await send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    const lt = await js(`window.__lt.slice()`), after = memMB(), cols = await js(`JAIReportDebug.analysis.cols.length`), heap = (await send("Runtime.getHeapUsage")).usedSize / 1048576;
+    return { ms, longest: Math.max(0, ...lt), nLong: lt.length, before, after, cols, heap };
+  }
+  let big = null;
+  await check("10,000 x 12 renders in a worker: under 3 s on this computer, main thread free, memory under 300 MB", async () => {
+    big = await loadBig("desktop", 0); assert.strictEqual(big.cols, 12); assert(big.ms < 3000, big.ms + " ms");
+    assert(big.longest < 150, `the page's main thread was blocked for ${big.longest} ms`);
+    const delta = big.after != null && big.before != null ? big.after - big.before : null; if (delta != null) assert(delta < 300, "memory grew " + delta + " MB"); assert(big.heap < 300, big.heap.toFixed(0) + " MB heap");
+    return `${big.ms} ms from file chosen to table drawn, longest main-thread task ${big.longest} ms (${big.nLong} long tasks), JS heap ${big.heap.toFixed(0)} MB${big.after != null ? `, browser memory ${big.before} -> ${big.after} MB` : ""}`;
   });
+  await check("10,000 x 12 with the CPU slowed 4x (a stand-in for a mid-range phone, not a phone): under 8 s", async () => {
+    const t = await loadBig("slow", 4); assert(t.ms < 8000, t.ms + " ms"); return `${t.ms} ms at 4x CPU slowdown, longest main-thread task ${t.longest} ms`;
+  });
+  await send("Page.navigate", { url: BASE + "/report.html" }); await waitFor("document.readyState === 'complete' && !!window.JAIReportDebug && JAIReportDebug.engine === 'worker'");
+  await js(`JAIReportDebug.setLimits(10000, 12)`);
+  {   const doc = await send("DOM.getDocument"), inp = await send("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "#report-file" }); await send("DOM.setFileInputFiles", { files: [tmpCsv], nodeId: inp.nodeId });
+      await waitFor("!!JAIReportDebug.store && JAIReportDebug.store.rows.length === 10000 && document.querySelectorAll('.rec-tr').length > 0", 60000); }
   await check("10,000 rows scroll without dropped frames", async () => {
     const m = await js(`(async () => { const w = document.querySelector('.rec-win'); const gaps = []; let last = performance.now(), maxDrawn = 0;
       for (let i = 0; i < 200; i++) { w.scrollTop = (i * 1733) % (w.scrollHeight - w.clientHeight); await new Promise(r => requestAnimationFrame(r)); const n = performance.now(); gaps.push(n - last); last = n; maxDrawn = Math.max(maxDrawn, document.querySelectorAll('.rec-tr').length); }
@@ -245,6 +279,11 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await send("Emulation.clearDeviceMetricsOverride");
     assert(m.page <= m.view + 1, "page is " + m.page + " wide in a " + m.view + " viewport"); assert(m.right <= m.view + 1 && m.left >= -1, "window leaves the screen: " + JSON.stringify(m)); assert(m.inner > m.win, "table scrolls inside its window");
     return `window ${m.win} px wide, table ${m.inner} px`;
+  });
+
+  await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {
+    await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") + "#sample" }); await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && document.querySelectorAll('.rec-tr').length > 0", 20000);
+    assert.strictEqual(await js(`JAIReportDebug.engine`), "main"); assert.strictEqual(await js(`JAIReportDebug.store.rows.length`), 5000);
   });
 
   sock.close(); console.log(`\nbrowser checks: ${passed} passed, ${failed} failed`);
