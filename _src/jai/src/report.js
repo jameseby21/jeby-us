@@ -249,15 +249,18 @@
     });
     const cols = header.map((h, i) => ({ ...profileCol(h, body.map(r => r[i])), i }));
     Dom.assignRoles(cols, body, num, choice.roles);
-    const nominal = Dom.findNominal(body, cols, num, median);   // set aside before any baseline is drawn (CONS-0058)
+    // a date, a signed money column and a description is a ledger, kind "transactions" (CONS-0072): signs are direction, so the sales rules (nominal, missing digit, price baseline, repeated amount) do not run
+    const ledgerCols = Shape.detectLedger(cols, body, { num, dt }), ledger = !!ledgerCols;
+    if (ledger) { const am = cols[ledgerCols.amount], d = cols[ledgerCols.desc]; am.role = "amount"; am.count = false; if (ledgerCols.balance != null) cols[ledgerCols.balance].role = "balance"; d.role = "description"; d.type = "text"; d.mixedId = 0; }
+    const nominal = ledger ? new Map() : Dom.findNominal(body, cols, num, median);   // set aside before any baseline is drawn (CONS-0058)
 
     const pick = (list, re, want) => (want && list.find(c => c.name === want)) || list.find(c => re.test(c.name)) || list[0] || null;
     const numCols = cols.filter(c => c.type === "number");
     const allOnes = c => c.filled > 0 && c.distinct === 1 && num(body.find(r => r[c.i].trim() !== "")[c.i]) === 1;
     const measureCands = numCols.filter(c => isMeasureCol(c) && !allOnes(c));   // a column of all 1s only counts rows, so it is not a measure
     const sumAbs = c => body.reduce((a, r) => a + Math.abs(num(r[c.i]) || 0), 0);
-    const measure = (choice.measure && cols.find(c => c.name === choice.measure)) || measureCands.find(c => /total|amount|revenue|sales/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name) && !/qty|quantity|units/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name)) || [...measureCands].sort((a, b) => sumAbs(b) - sumAbs(a))[0] || null;
-    const dateCol = pick(cols.filter(c => c.type === "date"), DATE_RE, choice.date);
+    const measure = ledger ? null : ((choice.measure && cols.find(c => c.name === choice.measure)) || measureCands.find(c => /total|amount|revenue|sales/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name) && !/qty|quantity|units/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name)) || [...measureCands].sort((a, b) => sumAbs(b) - sumAbs(a))[0] || null);
+    const dateCol = ledger && !choice.date ? cols[ledgerCols.date] : pick(cols.filter(c => c.type === "date"), DATE_RE, choice.date);
     const catCands = cols.filter(c => c.type === "category" && c.distinct >= 2);
     const cat = choice.cat === "" ? null : pick(catCands, CAT_RE, choice.cat);
 
@@ -270,16 +273,19 @@
     const checks = [], findings = [], flags = new Map(), fr = new Map();
     const link = (id, ri, ci, sev, why, fam, eff = 0) => { const k = ri + ":" + ci; if (flags.has(k)) return; flags.set(k, { sev, why, id, fam: fam || "", eff }); (fr.get(id) || fr.set(id, new Set()).get(id)).add(ri); };
     const add = (sev, title, detail, score, solo = true, id = null, crumb = null, noCheck = false) => { if (!noCheck) checks.push({ sev, title, detail }); if (sev !== "ok" && solo) findings.push({ id, sev, title, detail, score, crumb: crumb || title }); };
+    const LD_ = ledger ? Shape.ledgerData(ledgerCols, body, { num, dt }) : null, lItems = ledger ? Shape.ledgerItems(ledgerCols, LD_, header, RB) : null;
+    const measureName = ledger ? "Outflow" : measure ? measure.name : "Rows", tv = (r, ri) => (ledger ? Math.max(0, -LD_.flow[ri] || 0) : measure ? (num(r[measure.i]) || 0) : 1);   // what a bar of the timeline adds up: money out for a ledger
     const notShown = [], gctx = { looksLikeValue: n => Shape.looksLikeValue(n, { num, dt }) };   // the insight gate (CONS-0074): a candidate that fails a check is listed here with the reason, never shown
     const passes = c => { const g = Dom.gate([c], gctx); notShown.push(...g.held); return g.shown.length === 1; };
-    const measureMoney = !!measure && measure.role === "money", moneyText = v => (measureMoney ? "$" : "") + full(v, 0);
+    const measureMoney = ledger || (!!measure && measure.role === "money"), moneyText = v => (measureMoney ? "$" : "") + full(v, 0);
     const total = measure ? body.reduce((a, r) => a + (num(r[measure.i]) || 0), 0) : 0, mval = ri => measure ? num(body[ri][measure.i]) : NaN;
     const idCols = cols.filter(c => c.type === "id"), firstCol = idCols[0] ? idCols[0].i : 0;
 
     // duplicates (CONS-0059): rows equal on every place field plus date and money; identifiers are never a matching column
     const dctx = { body, cols, num, dt, dateCol, measure, nominal, calc, rowBase: RB }, dups = Dom.duplicates(dctx), meta = new Map();
     let dupRows = 0, dupValue = 0, nearDup = 0;
-    if (dups.mode === "place") {
+    if (ledger) { /* duplicates, balance, gaps and the rest come from ledgerItems below */ }
+    else if (dups.mode === "place") {
       const addrC = Dom.byRole(cols, "address")[0], ids = dups.ids, same = Dom.listWords(dups.fields), diff = ids.length ? `; different ${Dom.listWords(ids.map(c => c.name))}` : "";
       dups.exactPairs.forEach(([x, y]) => { dupRows++; if (measure) dupValue += num(body[y][measure.i]) || 0; const v = Math.abs(mval(y)) || 0;
         link("dup", y, addrC.i, "fix", `<b>Duplicate of row ${x + RB}.</b> Same ${esc(same)}${esc(diff)}.`, "", v); link("dup", x, addrC.i, "fix", `<b>Has a duplicate in row ${y + RB}.</b> Same ${esc(same)}${esc(diff)}.`, "", 0); });
@@ -325,7 +331,7 @@
     // spelling variants: the same value with different capitals, spaces or punctuation, or two names at one address
     const variants = []; let varRows = 0;
     const normKey = s => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    cols.filter(c => c.type === "category" || c.type === "text").forEach(c => {
+    cols.filter(c => (c.type === "category" || c.type === "text") && !(ledger && c.i === ledgerCols.desc)).forEach(c => {
       const g = new Map(); body.forEach((r, ri) => { const raw = r[c.i]; if (!raw.trim()) return; const k = normKey(raw) || raw.trim().toLowerCase(); if (!g.has(k)) g.set(k, new Map()); const m = g.get(k); if (!m.has(raw)) m.set(raw, []); m.get(raw).push(ri); });
       g.forEach(m => { if (m.size > 1) { const forms = [...m.entries()].sort((a, b) => b[1].length - a[1].length); const top = forms[0][0];
         variants.push({ col: c.name, forms: forms.map(f => [f[0], f[1].length]), rows: forms.slice(1).reduce((x, f) => x + f[1].length, 0) });
@@ -392,7 +398,7 @@
       }
     });
     if (dateCol) { const ok = dateInfo ? dateInfo.okDates : []; if (ok.length) { const newest = ok[ok.length - 1], months = (Date.now() - newest) / 2629800000;
-      if (months > Dom.DOMAIN.staleMonths) { add("look", `The newest date is ${Math.round(months)} months old`, `The latest ${human(dateCol.name)} is ${dstr(newest)}. The file may be out of date.`, 55, true, "stale", "Possibly out of date"); meta.set("stale", { cls: "stale", rule: Dom.CHK.stale.rule, todo: Dom.CHK.stale.todo }); } } }
+      if (months > Dom.DOMAIN.staleMonths && !ledger) { add("look", `The newest date is ${Math.round(months)} months old`, `The latest ${human(dateCol.name)} is ${dstr(newest)}. The file may be out of date.`, 55, true, "stale", "Possibly out of date"); meta.set("stale", { cls: "stale", rule: Dom.CHK.stale.rule, todo: Dom.CHK.stale.todo }); } } }
 
     // nominal transfers (CONS-0058): their own QA finding, never part of a baseline
     nominal.forEach(nm => {
@@ -402,7 +408,7 @@
     });
 
     // outliers (CONS-0048)
-    const items = detectOutliers(body, cols, { calc, measure, nominal });
+    const items = ledger ? new Map() : detectOutliers(body, cols, { calc, measure, nominal });
     const outItems = [...items.values()];
     outItems.forEach(it => {
       const fix = it.cells.some(c => c.sev === "fix"), n = it.cells.length, ex = it.cells[0], rowsTxt = it.cells.slice(0, 3).map(c => c.ri + RB).join(", ") + (n > 3 ? ` and ${n - 3} more` : "");
@@ -428,17 +434,22 @@
       add(fix ? "fix" : "look", title, detail, score, true, it.id, crumb, true);
     });
     if (outItems.length) { const nrows = new Set(outItems.flatMap(it => it.cells.map(c => c.ri))).size; checks.push({ sev: outItems.some(it => it.cells.some(c => c.sev === "fix")) ? "fix" : "look", title: `${nrows} record${nrows > 1 ? "s" : ""} far from the usual`, detail: "" }); }
-    else checks.push({ sev: "ok", title: "No extreme values", detail: "Nothing far outside the normal range." });
+    else if (!ledger) checks.push({ sev: "ok", title: "No extreme values", detail: "Nothing far outside the normal range." });
 
     // role-driven checks and insights (CONS-0063): repeat occurrences of a place over time, identifier uniqueness, coordinates, top and bottom by ratio, concentration
     const repeats = Dom.repeatOccurrences(dctx, dups);
-    const dItems = Dom.domainItems(dctx, dups, repeats), gated = Dom.gate(dItems.filter(it => it.kind === "insight"), gctx); notShown.push(...gated.held);
+    const dItems = [...Dom.domainItems(dctx, dups, repeats), ...(lItems ? lItems.items : [])], gated = Dom.gate(dItems.filter(it => it.kind === "insight"), gctx); notShown.push(...gated.held, ...(lItems ? lItems.held : []));
     dItems.filter(it => it.kind !== "insight" || gated.shown.includes(it)).forEach(it => {
       it.cells.forEach(c => link(it.id, c.ri, c.ci, c.sev, c.why, "", c.eff));
       meta.set(it.id, { kind: it.kind, cls: it.cls, rule: it.rule, todo: it.todo, repeat: it.repeat });
       if (it.kind === "qa") add(it.sev, it.title, it.detail, it.score, true, it.id, it.crumb);
-      else findings.push({ id: it.id, kind: "insight", sev: it.sev, title: it.title, detail: it.detail, score: it.score, crumb: it.crumb, why: it.why });
+      else findings.push({ id: it.id, kind: it.kind, sev: it.sev, title: it.title, detail: it.detail, score: it.score, crumb: it.crumb, why: it.why });
     });
+    if (ledger) {
+      if (!LD_.dupPairs.length) add("ok", "No duplicate rows", "No two rows share a date, an amount and a merchant.");
+      if (LD_.balanceBreaks && !LD_.balanceBreaks.length) add("ok", "The running balance holds", "Previous balance plus the amount equals the balance on every row.");
+      if (LD_.unreadable) add("look", `${LD_.unreadable} row${LD_.unreadable > 1 ? "s have" : " has"} no readable date or amount`, "They are left out of the totals.", 50, true, null, "Unreadable rows");
+    }
     Dom.ratioCandidates(cols, calc).held.forEach(h => notShown.push({ id: "ratio:" + h.col, title: h.label[0].toUpperCase() + h.label.slice(1), check: "ratio-unit", reason: h.reason }));
 
     // an optional rule pack (CONS-0068): none unless the visitor loads one; its findings are tagged with the pack and never change the generic ones
@@ -458,7 +469,7 @@
       const ds = dateInfo.okDates, lo = ds[0], hi = ds[ds.length - 1], span = (hi - lo) / 864e5;
       const unit = spanUnit(span);
       const key = t => { const d = new Date(t); if (unit === "year") return Date.UTC(d.getUTCFullYear(), 0, 1); if (unit === "month") return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); if (unit === "week") return t - ((d.getUTCDay() + 6) % 7) * 864e5; return t; };
-      const okSet = new Set(dateInfo.odd.map(x => x[1])), agg = new Map(); body.forEach((r, ri) => { if (okSet.has(ri)) return; const t = dt(r[dateCol.i]); if (t == null) return; const k = key(t); agg.set(k, (agg.get(k) || 0) + (measure ? (num(r[measure.i]) || 0) : 1)); });
+      const okSet = new Set(dateInfo.odd.map(x => x[1])), agg = new Map(); body.forEach((r, ri) => { if (okSet.has(ri)) return; const t = dt(r[dateCol.i]); if (t == null) return; const k = key(t); agg.set(k, (agg.get(k) || 0) + tv(r, ri)); });
       const keys = [...agg.keys()].sort((a, b) => a - b), step = unit === "month" || unit === "year" ? null : (unit === "week" ? 7 : 1) * 864e5;
       const series = []; if (keys.length) { let k = keys[0]; while (k <= keys[keys.length - 1]) { series.push({ t: k, v: agg.get(k) || 0 }); if (step) k += step; else { const d = new Date(k); k = unit === "year" ? Date.UTC(d.getUTCFullYear() + 1, 0, 1) : Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0 + 1); } } }
       const lastEnd = unit === "year" ? Date.UTC(new Date(hi).getUTCFullYear(), 11, 31) : unit === "month" ? Date.UTC(new Date(hi).getUTCFullYear(), new Date(hi).getUTCMonth() + 1, 0) : unit === "week" ? key(hi) + 6 * 864e5 : hi;
@@ -477,19 +488,22 @@
         const tot = new Map(); body.forEach(r => { const v = r[sCol.i].trim() || "(blank)"; tot.set(v, (tot.get(v) || 0) + 1); });
         const ranked = [...tot.entries()].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1)).map(e => e[0]), top5 = ranked.length > 8, names = top5 ? ranked.slice(0, 5).concat(["Other"]) : ranked, keep = new Set(top5 ? ranked.slice(0, 5) : ranked), ix = new Map(series.map((p, i) => [p.t, i]));
         const vals = names.map(() => series.map(() => 0));
-        body.forEach((r, ri) => { if (okSet.has(ri)) return; const t = dt(r[dateCol.i]); if (t == null) return; const i = ix.get(key(t)); if (i == null) return; const v = r[sCol.i].trim() || "(blank)", g = keep.has(v) ? names.indexOf(v) : names.length - 1; vals[g][i] += measure ? (num(r[measure.i]) || 0) : 1; });
+        body.forEach((r, ri) => { if (okSet.has(ri)) return; const t = dt(r[dateCol.i]); if (t == null) return; const i = ix.get(key(t)); if (i == null) return; const v = r[sCol.i].trim() || "(blank)", g = keep.has(v) ? names.indexOf(v) : names.length - 1; vals[g][i] += tv(r, ri); });
         trend.split = { col: sCol.name, ci: sCol.i, names, vals, top5 };
       }
       { const inner = series.slice(partialFirst ? 1 : 0, series.length - (partialLast ? 1 : 0)), empty = inner.filter(p => p.v === 0 && !agg.has(p.t));
-        if (series.length >= 6 && empty.length) { findings.push({ id: "tlgaps", kind: "qa", cls: "missing", sev: "look", title: `${empty.length} empty ${unit}${empty.length > 1 ? "s" : ""} inside the timeline`, detail: `No rows in ${empty.slice(0, 4).map(p => label(p.t)).join(", ")}${empty.length > 4 ? " and more" : ""}, between months that have data. A gap in the export, or a quiet period?`, score: 57, crumb: "Gaps in the timeline", rule: "A period with no rows between periods that have rows is a gap in the data or a real pause.", todo: "Ask whether the export skipped those dates." }); } }
-      if (spike) { const c = { id: null, kind: "insight", sev: "look", title: `${unit === "month" ? new Date(spike.t).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "The " + unit + " of " + label(spike.t)} is ${spike.r.toFixed(1)}× a typical ${unit}`, detail: `${measure ? measure.name : "Rows"}: ${moneyText(spike.v)} against a typical ${moneyText(pm)}. Worth knowing why.`, score: 70,
-          why: { method: "period total against the median period", n: core.length, names: [measure ? measure.name : "Rows", dateCol.name], roles: [measure ? measure.role : "rows", "date"], valueKind: measure ? (measureMoney ? "money" : "measure") : "count", aggregate: measure ? "sum" : "count" } };
+        if (series.length >= 6 && empty.length && !ledger) { findings.push({ id: "tlgaps", kind: "qa", cls: "missing", sev: "look", title: `${empty.length} empty ${unit}${empty.length > 1 ? "s" : ""} inside the timeline`, detail: `No rows in ${empty.slice(0, 4).map(p => label(p.t)).join(", ")}${empty.length > 4 ? " and more" : ""}, between months that have data. A gap in the export, or a quiet period?`, score: 57, crumb: "Gaps in the timeline", rule: "A period with no rows between periods that have rows is a gap in the data or a real pause.", todo: "Ask whether the export skipped those dates." }); } }
+      if (spike) { const c = { id: null, kind: "insight", sev: "look", title: `${unit === "month" ? new Date(spike.t).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "The " + unit + " of " + label(spike.t)} is ${spike.r.toFixed(1)}× a typical ${unit}`, detail: `${measureName}: ${moneyText(spike.v)} against a typical ${moneyText(pm)}. Worth knowing why.`, score: 70,
+          why: { method: "period total against the median period", n: core.length, names: [measureName, dateCol.name], roles: [measure ? measure.role : "rows", "date"], valueKind: measureMoney ? "money" : measure ? "measure" : "count", aggregate: measure || ledger ? "sum" : "count" } };
         if (passes(c)) findings.push(c); }
     }
 
     // breakdown
     let breakdown = null;
-    if (cat) {
+    if (ledger) { const top = LD_.merchants.slice(0, 7).map(m => [m.name, m.out, false, m.n]), rest = LD_.merchants.slice(7);
+      if (rest.length) top.push([`Other (${rest.length})`, rest.reduce((a, m) => a + m.out, 0), true, rest.reduce((a, m) => a + m.n, 0)]);
+      breakdown = { col: "merchant", ci: ledgerCols.desc, items: top, total: LD_.outflow, noPick: true }; }
+    else if (cat) {
       const g = new Map(); body.forEach(r => { const k = r[cat.i].trim() || "(blank)", e = g.get(k) || [0, 0]; e[0] += measure ? (num(r[measure.i]) || 0) : 1; e[1]++; g.set(k, e); });
       let items2 = [...g.entries()].sort((a, b) => b[1][0] - a[1][0]); const top = items2.slice(0, 7).map(([k, e]) => [k, e[0], false, e[1]]), rest = items2.slice(7);
       if (rest.length) top.push([`Other (${rest.length})`, rest.reduce((a, x) => a + x[1][0], 0), true, rest.reduce((a, x) => a + x[1][1], 0)]);
@@ -510,7 +524,12 @@
     const rank = { fix: 0, look: 1, ok: 2 }; checks.sort((a, b) => rank[a.sev] - rank[b.sev]);
     const needsCleanup = checks.some(c => c.sev === "fix");
     const qaSample = N >= 10 ? qaSampleOf({ N, header, cat, flags, findingsList: findings }, body, choice.seed) : null;
-    const res = { name: data.name, sheet: data.sheet, N, hdr: { isHeader: frm.isHeader, detected: frm.detected, forced: frm.forced, conf: frm.conf, why: frm.why, note: frm.note, titleRows: frm.titleRows, bodyStart: frm.bodyStart, replaced: frm.replaced }, rowBase: RB, notShown, measureMoney, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, pack: packInfo, classCounts, qaSample, notChecked: Dom.notChecked(cols), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+    const res = { name: data.name, sheet: data.sheet, N, hdr: { isHeader: frm.isHeader, detected: frm.detected, forced: frm.forced, conf: frm.conf, why: frm.why, note: frm.note, titleRows: frm.titleRows, bodyStart: frm.bodyStart, replaced: frm.replaced }, rowBase: RB, notShown, measureMoney, measureName, kind: ledger ? "transactions" : "records",
+      ledger: ledger ? { cols: { date: header[ledgerCols.date], amount: header[ledgerCols.amount], description: header[ledgerCols.desc], type: ledgerCols.type != null ? header[ledgerCols.type] : null, balance: ledgerCols.balance != null ? header[ledgerCols.balance] : null }, signedBy: ledgerCols.dirByType ? "type" : "sign", order: ledgerCols.order,
+        outflow: LD_.outflow, inflow: LD_.inflow, net: LD_.net, nOut: LD_.nOut, nIn: LD_.nIn, first: LD_.first, last: LD_.last, months: LD_.months, merchantCount: LD_.merchants.length,
+        merchants: LD_.merchants.slice(0, Rules.LEDGER.topMerchants).map(m => ({ name: m.name, out: m.out, n: m.n, variants: m.variants.slice(0, 6) })), recurring: LD_.recurring.map(({ rows, ...r }) => ({ ...r, nRows: rows.length })),
+        largest: LD_.largest, weekday: LD_.weekday, dupPairs: LD_.dupPairs.length, refundPairs: LD_.refundPairs.length, balanceBreaks: LD_.balanceBreaks ? LD_.balanceBreaks.length : null, gaps: LD_.gaps, unreadable: LD_.unreadable } : null,
+      truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, pack: packInfo, classCounts, qaSample, notChecked: Dom.notChecked(cols, ledger), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
     res.kpi = kpiOf(res); return res;
   }
 
@@ -518,6 +537,7 @@
   function kpiOf(a) {
     const yr = t => new Date(t).getUTCFullYear(), md = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; }, my = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${yr(t)}`; };
     const range = !a.trend ? "No date column" : yr(a.trend.lo) === yr(a.trend.hi) ? `${md(a.trend.lo)} – ${md(a.trend.hi)}, ${yr(a.trend.hi)}` : `${my(a.trend.lo)} – ${my(a.trend.hi)}`;
+    if (a.ledger) return [["Rows", a.N.toLocaleString("en-US")], ["Dates", range], ["Money out", Shape.usd0(a.ledger.outflow)], ["Money in", Shape.usd0(a.ledger.inflow)]];
     return [["Rows", a.N.toLocaleString("en-US")], ["Columns", a.cols.length], ["Dates", range], a.measure ? ["Total " + a.measure.name, (a.measureMoney ? "$" : "") + full(a.total, 0)] : ["Measure", "None found"]];
   }
 
@@ -578,8 +598,8 @@
 
   // ---------- the two sections (CONS-0062): every finding is an insight or a QA finding, and appears in exactly one section
   function sections(a, notable) {
-    const list = a.findingsList || a.findings || [], ins = list.filter(f => f.kind === "insight"), qa = list.filter(f => f.kind !== "insight");
-    return { insights: { findings: ins, notable: (notable || []).filter(w => w.kind === "insight") }, qa: { findings: qa, notable: (notable || []).filter(w => w.kind !== "insight"), checks: a.checks } };
+    const list = a.findingsList || a.findings || [], ins = list.filter(f => f.kind === "insight"), fyi = list.filter(f => f.kind === "fyi"), qa = list.filter(f => f.kind !== "insight" && f.kind !== "fyi");
+    return { insights: { findings: ins, notable: (notable || []).filter(w => w.kind === "insight") }, qa: { findings: qa, notable: (notable || []).filter(w => w.kind === "qa"), checks: a.checks }, fyi: { findings: fyi } };
   }
 
   // ---------- records worth a look (CONS-0050): up to ten, most serious first, one reason each
@@ -600,7 +620,7 @@
     const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, pri: c.pri || sev, kind: kindOf(c.id), id: c.id || null, title: `Row ${(c.ri + a.rowBase).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason: reason + (oneOf(c.id) > 1 ? ` One of ${oneOf(c.id).toLocaleString("en-US")} rows with this problem.` : "") });
     const oneOf = id => { const f = a.findingsAll.find(x => x.id === id); return f ? f.n : 0; };   // a list of ten cannot hold every row of a big finding, so each entry says how many there are
     const qaCap = 7, nIn = k => out.filter(w => w.kind === k).length;
-    for (const c of cand) { if (out.length >= 10) break; if (kindOf(c.id) === "qa" && nIn("qa") >= qaCap) continue; if (kindOf(c.id) === "insight" && nIn("insight") >= 10 - qaCap) continue; if (c.id === "gaps") continue; /* a blank cell is a column-wide matter, not a record to read */ if ((used.get(c.id) || 0) >= PER_FINDING) continue; used.set(c.id, (used.get(c.id) || 0) + 1); picked.add(c.ri); out.push(entry(c, plain(c.why), c.sev)); }
+    for (const c of cand) { if (out.length >= 10) break; if (kindOf(c.id) === "qa" && nIn("qa") >= qaCap) continue; if (kindOf(c.id) === "insight" && nIn("insight") >= 10 - qaCap) continue; if (kindOf(c.id) === "fyi") continue; if (c.id === "gaps") continue; /* a blank cell is a column-wide matter, not a record to read */ if ((used.get(c.id) || 0) >= PER_FINDING) continue; used.set(c.id, (used.get(c.id) || 0) + 1); picked.add(c.ri); out.push(entry(c, plain(c.why), c.sev)); }
     if (out.length < 10 && a.measure && a.cat) {   // a record that would change the order of the groups if it were removed
       const mi = a.measure.i, ci = a.cat.i, sums = new Map(); rows.forEach(r => { const k = r[ci].trim() || "(blank)"; sums.set(k, (sums.get(k) || 0) + (num(r[mi]) || 0)); });
       const order = m => [...m.entries()].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1)).map(e => e[0]);
@@ -711,8 +731,8 @@
     return `<svg viewBox="0 0 ${W} ${H}" class="chart bars" role="img" aria-label="Totals by ${esc(bd.col)}">` + bd.items.map(([k, v, other, n], i) => {
       const y = i * rowH + 6, w = Math.max(2, (W - L - R) * Math.max(0, v) / max), h = 18, r = Math.min(4, w / 2);
       const norm = k.trim().toLowerCase().replace(/\s+/g, " "), variant = !other && bd.items.some(([k2, v2], j) => j !== i && k2.trim().toLowerCase().replace(/\s+/g, " ") === norm && (v2 > v || (v2 === v && j < i)));
-      const lab = (variant ? k.replace(/ {2,}/g, m => "·".repeat(m.length)) : k).slice(0, variant ? 12 : 18) + (k.length > (variant ? 12 : 18) ? "…" : "");
-      return `<g data-tip="${tipSafe(k)}: <b>${esc(full(v, 0))}</b> · ${pct(v, bd.total).toFixed(1)}% · ${n.toLocaleString("en-US")} rows · average <b>${esc(full(v / (n || 1), 2))}</b>${other ? "" : "<br>Click to show these rows"}"${other ? "" : ` data-g="${esc(k)}" class="pick"`}><rect x="0" y="${y - 6}" width="${W}" height="${rowH}" fill="transparent"/>
+      const pickable = !other && !bd.noPick, lab = (variant ? k.replace(/ {2,}/g, m => "·".repeat(m.length)) : k).slice(0, variant ? 12 : 18) + (k.length > (variant ? 12 : 18) ? "…" : "");
+      return `<g data-tip="${tipSafe(k)}: <b>${esc(full(v, 0))}</b> · ${pct(v, bd.total).toFixed(1)}% · ${n.toLocaleString("en-US")} rows · average <b>${esc(full(v / (n || 1), 2))}</b>${pickable ? "<br>Click to show these rows" : ""}"${pickable ? ` data-g="${esc(k)}" class="pick"` : ""}><rect x="0" y="${y - 6}" width="${W}" height="${rowH}" fill="transparent"/>
         <text x="${L - 10}" y="${y + 13}" text-anchor="end" class="bl">${esc(lab)}${variant ? `<tspan class="var"> variant</tspan>` : ""}</text>
         <path class="${other ? "bar other" : "bar"}" d="M${L} ${y}h${w - r}a${r} ${r} 0 0 1 ${r} ${r}v${h - 2 * r}a${r} ${r} 0 0 1 -${r} ${r}h-${w - r}z"/>
         <text x="${L + w + 6}" y="${y + 13}" class="bv">${esc(fmt(v))}</text></g>`; }).join("") + "</svg>";
@@ -725,7 +745,7 @@
     const opt = (list, cur, none) => (none ? `<option value=""${cur ? "" : " selected"}>${none}</option>` : "") + list.map(c => `<option${cur && c.name === cur.name ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     return `<div class="report-controls print-hide" role="group" aria-label="Report settings">
   <label>First row <select data-ch="header" title="Is the first row of the file column names, or data?"><option value="header"${a.hdr.isHeader ? " selected" : ""}>is a header</option><option value="data"${a.hdr.isHeader ? "" : " selected"}>is data</option></select></label>
-  <label>Measure <select data-ch="measure">${opt(a.numCols, a.measure, a.numCols.length ? "" : "Row count")}</select></label>
+  ${a.kind === "transactions" ? "" : `<label>Measure <select data-ch="measure">${opt(a.numCols, a.measure, a.numCols.length ? "" : "Row count")}</select></label>`}
   <label>Date <select data-ch="date">${opt(a.dateCands, a.dateCol, a.dateCands.length ? "" : "None")}</select></label>
   <label>Group by <select data-ch="cat">${opt(a.catCands, a.cat, "None")}</select></label>
   ${a.trend ? `<label>Split timeline by <select data-ch="split">${opt(a.catCands.filter(c => c.distinct <= 60), a.trend.split ? { name: a.trend.split.col } : null, "None")}</select></label>` : ""}
@@ -739,7 +759,7 @@
     const roleOpts = c => { const set = Rules.ROLES.userRoles[c.type === "number" ? "number" : c.type === "date" ? "date" : "other"], cur = c.roleBy === "you" ? c.role : "auto"; return `<option value="auto"${cur === "auto" ? " selected" : ""}>${esc(Dom.roleLabel({ ...c, role: c.detected, roleBy: c.roleBy === "you" ? "values" : c.roleBy }))} (detected)</option>` + set.filter(r => r !== c.detected).map(r => `<option value="${r}"${cur === r ? " selected" : ""}>${r}</option>`).join(""); };
     const prof = a.cols.slice(0, 12).map(c => `<tr><td>${esc(c.name)}</td><td>${c.type}<span class="role-print"> · ${esc(Dom.roleLabel(c))}</span><select class="role-pick print-hide" data-role="${esc(c.name)}" aria-label="Role of ${esc(c.name)}">${roleOpts(c)}</select></td><td>${pct(c.filled, a.N).toFixed(0)}%</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="3" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
     const next = a.needsCleanup ? ["Data health check", 8, "a person reads the data and writes down what to fix first"] : ["Focused analysis", 20, "one question answered properly, with the uncertainty stated"];
-    const trendSvg = a.trend && a.trend.series.length > 1 ? (a.trend.split ? stackSVG(a.trend, a.measure ? a.measure.name : "Rows") : lineSVG(a.trend, a.measure ? a.measure.name : "Rows")) : "";
+    const trendSvg = a.trend && a.trend.series.length > 1 ? (a.trend.split ? stackSVG(a.trend, a.measureName) : lineSVG(a.trend, a.measureName)) : "";
     const rep = (a.findingsList || []).find(f => f.id === "repeat" && f.repeat), repNote = rep && trendSvg ? `<p class="trend-note">Repeat occurrences: ${fmtCount(rep.repeat.n)} places appear on more than one date${rep.repeat.pct != null ? `; the median change between their first and last row is ${rep.repeat.pct >= 0 ? "+" : ""}${Math.round(rep.repeat.pct * 100)}%` : ""}.</p>` : "";
     const tableRows = (a.trend ? a.trend.series.map(p => `<tr><td>${a.trend.label(p.t)}</td><td>${full(p.v, 0)}</td></tr>`).join("") : "");
     const sec = sections(a, notable);
@@ -748,19 +768,21 @@
     const listHTML = (fs, none) => fs.length ? `<ol class="finds">${fs.slice(0, 6).map(li).join("")}</ol>` : `<p class="calm">${none}</p>`;
     const worthHTML = (list, title, cls) => list.length ? `<section class="sh-worth ${cls}"><h3>${title} <span class="hint print-hide">Click one to find it in the table.</span></h3><ol class="worth">${list.map(w => `<li><button class="wrow" type="button" data-row="${w.ri}"><i class="sev ${w.sev}" aria-hidden="true">${w.sev === "fix" ? "×" : w.sev === "look" ? "!" : "·"}</i><span><b>${esc(w.title)}</b><span class="wreason">${esc(w.reason)}</span></span></button></li>`).join("")}</ol></section>` : "";
     const qaRows = new Set(sec.qa.findings.flatMap(f => f.rows || [])), insRows = new Set(sec.insights.findings.flatMap(f => f.rows || []));
-    const nc = a.notChecked && a.notChecked.missing.length ? `<p class="not-checked"><b>Not checked:</b> ${a.notChecked.missing.map(m => `${esc(m.label)} (needs ${esc(m.because.join(" and "))})`).join("; ")}.</p>` : "";
+    const nc = (a.notChecked && a.notChecked.missing.length ? `<p class="not-checked"><b>Not checked:</b> ${a.notChecked.missing.map(m => `${esc(m.label)} (needs ${esc(m.because.join(" and "))})`).join("; ")}.</p>` : "")
+      + (a.notChecked && a.notChecked.off && a.notChecked.off.length ? `<p class="not-checked"><b>Not run on a ledger, by design:</b> ${a.notChecked.off.map(m => esc(m.label)).join("; ")}. A negative amount is money out, not a mistake.</p>` : "");
+    const fyiHTML = sec.fyi.findings.length ? `<section class="sh-fyi"><h3>FYI <span class="hint print-hide">True and useful, not a defect.</span></h3><ol class="finds">${sec.fyi.findings.map(li).join("")}</ol></section>` : "";
     const classRow = a.classCounts && a.classCounts.length ? `<p class="class-counts"><b>By class:</b> ${a.classCounts.map(c => `<span class="cls ${c.hard ? "hard" : "adv"}">${esc(c.label)} ${c.n}</span>`).join(" ")}</p>` : "";
     const qaSample = a.qaSample && typeof qaSampleHTML === "function" ? qaSampleHTML(a.qaSample) : "";
     return `<article class="sheet" aria-label="One-page report">
   <header class="sh-head"><div><span class="wm"><b>JA</b>Insights</span><span class="label">One-page report</span></div>
-    <div class="sh-meta"><b>${esc(a.name)}${a.sheet ? " · " + esc(a.sheet) : ""}</b><span>${today} · made in your browser, nothing uploaded${a.truncated ? ` · free limit: ${Math.min(a.allRows, MAXR).toLocaleString("en-US")} rows × ${Math.min(a.allCols, MAXC)} columns` : ""}${a.pack ? ` · rule pack: ${esc(a.pack.name)}` : ""}</span></div></header>
+    <div class="sh-meta"><b>${esc(a.name)}${a.sheet ? " · " + esc(a.sheet) : ""}</b><span>${today} · ${a.kind === "transactions" ? "kind: transactions (a ledger) · " : ""}made in your browser, nothing uploaded${a.truncated ? ` · free limit: ${Math.min(a.allRows, MAXR).toLocaleString("en-US")} rows × ${Math.min(a.allCols, MAXC)} columns` : ""}${a.pack ? ` · rule pack: ${esc(a.pack.name)}` : ""}</span></div></header>
   <div class="sh-kpis">${kpi.map(([l, v]) => `<div><span class="label">${esc(l)}</span><b${String(v).length > 14 ? ' class="long"' : ""}>${esc(v)}</b></div>`).join("")}</div>
   <section class="sh-sec sh-insights" aria-label="Insights"><h2>Insights <span class="sec-n">${sec.insights.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="insight">Show ${fmtCount(insRows.size)} insight rows</button></h2>
     <div class="sh-two">
       <section><h3>What the data says</h3>${listHTML(sec.insights.findings, "Nothing stands out yet. Add a date, a place or a category column and this space fills.")}</section>
-      <section>${a.breakdown ? `<h3>${esc(a.measure ? a.measure.name : "Rows")} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
+      <section>${a.breakdown ? `<h3>${esc(a.measureName)} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
     </div>
-    ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measure ? a.measure.name : "Rows")} by ${a.trend.unit}${a.trend.split ? `, split by ${esc(a.trend.split.col)}${a.trend.split.top5 ? " (top five and Other)" : ""}` : ""} <span class="hint">date column: ${esc(a.dateCol.name)}</span></h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div>${repNote}</section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
+    ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measureName)} by ${a.trend.unit}${a.trend.split ? `, split by ${esc(a.trend.split.col)}${a.trend.split.top5 ? " (top five and Other)" : ""}` : ""} <span class="hint">date column: ${esc(a.dateCol.name)}</span></h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div>${repNote}</section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
     ${worthHTML(sec.insights.notable, "Worth a look", "ins")}
     ${notShownHTML(a)}
   </section>
@@ -770,6 +792,7 @@
       <section class="sh-health"><h3>Data health</h3><ul class="checks">${a.checks.slice(0, 8).map(c => `<li class="${c.sev}"><i aria-hidden="true">${ICON[c.sev]}</i><span><b>${esc(c.title)}</b><em class="sr">${SEVL[c.sev]}. </em></span></li>`).join("")}</ul></section>
     </div>
     ${worthHTML(sec.qa.notable, "Check these", "qa")}
+    ${fyiHTML}
     ${qaSample}
     <div class="sh-two">
       <section class="sh-cols"><h3>Columns</h3>${classRow}<table class="prof"><thead><tr><th>Column</th><th>Type · role</th><th>Filled</th></tr></thead><tbody>${prof}</tbody></table></section>
@@ -781,7 +804,7 @@
   <footer class="sh-foot"><div><span class="label">What I'd do next</span><p><b>${next[0]}</b>, ${next[1]} h × $${RATE} = $${(next[1] * RATE).toLocaleString("en-US")}: ${next[2]}. This page is an automatic first pass; that's the human one.</p></div>
     <span class="stamp">Checked</span></footer>
 </article>
-${tableRows ? `<details class="tableview print-hide"><summary>Chart data as a table</summary><table class="prof"><thead><tr><th>${a.trend.unit}</th><th>${esc(a.measure ? a.measure.name : "Rows")}</th></tr></thead><tbody>${tableRows}</tbody></table></details>` : ""}
+${tableRows ? `<details class="tableview print-hide"><summary>Chart data as a table</summary><table class="prof"><thead><tr><th>${a.trend.unit}</th><th>${esc(a.measureName)}</th></tr></thead><tbody>${tableRows}</tbody></table></details>` : ""}
 ${a.truncated ? `<p class="calm limit print-hide">The free report reads the first ${MAXR.toLocaleString("en-US")} rows and ${MAXC} columns. This file has ${a.allRows.toLocaleString("en-US")} rows and ${a.allCols} columns. The Data health check reads all of it.</p>` : ""}`;
   }
 

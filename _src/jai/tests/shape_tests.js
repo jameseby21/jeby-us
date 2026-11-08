@@ -2,7 +2,7 @@
    Loaded by run.js with its helpers. Synthetic fixtures only (made by make_fixtures.py): no real rows are in this repository. */
 "use strict";
 module.exports = function (h) {
-  const { test, assert, R, Rec, Dom, load, truth, plain, read } = h;
+  const { test, assert, R, Rec, Dom, load, truth, plain, read, outFlags } = h;
   const Shape = require("../src/shape.js"), T = { num: R.num, dt: R.dt, profileCol: R.profileCol };
   const everyText = (a, d) => [...a.findingsAll.flatMap(f => [f.title, f.detail]), ...[...a.flags.values()].map(f => f.why), ...R.pickNotable(a, R.makeStore(d, a)).map(w => w.reason + " " + w.title)].map(plain);
 
@@ -112,7 +112,7 @@ module.exports = function (h) {
   const ratioWhy = (o) => ({ method: "ratio", numeratorRole: "money", denominatorRole: "measure", units: "square foot", n: 100, names: ["Sale price", "Living area sqft"], valueKind: "money", aggregate: "ratio", ...o });
   test("the gate's checks are data: every check in rules.js has a rule sentence and a function, and the minimums are numbers", () => {
     assert(Rules.GATE.checks.length >= 6); Rules.GATE.checks.forEach(c => { assert(c.id && c.label && c.rule.length > 20, c.id); assert.strictEqual(typeof Dom.GATE_FN[c.id], "function", "no function for " + c.id); });
-    assert.deepStrictEqual(Rules.GATE.minimums, { extremes: 30, share: 3, concentration: 5 });
+    assert.deepStrictEqual(Rules.GATE.minimums, { extremes: 30, share: 3, concentration: 5, months: 3 });
   });
   test("gate: a ratio needs money over a measure with a unit (fails and passes)", () => {
     assert.strictEqual(gateOf(cand("extremes", ratioWhy())).ok, true);
@@ -149,5 +149,76 @@ module.exports = function (h) {
     const x = small.notShown.find(h => h.id === "extremes"); assert(x && x.check === "min-rows" && /at least 30 non-nominal rows/.test(x.reason) && /has 20/.test(x.reason), JSON.stringify(small.notShown));
     assert([...small.flags.values()].every(f => f.id !== "extremes"), "a held insight leaves no flags in the table");
   });
-};
 
+  // ---------- CONS-0072
+  console.log("ledgers: signs are direction (CONS-0072)");
+  const money = x => Math.round(x * 100) / 100, fileRows = LD.rows.slice(1), sumOf = f => money(fileRows.map(r => parseFloat(r[3])).filter(f).reduce((a, b) => a + Math.abs(b), 0));
+  const byId = (a, id) => a.findingsList.find(f => f.id === id);
+  test("ledger detection: a date, a signed money column and a description make kind 'transactions', with or without a header; nothing else in the fixtures does", () => {
+    [aNone, aHead, aTitle].forEach(a => { assert.strictEqual(a.kind, "transactions"); assert.strictEqual(a.cols.find(c => c.role === "amount").name, a.header[3]); assert.strictEqual(a.cols.find(c => c.role === "balance").name, "Balance"); });
+    assert.deepStrictEqual(aNone.ledger.cols, { date: "Date", amount: "Amount", description: "Description", type: "Type", balance: "Balance" });
+    assert.deepStrictEqual(aHead.ledger.cols, { date: "Posting Date", amount: "Amount", description: "Description", type: "Details", balance: "Balance" });
+    for (const [n, d] of [["sales_planted", load("sales_planted.csv")], ["venues", load("venues.csv")], ["county", load("sales_county.csv")], ["cafe", { name: "c", rows: R.cafeSample() }], ["sales_roles", SR], ["mixed", load("records_mixed.csv")]]) assert.strictEqual(R.analyse(d).kind, "records", n);
+  });
+  test("the header says transactions; the tiles are Rows, Dates, Money out, Money in; the balance is never summed", () => {
+    assert.deepStrictEqual(aHead.kpi.map(k => k[0]), ["Rows", "Dates", "Money out", "Money in"]); assert.strictEqual(aHead.measure, null); assert.strictEqual(aHead.measureName, "Outflow");
+    assert.strictEqual(aHead.kpi[2][1], "$" + Math.round(sumOf(x => x < 0)).toLocaleString("en-US"));
+    assert(!aHead.cols.some(c => c.role === "measure" || c.role === "money"), "no money or measure column is left to sum: " + aHead.cols.map(c => c.role));
+  });
+  test("signs are direction: outflow and inflow are added up separately and match the file to the cent; headerless, headed and title-row files agree", () => {
+    for (const a of [aNone, aHead, aTitle]) { assert.strictEqual(money(a.ledger.outflow), sumOf(x => x < 0)); assert.strictEqual(money(a.ledger.inflow), sumOf(x => x > 0)); assert.strictEqual(money(a.ledger.net), money(sumOf(x => x > 0) - sumOf(x => x < 0))); }
+    assert.strictEqual(byId(aHead, "ledger-flow").kind, "insight"); assert(/Money out \$[\d,]+, money in \$[\d,]+: net [+-]\$[\d,]+/.test(byId(aHead, "ledger-flow").title), byId(aHead, "ledger-flow").title);
+    const un = LD.rows.slice(1).map(r => [r[0], r[1], r[2], String(Math.abs(parseFloat(r[3]))), r[4], r[5], r[6], r[7]]), u = R.analyse({ name: "u", rows: [LD.rows[0], ...un] });
+    assert.strictEqual(u.kind, "transactions"); assert.strictEqual(u.ledger.signedBy, "type"); assert.strictEqual(money(u.ledger.outflow), sumOf(x => x < 0), "unsigned amounts: the DEBIT and CREDIT column gives the direction");
+  });
+  test("the sales rules do not run on a ledger: no nominal, repeated-value, missing-digit, price or negative-value finding; 'newest date is N months old' is an FYI, not a defect", () => {
+    [aNone, aHead, aTitle].forEach(a => { const ids = a.findingsAll.map(f => f.id); assert(!ids.some(i => /^(nominal|neg|stale|rv:|unit:|out:|ratio:|shift:|tlgaps|extremes|repeat)/.test(i)), ids.join()); assert.strictEqual(outFlags(a).length, 0); });
+    const f = byId(aHead, "ledger-ends"); assert(f && f.kind === "fyi" && /ends on Nov 19, 2018/.test(f.title), f && f.title); assert(!aHead.findingsList.some(x => /months old/.test(x.title)));
+    assert(aHead.notChecked.off.map(x => x.id).includes("nominal") && aHead.notChecked.off.length >= 5, JSON.stringify(aHead.notChecked.off)); assert(!aHead.notChecked.missing.some(m => m.id === "nominal" || m.id === "ratio"));
+    assert.strictEqual(aHead.checks.some(c => /nominal|extreme/i.test(c.title)), false);
+  });
+  test("insights: money out by month, top merchants, the largest single items; each carries its justification", () => {
+    const m = byId(aHead, "ledger-months"); assert(m && m.kind === "insight" && /Money out runs from \$[\d,]+ \((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) 2018\) to \$[\d,]+/.test(m.title), m && m.title); assert(m.why.kind === "months" && m.why.n >= 3);
+    const t = byId(aHead, "ledger-merchants"); assert(t && /is the biggest merchant: \$[\d,]+, \d+% of money out/.test(t.title), t && t.title); assert(t.detail.split(";").length <= 10, "at most ten merchants");
+    const big = byId(aHead, "ledger-largest"); assert(/largest single item is \$1,862\.94 at Best Buy/.test(big.title), big.title); assert.deepStrictEqual(big.rows.includes(LG.big_purchase[0]), true);
+    aHead.findingsList.filter(f => f.kind === "insight").forEach(f => assert(f.why && f.why.method, f.id));
+    assert.strictEqual(aHead.breakdown.col, "merchant"); assert.strictEqual(aHead.breakdown.noPick, true); assert(aHead.breakdown.items.length <= 8);
+    assert(aHead.trend && aHead.trend.series.length >= 10, "the timeline is money out by month");
+  });
+  test("recurring charges: same merchant, same amount, regular interval, with the next expected date; the repeated amount is an insight, not a defect", () => {
+    const r = aHead.ledger.recurring; assert.deepStrictEqual(r.map(x => x.amount).sort(), [10.99, 15.49]);
+    const nf = r.find(x => x.amount === 15.49), sp = r.find(x => x.amount === 10.99); assert(nf.monthly && sp.monthly && nf.n >= 9 && sp.n >= 10, JSON.stringify(r.map(x => [x.name, x.n])));
+    assert.strictEqual(new Date(nf.next).toISOString().slice(0, 10), "2018-11-19", "the last Netflix charge is Oct 19, so the next is Nov 19"); assert.strictEqual(new Date(sp.next).toISOString().slice(0, 10), "2018-12-03");
+    const f = byId(aHead, "ledger-recurring"); assert(/^2 recurring charges, about \$\d+ a month$/.test(f.title), f.title); assert(/next expected Nov 19, 2018/.test(f.detail) && /next expected Dec 3, 2018/.test(f.detail), f.detail);
+    assert.strictEqual(aHead.findingsAll.filter(x => x.id.startsWith("rv:")).length, 0, "22 payroll deposits of 2,150.00 are not a repeated-value defect");
+  });
+  test("duplicates vs refunds: the same charge entered twice is the one duplicate; a refund the same day is opposite in sign and is not", () => {
+    const d = byId(aHead, "dup"); assert(d && d.kind === "qa" && d.n === 2 && /^1 duplicate row$/.test(d.title), d && d.title); assert.deepStrictEqual(d.rows, LG.duplicate_rows);
+    LG.refund_pair.forEach(r => assert(!d.rows.includes(r), "a refund row is in the duplicates"));
+    const f = byId(aHead, "ledger-refunds"); assert(f && f.kind === "fyi" && f.rows.join() === LG.refund_pair.join() && /not a duplicate/.test(f.detail), f && f.detail);
+    assert.strictEqual(R.analyse(LH).findingsAll.find(x => x.id === "dup").rows.join(), LG.duplicate_rows.join());
+  });
+  test("the running balance: the clean file holds; a mistyped balance is one finding at that row; a missing transaction is a jump; the same either way round", () => {
+    assert.strictEqual(aHead.ledger.balanceBreaks, 0); assert(!byId(aHead, "ledger-balance")); assert(aHead.checks.some(c => /running balance holds/i.test(c.title) && c.sev === "ok"));
+    const rows = LD.rows.map(r => r.slice()); rows[11][5] = "9999.99";   // body row 10 (file row 12)
+    const typo = R.analyse({ name: "t", rows }), f = byId(typo, "ledger-balance"); assert(f && f.n === 1 && f.rows[0] === 10 && f.kind === "qa" && f.cls === "source-conflict", f && JSON.stringify([f.n, f.rows]));
+    assert(/mistyped/.test(typo.flags.get("10:5").why) && /expected \$[\d,.]+, found \$9,999\.99/.test(f.detail), f.detail);
+    const gone = LD.rows.filter((_, i) => i !== 30), jump = R.analyse({ name: "t", rows: gone }), g = byId(jump, "ledger-balance"); assert(g && g.n === 1, g && g.detail); assert(/A transaction may be missing/.test(jump.flags.get(g.rows[0] + ":5").why));
+    const asc = [LD.rows[0], ...LD.rows.slice(1).reverse()], up = R.analyse({ name: "t", rows: asc }); assert.strictEqual(up.ledger.balanceBreaks, 0); assert.strictEqual(up.ledger.order, "asc"); assert.strictEqual(aHead.ledger.order, "desc");
+    const asc2 = asc.map(r => r.slice()); asc2[40][5] = "1.00"; assert.strictEqual(byId(R.analyse({ name: "t", rows: asc2 }), "ledger-balance").n, 1);
+  });
+  test("gaps in the dates longer than the usual are a QA finding; the clean file has none", () => {
+    assert.strictEqual(aHead.ledger.gaps.length, 0); assert(!byId(aHead, "ledger-gaps"));
+    const keep = LD.rows.filter((r, i) => i === 0 || !/^(0[3-5])\//.test(r[1])), gappy = R.analyse({ name: "t", rows: keep }), f = byId(gappy, "ledger-gaps");
+    assert(f && f.kind === "qa" && /gap/.test(f.title) && /Longest: \d+ days/.test(f.detail), f && f.title); assert(f.n >= 1);
+  });
+  test("the weekday pattern needs eight weeks and 60 outflow rows; a pattern that does not stand out is listed under Not shown", () => {
+    const w = byId(aHead, "ledger-weekday"), held = aHead.notShown.find(x => x.id === "ledger-weekday");
+    assert(w || held, "either shown or held back with a reason"); if (held) assert(/stands out/.test(held.reason), held.reason);
+    const short = R.analyse({ name: "t", rows: [LD.rows[0], ...LD.rows.slice(1, 30)] }), x = short.notShown.find(h => h.id === "ledger-weekday" || h.id === "ledger-months"); assert(x && /needs at least/.test(x.reason), JSON.stringify(short.notShown.map(h => h.reason)));
+  });
+  test("a ledger's worth-a-look list and flags use the file's own row numbers and never include an FYI", () => {
+    const w = R.pickNotable(aNone, R.makeStore(LH, aNone)); assert(w.length >= 3 && w.length <= 10, w.length); assert(w.every(x => x.kind !== "fyi"));
+    assert.strictEqual(aNone.findingsAll.find(f => f.id === "dup").rows.map(r => r + aNone.rowBase).join(), LG.duplicate_rows.map(r => r + 1).join());
+  });
+};

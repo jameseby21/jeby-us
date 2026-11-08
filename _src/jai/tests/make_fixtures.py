@@ -208,7 +208,6 @@ def ledger():
         if day.day in (5, 20) or (day.day == 19 and day.month == 11): tx.append((day, "PAYROLL ACME CORP", 2150.00, "ACH_CREDIT"))
         if day.day == 19 and day.month != 11: tx.append((day, "NETFLIX.COM" if day.month % 2 else "Netflix.com", -15.49, "DEBIT_CARD"))
         if day.day == 3: tx.append((day, "SPOTIFY USA", -10.99, "DEBIT_CARD"))
-        if day.day == 9: tx.append((day, "PLANET FITNESS 04412 COLUMBUS IN", -24.99, "DEBIT_CARD"))
         day += datetime.timedelta(days=1)
     shops = [("KROGER {s} COLUMBUS IN 50910", 30, 18, 95), ("KROGER {s} INDIANAPOLIS IN 46204", 10, 18, 95), ("Kroger #{s}", 6, 18, 95), ("SHELL OIL {s} COLUMBUS IN", 24, 22, 58),
              ("SQ *BLUE BOTTLE COFFEE", 22, 4, 9), ("SQ *BLUE BOTTLE COFFEE SAN FRANCISCO CA", 6, 4, 9), ("TST* TACO PLACE {s} COLUMBUS IN", 14, 9, 31), ("VENMO* JORDAN", 7, 10, 80),
@@ -243,7 +242,7 @@ write_raw("ledger_title.csv", LH, LEDGER, title="Synthetic checking activity, Ja
 dupkey = [i for i, row in enumerate(LEDGER) if row[2].startswith("TST* TACO PLACE 0042") and row[3] == "-27.80"]
 refund = [i for i, row in enumerate(LEDGER) if row[2].startswith("KROGER 710 COLUMBUS IN 50910") and row[1] == "08/21/2018"]
 (OUT / "ledger.truth.json").write_text(json.dumps({"duplicate_rows": dupkey, "refund_pair": refund, "rows": len(LEDGER),
-    "recurring": ["Netflix", "Spotify", "Planet Fitness"], "big_purchase": [i for i, row in enumerate(LEDGER) if row[3] == "-1862.94"]}, indent=1), encoding="utf-8")
+    "recurring": ["Netflix", "Spotify"], "big_purchase": [i for i, row in enumerate(LEDGER) if row[3] == "-1862.94"]}, indent=1), encoding="utf-8")
 
 # a header made of years, over amounts: a row of numbers on top is still a header (CONS-0071)
 nr = random.Random(5)

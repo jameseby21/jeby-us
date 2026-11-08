@@ -23,7 +23,7 @@
     ],
     countName: /\(#\)|(^|[\s_-])#($|[\s_-])|(^|[\s_-])(count|number of|num of|no of)($|[\s_-])/i,   // a name that says "how many", not "how much": Sales (#), order count
     moneyName: /price|amount|total|cost|revenue|sales?\b|value|income|profit|paid|fee|spend|rent|tax|consideration/,
-    notMeasure: ["identifier", "coordinates", "unit", "postal", "year", "code", "phone"],   // numbers that are labels, not quantities
+    notMeasure: ["identifier", "coordinates", "unit", "postal", "year", "code", "phone", "amount", "balance"],   // numbers that are labels, not quantities
     placeRoles: ["address", "unit", "city", "state", "postal"],
     // A repeated tiny value in a money column is a placeholder, not an amount (CONS-0058).
     nominal: { floor: 1000, minTypical: 20000, minRest: 20, typicalShare: 0.01 },
@@ -260,6 +260,9 @@
     "min-groups": (c) => { const w = c.why, M = Rules.GATE.minimums;
       if (w.kind === "share" && w.groups < M.share) return `A share needs at least ${M.share} groups and ${w.names[0] || "the column"} has ${w.groups}.`;
       if (w.kind === "concentration" && w.groups < M.concentration) return `A concentration needs at least ${M.concentration} groups and ${w.names[0] || "the column"} has ${w.groups}.`; return null; },
+    "min-periods": (c) => { const w = c.why, M = Rules.GATE.minimums, W = Rules.LEDGER.weekday;
+      if (w.kind === "months" && w.n < M.months) return `A by-month insight needs at least ${M.months} complete months and the file has ${w.n}.`;
+      if (w.kind === "weekday" && (w.weeks < W.minWeeks || w.n < W.minOutflowRows)) return `A weekday pattern needs at least ${W.minWeeks} weeks and ${W.minOutflowRows} outflow rows; the file has ${Math.floor(w.weeks)} weeks and ${w.n} rows.`; return null; },
     "label-vocab": (c) => { const w = c.why, text = c.title + " " + (c.detail || ""); if (w.aggregate === "sum") return null;
       const bad = (w.names || []).find(n => new RegExp("\\btotal\\s+" + String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(text)); return bad ? `“Total ${bad}” is for a sum; this is a ${w.aggregate}. It reads Rows.` : null; },
     "count-not-money": (c) => { const w = c.why, text = c.title + " " + (c.detail || "");
@@ -275,11 +278,12 @@
   }
 
   // What the file could not be checked for: every check whose roles are missing
-  function notChecked(cols) {
+  function notChecked(cols, ledger) {
     const has = r => cols.some(c => c.role === r) || (r === "place" && cols.some(c => DOMAIN.placeRoles.includes(c.role)));
-    const miss = DOMAIN.checks.filter(c => c.needs.length && !c.needs.every(has));
+    const off = c => ledger && Rules.LEDGER.off.includes(c.id);   // a ledger is not asked for these, by design (CONS-0072)
+    const miss = DOMAIN.checks.filter(c => c.needs.length && !c.needs.every(has) && !off(c));
     const why = n => ({ money: "a money column", measure: "a measure column", date: "a date column", place: "a place column (address, city, state or postal code)", address: "an address column", city: "a city column", identifier: "an identifier column", coordinates: "latitude and longitude columns", topic: "a topic reference (lookup, CONS-0065)" }[n] || `a ${n} column`);
-    return { missing: miss.map(c => ({ id: c.id, label: c.label, because: c.needs.filter(n => !has(n)).map(why) })) };
+    return { missing: miss.map(c => ({ id: c.id, label: c.label, because: c.needs.filter(n => !has(n)).map(why) })), off: DOMAIN.checks.filter(off).map(c => ({ id: c.id, label: c.label })) };
   }
   const classOf = id => (CHK[id] ? CHK[id].cls : null);
 

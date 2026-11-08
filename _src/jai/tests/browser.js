@@ -325,6 +325,16 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     return m.summary;
   });
 
+  await check("ledger: the header says transactions; tiles read Money out and Money in; recurring charges, the one duplicate and the FYIs show; the sales rules are listed as not run", async () => {
+    await loadFx("ledger_header.csv");
+    const m = await js(`({ meta: document.querySelector('.sh-meta').textContent, tiles: [...document.querySelectorAll('.sh-kpis > div')].map(d => d.querySelector('.label').textContent + '=' + d.querySelector('b').textContent), ins: [...document.querySelectorAll('.sh-insights .finds li b')].map(e => e.textContent), qa: [...document.querySelectorAll('.sh-qa .finds li b')].map(e => e.textContent), fyi: [...document.querySelectorAll('.sh-fyi .finds li b')].map(e => e.textContent), off: (document.querySelector('.sh-qa .not-checked + .not-checked, .sh-qa .not-checked') || {}).textContent, measureCtl: !!document.querySelector('[data-ch="measure"]'), bars: document.querySelectorAll('.sh-insights svg.bars .pick').length })`);
+    assert(/kind: transactions/.test(m.meta), m.meta); assert.deepStrictEqual(m.tiles.map(t => t.split("=")[0]), ["Rows", "Dates", "Money out", "Money in"]);
+    assert(m.ins.some(t => /^2 recurring charges/.test(t)) && m.ins.some(t => /^Money out runs from/.test(t)) && m.ins.some(t => /biggest merchant/.test(t)), m.ins.join(" | "));
+    assert(m.qa.some(t => /1 duplicate row$/.test(t)) && !m.qa.some(t => /nominal|months old|negative/i.test(t)), m.qa.join(" | ")); assert(m.fyi.some(t => /^The export ends on Nov 19, 2018/.test(t)) && m.fyi.some(t => /refunded the same day/.test(t)), m.fyi.join(" | "));
+    assert(/Not run on a ledger, by design/.test(await js(`document.querySelector('.sh-qa').textContent`))); assert.strictEqual(m.measureCtl, false); assert.strictEqual(m.bars, 0);
+    return `${m.ins.length} insights, ${m.qa.length} QA, ${m.fyi.length} FYI`;
+  });
+
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {
     await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") + "#sample" }); await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && document.querySelectorAll('.rec-tr').length > 0", 20000);
     assert.strictEqual(await js(`JAIReportDebug.engine`), "main"); assert.strictEqual(await js(`JAIReportDebug.store.rows.length`), 5000);
