@@ -197,4 +197,25 @@ module.exports = function (h) {
     assert(["item", "location", "payment"].includes(cafeA.trend.split.col), "cafe split: " + cafeA.trend.split.col);
   });
 
+  // ---------- CONS-0063
+  console.log("role-driven checks (CONS-0063)");
+  test("sales shape: money over measure ratio insights, an 1850 date and a 999 value in a measure column are found by role; Not checked names the missing role", () => {
+    const ex = aC.findingsList.find(f => f.id === "extremes"); assert(ex && /sale price per living area sqft/.test(ex.title) && ex.kind === "insight" && ex.rule && ex.todo, "extremes insight");
+    assert(aC.findingsList.find(f => f.id === "date").rows.includes(CT.ancient_date[0]), "1850 date"); const b = aC.findingsList.find(f => f.id === "out:beds"); assert(b && b.rows.includes(CT.beds_999[0]), "999 beds by measure role");
+    const nc = aC.notChecked.missing.map(m => m.label + "|" + m.because.join()); assert(nc.some(x => /coordinates/.test(x) && /latitude and longitude/.test(x)), nc.join(" ; "));
+    assert(!aC.notChecked.missing.some(m => m.id === "nominal" || m.id === "ratio" || m.id === "repeat"), "checks that ran are not listed as not checked");
+  });
+  test("every check names its rule and what to do, and nothing in the data file names a topic", () => {
+    Dom.DOMAIN.checks.forEach(c => { assert(c.rule && c.rule.endsWith(".") && c.todo, c.id); assert(["qa", "insight"].includes(c.kind)); });
+    aC.findingsList.filter(f => ["extremes", "repeat", "idunique", "concentration"].includes(f.id)).forEach(f => assert(f.rule && f.todo, f.id));
+  });
+  test("venues shape: the same engine finds place and identifier problems and runs no money checks", () => {
+    const ids = aV.findingsList.map(f => f.id); assert(ids.includes("mixedid") && ids.includes("variant"), ids.join()); assert(!ids.some(i => /nominal|ratio:|extremes|unit:/.test(i)), "money checks ran on a file with no money");
+    const miss = aV.notChecked.missing.map(m => m.id); ["nominal", "ratio", "dates", "repeat"].forEach(i => assert(miss.includes(i), i + " should be listed as not checked: " + miss));
+    assert.strictEqual(aV.cols.find(c => c.name === "latitude").role, "coordinates"); assert(!miss.includes("coords"), "coordinates present, so they are checked");
+  });
+  test("a gap inside the timeline is reported", () => {
+    const rows = [["id", "created_at", "v"]]; [0, 1, 2, 5, 6, 7, 8].forEach((m, k) => { for (let j = 0; j < 4; j++) rows.push(["r" + k + j, new Date(Date.UTC(2025, m, 5 + j)).toISOString().slice(0, 10), "1"]); });
+    const a = R.analyse({ name: "t", rows }); const g = a.findingsList.find(f => f.id === "tlgaps"); assert(g && /2 empty months/.test(g.title), g && g.title);
+  });
 };

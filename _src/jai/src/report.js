@@ -456,6 +456,8 @@
         body.forEach((r, ri) => { if (okSet.has(ri)) return; const t = dt(r[dateCol.i]); if (t == null) return; const i = ix.get(key(t)); if (i == null) return; const v = r[sCol.i].trim() || "(blank)", g = keep.has(v) ? names.indexOf(v) : names.length - 1; vals[g][i] += measure ? (num(r[measure.i]) || 0) : 1; });
         trend.split = { col: sCol.name, ci: sCol.i, names, vals, top5 };
       }
+      { const inner = series.slice(partialFirst ? 1 : 0, series.length - (partialLast ? 1 : 0)), empty = inner.filter(p => p.v === 0 && !agg.has(p.t));
+        if (series.length >= 6 && empty.length) { findings.push({ id: "tlgaps", kind: "qa", cls: "missing", sev: "look", title: `${empty.length} empty ${unit}${empty.length > 1 ? "s" : ""} inside the timeline`, detail: `No rows in ${empty.slice(0, 4).map(p => label(p.t)).join(", ")}${empty.length > 4 ? " and more" : ""}, between months that have data. A gap in the export, or a quiet period?`, score: 57, crumb: "Gaps in the timeline", rule: "A period with no rows between periods that have rows is a gap in the data or a real pause.", todo: "Ask whether the export skipped those dates." }); } }
       if (spike) findings.push({ id: null, kind: "insight", sev: "look", title: `${unit === "month" ? new Date(spike.t).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "The " + unit + " of " + label(spike.t)} is ${spike.r.toFixed(1)}× a typical ${unit}`, detail: `${measure ? measure.name : "Rows"}: ${full(spike.v, 0)} against a typical ${full(pm, 0)}. Worth knowing why.`, score: 70 });
     }
 
