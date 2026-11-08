@@ -1,5 +1,6 @@
 """Tests for the publish and drift steps in build.py.  Run: python _src/test_build.py
-Each test protects one rule: publish never deletes a folder (JEBYUS-0060)."""
+Each test protects one rule: publish never deletes a folder (JEBYUS-0060) and the drift check names every
+file that differs from the build (JEBYUS-0061)."""
 import pathlib, sys, tempfile, unittest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import build
@@ -37,6 +38,18 @@ class PublishAndDrift(unittest.TestCase):
         tree(self.out, {"research/a.html": "r"})
         build.publish(self.out, self.root)
         self.assertEqual((self.root / "research" / "a.html").read_text(), "r")
+
+    def test_drift_names_the_edited_file(self):
+        """Protects JEBYUS-0061: edit one root file and the check names it, and only it."""
+        build.publish(self.out, self.root)
+        self.assertEqual(build.differing(self.out, self.root), [])
+        (self.root / "assets" / "site.css").write_text("hand edit")
+        self.assertEqual(build.differing(self.out, self.root), ["assets/site.css"])
+
+    def test_drift_names_a_missing_file(self):
+        """Protects JEBYUS-0061: a built file absent from the root counts as drift."""
+        (self.root / "index.html").unlink()
+        self.assertIn("index.html", build.differing(self.out, self.root))
 
 
 if __name__ == "__main__":

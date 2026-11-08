@@ -11,7 +11,7 @@ python3 _src/build.py            # builds both sites into _src/jeby/out and _src
 python3 _src/build.py --publish  # also makes the repository root match the jeby.us build
 ```
 
-Commit the root after `--publish`; that commit is what goes live on jeby.us.
+Commit the root after `--publish`; that commit is what goes live on jeby.us. `python3 _src/build.py --check` lists any root file that differs from the build (exit 1); a GitHub Actions workflow runs it on every pull request, so a hand-edited or half-published root cannot merge.
 
 ## Layout
 

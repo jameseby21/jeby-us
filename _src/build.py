@@ -2,6 +2,7 @@
 
     python3 _src/build.py            build both sites into _src/jeby/out and _src/jai/out
     python3 _src/build.py --publish  also copy the jeby.us build into the repository root, which GitHub Pages serves
+    python3 _src/build.py --check    build, then list root files that differ from the build; exit 1 if any do
 """
 import pathlib, shutil, subprocess, sys
 HERE = pathlib.Path(__file__).resolve().parent
@@ -40,6 +41,11 @@ def main(argv):
         for name in changed: print("  ", name)
         left = differing(out, root)
         if left: sys.exit(f"publish left {len(left)} files different: {', '.join(left)}")
+    if "--check" in argv:
+        diff = differing(out, root)
+        for name in diff: print("differs:", name)
+        print(f"{len(diff)} files differ")
+        if diff: sys.exit(1)
 
 
 if __name__ == "__main__":
