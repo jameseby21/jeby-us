@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><defs>
+<radialGradient id="led" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ff8a91"/><stop offset="0.5" stop-color="#ff2b3d"/><stop offset="1" stop-color="#ff2b3d" stop-opacity="0"/></radialGradient>
+<linearGradient id="redtile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff3a4b"/><stop offset="1" stop-color="#9e0c18"/></linearGradient>
+<linearGradient id="chrome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#bdbac8"/><stop offset=".45" stop-color="#ffffff"/><stop offset="1" stop-color="#8d8a9c"/></linearGradient>
+<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs><rect width="256" height="256" rx="56" fill="#F4F3F7"/><path d="M136 182 V82 Q136 48 168 48 Q188 48 200 64" fill="none" stroke="#111116" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="114" cy="186" rx="38" ry="28" transform="rotate(-24 114 186)" fill="url(#led)"/><ellipse cx="114" cy="186" rx="30" ry="22" transform="rotate(-24 114 186)" fill="#ff2b3d" filter="url(#glow)"/><ellipse cx="104" cy="178" rx="9" ry="5" transform="rotate(-24 104 178)" fill="#ffffff" fill-opacity=".35"/></svg>

@@ -3,6 +3,8 @@ import html, json, pathlib, re, shutil, sys
 ROOT = pathlib.Path(__file__).parent
 sys.path.insert(0, str(ROOT / "src"))
 import content as C
+sys.path.insert(0, str(ROOT.parent / "brand"))
+import brand as BR  # marks.json: the cycling rule's candidates
 
 OUT = ROOT / "out"; ART = ROOT / "artifact"
 for d in (OUT, ART): shutil.rmtree(d, ignore_errors=True); (d / "assets").mkdir(parents=True, exist_ok=True)
@@ -66,13 +68,13 @@ def page(key, title, desc, body, extra_head="", extra_js="", artifact=False):
 <meta name="theme-color" content="#0c0b0a">
 <meta property="og:title" content="{E(title)}"><meta property="og:description" content="{E(desc)}"><meta property="og:image" content="https://jeby.us/og.png"><meta property="og:url" content="https://jeby.us/{'' if key=='home' else key}">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
+{BR.favicon_links("jeby")}
 {FONTS}
 <link rel="stylesheet" href="assets/site.css">
 {extra_head}
 <script type="speculationrules">{{"prerender":[{{"where":{{"href_matches":"/*"}},"eagerness":"moderate"}}]}}</script>'''
     if key == "home": head += f'\n<script type="application/ld+json">{json.dumps(PERSON)}</script>'
-    bodyhtml = f'{header(key)}\n<main id="main">{body}</main>\n{footer()}\n<script src="assets/site.js" defer></script><script src="assets/family.js" data-site="jeby" defer></script>{extra_js}'
+    bodyhtml = f'{header(key)}\n<main id="main">{body}</main>\n{footer()}\n<script src="assets/site.js" defer></script><script src="assets/brand.js" defer></script><script src="assets/family.js" data-site="jeby" defer></script>{extra_js}'
     if artifact:
         return f'{head}\n<meta name="claude:viewport-fit-sides" content="cover">\n<div data-page="{key}" class="artifact-body">{bodyhtml}</div><script>document.body.dataset.page="{key}"</script>'
     return f'<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n{head}\n</head>\n<body data-page="{key}">\n{bodyhtml}\n</body>\n</html>\n'
@@ -84,6 +86,9 @@ drew_svg = re.sub(r'<svg ([^>]*?) width="512" height="504"', r'<svg \1', drew_sv
 DREW = f'<div class="drew-art" role="button" tabindex="0" aria-label="Drew, a black Scottish Terrier, illustrated. Press to make him stick his tongue out.">{drew_svg}</div>'
 
 def mark(item):
+    t = BR.tile(item["id"], themed=True)
+    if t:
+        return t
     if item.get("mark_img"):
         return f'<span class="mark" style="background:#0b0b0f"><img src="assets/{item["mark_img"]}" alt=""></span>'
     return f'<span class="mark" style="background:{item["accent"]}">{E(item["mark"])}</span>'
@@ -414,6 +419,7 @@ for d in (OUT, ART):
     for f in ("musicalgames.svg", "plantriloquist.png"): shutil.copy(FAM / "assets" / f, d / "assets" / f)
     shutil.copy(FAM / "family.js", d / "assets/family.js")
     shutil.copy(ST / "favicon.svg", d / "favicon.svg")
+    BR.copy_assets(d / "assets")
     (d / "research").mkdir(exist_ok=True); shutil.copy(ST / "poster.pdf", d / "research/poster.pdf")
 shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT / "drew-qr.png")
 (OUT / "CNAME").write_text("jeby.us\n", encoding="utf-8")

@@ -22,6 +22,7 @@ Commit the root after `--publish`; that commit is what goes live on jeby.us.
 | `jeby/static/` | Images and files copied as they are: the Drew photo, the Drew QR, the poster PDF, project marks |
 | `jai/src/jai_content.py` | Every word and price on jainsights.com. Prices are hours × the one rate, computed at build time |
 | `jai/build.py`, `jai/src/jai.css`, `jai/src/jai.js`, `jai/src/report.js` | The jainsights.com generator, styles, behaviour and the in-browser free report |
+| `brand/marks.json`, `brand/marks/`, `brand/brand.py`, `brand/brand.js` | Every brand mark and favicon candidate for both sites, and the rotation that shows one per session (the cycling rule). Add or retire a candidate in `marks.json` only |
 | `family/family.js` | How the two sites link: the shared "jeby family" strip (option C, the default), or one site (A) or sister sites (B) |
 | `research/src/` | The galaxy-cluster slideshow on jeby.us/research |
 | `ARCHITECTURE.md`, `architecture/` | Diagrams of the hosting, the build, both sites, the family links and the free report, with the tech stack and brand assets. `architecture/` holds each diagram's Mermaid source and SVG render |

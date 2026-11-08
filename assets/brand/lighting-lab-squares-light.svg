@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Lighting Lab">
+<title>Lighting Lab</title>
+<rect x="8" y="8" width="240" height="240" rx="56" fill="#D9D7E2"/>
+<rect x="24" y="18" width="208" height="200" rx="42" fill="#FFFFFF"/>
+<rect x="62" y="62" width="58" height="58" rx="12" fill="#7C5CFF"/>
+<rect x="136" y="62" width="58" height="58" rx="12" fill="#F25CC8"/>
+<rect x="62" y="136" width="58" height="58" rx="12" fill="#2FB8CF"/>
+<rect x="136" y="136" width="58" height="58" rx="12" fill="#F1F0F5" stroke="#C9C6D6" stroke-width="3"/>
+<circle cx="165" cy="165" r="11" fill="#E3262F"/>
+</svg>
