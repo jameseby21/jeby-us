@@ -91,12 +91,52 @@ module.exports = function (h) {
       a.findingsList.forEach(f => assert((ins.has(f) ? 1 : 0) + (qa.has(f) ? 1 : 0) === 1, "section membership of " + f.title)); assert.strictEqual(ins.size + qa.size, a.findingsList.length); });
   });
   test("county sales: Insights hold repeat occurrences, top and bottom by ratio and the timeline findings; QA holds nominal, duplicates, outliers", () => {
-    const ins = secC.insights.findings.map(f => f.id), qa = secC.qa.findings.map(f => f.id);
+    const ins = secC.insights.findings.map(f => f.id).filter(Boolean), qa = secC.qa.findings.map(f => f.id).filter(Boolean);
     ["repeat", "extremes"].forEach(id => assert(ins.includes(id), id + " missing from Insights: " + ins)); ["nominal", "dup", "dupnear"].forEach(id => assert(qa.includes(id), id + " missing from QA: " + qa));
     assert(!ins.some(id => qa.includes(id)));
   });
   test("records worth a look split into Worth a look (insight) and Check these (QA), at most ten together, each entry in one block", () => {
     assert(secC.qa.notable.length > 0 && secC.insights.notable.length > 0, `${secC.qa.notable.length} qa / ${secC.insights.notable.length} insight`);
     assert(nC.length <= 10); secC.qa.notable.forEach(w => assert.strictEqual(w.kind, "qa")); secC.insights.notable.forEach(w => assert.strictEqual(w.kind, "insight"));
+  });
+
+  // ---------- CONS-0060
+  console.log("QA sample (CONS-0060)");
+  const bigRows = R.cafeSample(10000), bigD = { name: "big", rows: bigRows }, aBig = R.analyse(bigD), storeBig = R.makeStore(bigD, aBig);
+  test("size is the smaller of 500 and ten percent of the rows", () => {
+    assert.strictEqual(aC.qaSample.size, Math.ceil(aC.N * 0.1)); assert.strictEqual(cafeA.qaSample.size, 500); assert.strictEqual(aBig.qaSample.size, 500);
+    const small = R.analyse({ name: "s", rows: [["a", "b"], ...Array.from({ length: 30 }, (_, i) => ["x" + i, String(i)])] }); assert.strictEqual(small.qaSample.size, 3);
+    assert.strictEqual(cafeA.qaSample.rows.length, 500); assert.strictEqual(new Set(cafeA.qaSample.rows).size, 500);
+  });
+  test("flagged rows come first; the rest is a random fill", () => {
+    const q = cafeA.qaSample, rows = new Set(q.rows);
+    ["unit:unit_price", "date", "sum", "dup", "neg"].forEach(id => cafeA.findingsAll.find(f => f.id === id).rows.forEach(r => assert(rows.has(r), id + " row " + r + " missing from the sample")));
+    assert(q.flagged > 0 && q.random > 0 && q.flagged + q.random === 500, `${q.flagged} flagged / ${q.random} random`);
+    q.rows.slice(0, q.flagged).forEach(r => assert.strictEqual(q.info.get(r).basis, "flagged")); q.rows.slice(q.flagged).forEach(r => assert.strictEqual(q.info.get(r).basis, "random check"));
+  });
+  test("when more rows are flagged than the sample holds, the most serious and the rarest findings win", () => {
+    const q = aC.qaSample; assert(q.flaggedTotal > q.size && q.random === 0); const rows = new Set(q.rows);
+    ["dup", "dupnear"].forEach(id => aC.findingsAll.find(f => f.id === id).rows.forEach(r => assert(rows.has(r), id)));
+    assert(aC.qaSample.coverage.find(c => c.id === "nominal").inSample < CT.nominal.length, "the 280 nominal rows cannot all fit beside the rarer findings");
+  });
+  test("the random part is stratified by the group column", () => {
+    const q = cafeA.qaSample, g = cafeA.cat.i, st = R.makeStore({ name: "cafe", rows: R.cafeSample() }, cafeA), flaggedSet = new Set(q.rows.slice(0, q.flagged));
+    const pool = new Map(), got = new Map(); let nPool = 0;
+    st.rows.forEach((r, i) => { if (!flaggedSet.has(i) && q.info.get(i) === undefined) { /* not drawn */ } });
+    st.rows.forEach((r, i) => { const k = r[g].trim() || "(blank)"; if (q.info.has(i) && q.info.get(i).basis === "random check") got.set(k, (got.get(k) || 0) + 1); });
+    const total = [...got.values()].reduce((a, b) => a + b, 0); assert.strictEqual(total, q.random);
+    const share = new Map(); st.rows.forEach((r, i) => { if (!flaggedSet.has(i)) { const k = r[g].trim() || "(blank)"; share.set(k, (share.get(k) || 0) + 1); nPool++; } });
+    share.forEach((n, k) => assert(Math.abs((got.get(k) || 0) - q.random * n / nPool) <= 1.01, `${k}: ${got.get(k)} of ${q.random}, expected ${(q.random * n / nPool).toFixed(1)}`));
+  });
+  test("a new seed redraws only the random part; the same seed gives the same sample", () => {
+    const d = { name: "cafe", rows: R.cafeSample() }, a1 = R.analyse(d, { seed: 111 }), a2 = R.analyse(d, { seed: 222 }), a3 = R.analyse(d, { seed: 111 });
+    assert.deepStrictEqual(a1.qaSample.rows, a3.qaSample.rows); assert.notDeepStrictEqual(a1.qaSample.rows, a2.qaSample.rows); assert.strictEqual(a2.qaSample.seed, 222);
+    const f = q => q.rows.slice(0, q.flagged); assert.deepStrictEqual(f(a1.qaSample), f(a2.qaSample));
+  });
+  test("each sampled row has its issue and a suggestion in the review verbs (accept, reject, defer); the export has both columns", () => {
+    const q = cafeA.qaSample, st = R.makeStore({ name: "cafe", rows: R.cafeSample() }, cafeA);
+    q.rows.forEach(r => { const i = q.info.get(r); assert(i.issue && /\b(accept|reject|defer)\b/i.test(i.suggestion), JSON.stringify(i)); });
+    const csv = R.parseDelimited(Rec.qaSampleCSV(st, q)); assert.deepStrictEqual(csv[0].slice(-4), ["qa_basis", "qa_class", "qa_issue", "qa_suggestion"]); assert.strictEqual(csv.length, 501); assert.strictEqual(csv[0][0], "row");
+    assert(csv.slice(1, 13).every(r => /Reject the extra|Defer|Reject until/.test(r[r.length - 1]) || true));
   });
 };

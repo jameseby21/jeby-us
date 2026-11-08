@@ -293,9 +293,12 @@
 
     // empties: whole columns with gaps, then the odd blank in a column that is otherwise full
     const emptyCells = cols.reduce((a, c) => a + c.empty, 0), totalCells = N * cols.length;
-    const gappy = cols.filter(c => c.type !== "empty" && !(c.type === "text" && c.avgLen > 12) && c.empty / N > .02).sort((a, b) => b.empty - a.empty);
+    const optionalCols = cols.filter(c => c.type !== "empty" && c.empty / N > Dom.DOMAIN.optionalShare), isOpt = c => c.empty / N > Dom.DOMAIN.optionalShare;
+    const gappy = cols.filter(c => c.type !== "empty" && !isOpt(c) && !(c.type === "text" && c.avgLen > 12) && c.empty / N > .02).sort((a, b) => b.empty - a.empty);
     const oddBlank = cols.filter(c => (c.type === "category" || c.type === "number" || c.type === "date") && c.empty > 0 && c.empty / N <= .02).sort((a, b) => b.empty - a.empty);
     const emptyCols = cols.filter(c => c.type === "empty");
+    if (optionalCols.length) add("look", `${optionalCols.length} optional column${optionalCols.length > 1 ? "s are" : " is"} mostly empty`, `${optionalCols.slice(0, 3).map(c => `${c.name} ${pct(c.empty, N).toFixed(0)}% empty`).join(" · ")}. Blank is expected here, so these are not counted as missing values.`, 20, true, null, "Optional columns");
+    if (findings.length && findings[findings.length - 1].title.endsWith("mostly empty")) findings[findings.length - 1].cls = "optional-field";
     gappy.concat(oddBlank).slice(0, 6).forEach(c => body.forEach((r, ri) => { if (r[c.i].trim() === "") link("gaps", ri, c.i, "look", `<b>${esc(c.name)} is blank.</b> ${c.empty.toLocaleString("en-US")} rows are missing it.`, "", 0); }));
     if (gappy.length) add(gappy[0].empty / N > .1 ? "fix" : "look", `${gappy.length === 1 ? gappy[0].name + " has" : gappy.length + " columns have"} gaps`, gappy.slice(0, 3).map(c => `${c.name} ${pct(c.empty, N).toFixed(1)}% empty`).join(" · ") + ".", 60 + Math.min(30, pct(gappy[0].empty, N)), true, "gaps", "Blank cells");
     else if (oddBlank.length) add("look", `${oddBlank[0].name} is blank in ${oddBlank[0].empty} row${oddBlank[0].empty > 1 ? "s" : ""}`, oddBlank.slice(0, 3).map(c => `${c.name} ${c.empty}`).join(" · ") + `. The rest of the column is filled, so these are probably missed entries.`, 52, true, "gaps", "Blank cells");
@@ -436,13 +439,69 @@
       if (items2.length > 1 && items2[0][1][0] / breakdown.total >= .5) findings.push({ id: null, kind: "insight", sev: "look", title: `${items2[0][0]} is ${pct(items2[0][1][0], breakdown.total).toFixed(0)}% of ${measure ? measure.name : "rows"}`, detail: `One ${cat.name} carries most of the total. Good to know before you plan around averages.`, score: 40 });
     }
 
-    findings.forEach(f => { Object.assign(f, meta.get(f.id) || {}); if (!f.kind) f.kind = "qa"; });
+    findings.forEach(f => { Object.assign(f, meta.get(f.id) || {}); if (!f.kind) f.kind = "qa"; if (f.kind === "qa" && !f.cls) f.cls = classOfFinding(f); });
     findings.sort((a, b) => b.score - a.score);
     findings.forEach(f => { if (f.id) { f.rows = [...(fr.get(f.id) || [])].sort((a, b) => a - b); f.n = f.rows.length; } });
     const findingsAll = findings.filter(f => f.id && f.n > 0);
     const rank = { fix: 0, look: 1, ok: 2 }; checks.sort((a, b) => rank[a.sev] - rank[b.sev]);
     const needsCleanup = checks.some(c => c.sev === "fix");
-    return { name: data.name, sheet: data.sheet, N, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+    const qaSample = N >= 10 ? qaSampleOf({ N, header, cat, flags, findingsList: findings }, body, choice.seed) : null;
+    return { name: data.name, sheet: data.sheet, N, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, qaSample, notChecked: Dom.notChecked(cols), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+  }
+
+  // ---------- classes and review verbs
+  const classOfFinding = (f, cols) => {
+    const id = f.id || "";
+    if (id === "dup" || id === "dupnear") return "duplicate";
+    if (id === "nominal") return "repeated-value";
+    if (/^(unit|out|ratio|shift):/.test(id) || id === "neg") return "contextual-outlier";
+    if (id === "date" || id === "badnum" || id === "mixedid" || id === "coords") return "malformed";
+    if (id === "sum" || id === "variant" || id === "idunique") return "source-conflict";
+    if (id === "stale") return "stale";
+    if (id === "gaps") { const worst = f.optional; return worst ? "optional-field" : "missing"; }
+    return null;
+  };
+  // accept = the record is right as it is, reject = it is wrong and should not be used, defer = cannot tell without the source
+  const SUGGEST = {
+    duplicate: "Reject the extra copy and accept the other; compare the two rows first.",
+    "repeated-value": "Defer: confirm what these amounts are; accept if real, reject if placeholders.",
+    "contextual-outlier": "Defer until checked against the source; reject if it is a typo, accept if it is real.",
+    malformed: "Reject until it is corrected from the source.",
+    "source-conflict": "Defer: find out which record is right, then accept it and reject the other.",
+    missing: "Defer: fill it in from the source, or accept the blank if it is allowed.",
+    stale: "Defer: ask for a newer export.",
+    "optional-field": "Accept: this column is mostly empty on purpose.",
+    random: "Accept if it matches the source; reject or defer if it does not.",
+  };
+
+  // ---------- the QA sample (CONS-0060): min(500, 10 percent of the rows); every flagged row first, then a stratified random fill
+  const mulberry = seed => { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; };
+  const hashStr = str => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  function qaSampleOf(a, body, seedIn) {
+    const N = a.N, size = Math.min(500, Math.ceil(N * 0.1)), seed = seedIn != null ? seedIn >>> 0 : hashStr(a.header.join("|") + "|" + N) % 1000000;
+    const fin = new Map(a.findingsList.map(f => [f.id, f])), byRow = new Map();
+    a.flags.forEach((f, k) => { const fd = fin.get(f.id); if (!fd || fd.kind !== "qa") return; const ri = +k.split(":")[0]; const r = byRow.get(ri) || byRow.set(ri, []).get(ri); r.push({ f, fd, ci: +k.split(":")[1] }); });
+    const SEV = { fix: 0, look: 1, ctx: 2 }, flagged = [];
+    byRow.forEach((cells, ri) => { cells.sort((x, y) => (x.fd.id === "gaps") - (y.fd.id === "gaps") || SEV[x.f.sev] - SEV[y.f.sev] || (x.fd.n || 0) - (y.fd.n || 0) || y.f.eff - x.f.eff || x.ci - y.ci); flagged.push({ ri, top: cells[0], cells }); });
+    flagged.sort((x, y) => (x.top.fd.id === "gaps") - (y.top.fd.id === "gaps") || SEV[x.top.f.sev] - SEV[y.top.f.sev] || (x.top.fd.n || 0) - (y.top.fd.n || 0) || y.top.f.eff - x.top.f.eff || x.ri - y.ri);
+    const take = flagged.slice(0, size), taken = new Set(take.map(x => x.ri)), rest = []; for (let i = 0; i < N; i++) if (!byRow.has(i)) rest.push(i);
+    const need = Math.max(0, size - take.length), rnd = mulberry(seed), groups = new Map(), gi = a.cat ? a.cat.i : -1;
+    rest.forEach(ri => { const k = gi >= 0 ? (body[ri][gi].trim() || "(blank)") : ""; (groups.get(k) || groups.set(k, []).get(k)).push(ri); });
+    const keys = [...groups.keys()].sort(), quota = new Map(); let given = 0; const rem = [];
+    keys.forEach(k => { const exact = need * groups.get(k).length / (rest.length || 1), q = Math.floor(exact); quota.set(k, q); given += q; rem.push([exact - q, k]); });
+    rem.sort((x, y) => y[0] - x[0] || (x[1] < y[1] ? -1 : 1)); for (let i = 0; given < need && i < rem.length; i++, given++) quota.set(rem[i][1], quota.get(rem[i][1]) + 1);
+    const randomRows = []; keys.forEach(k => { const g = groups.get(k).slice(); for (let i = g.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [g[i], g[j]] = [g[j], g[i]]; } randomRows.push(...g.slice(0, Math.min(quota.get(k), g.length))); });
+    const rows = take.map(x => x.ri).concat(randomRows.sort((x, y) => x - y)), info = new Map();
+    take.forEach(x => { const cls = classOfFinding(x.top.fd), verb = SUGGEST[cls] || SUGGEST["contextual-outlier"]; info.set(x.ri, { basis: "flagged", cls, issue: plain(x.top.f.why), suggestion: verb }); });
+    randomRows.forEach(ri => info.set(ri, { basis: "random check", cls: null, issue: "Random check: no rule flagged this row.", suggestion: SUGGEST.random }));
+    const cover = a.findingsList.filter(f => f.kind === "qa" && f.rows && f.rows.length && f.id !== "gaps").map(f => ({ id: f.id, title: f.title, n: f.rows.length, inSample: f.rows.filter(r => taken.has(r)).length })).sort((x, y) => y.n - x.n).slice(0, 6);
+    return { size, seed, rows, flagged: take.length, random: randomRows.length, flaggedTotal: flagged.length, info, coverage: cover, strata: a.cat ? a.cat.name : null };
+  }
+  function qaSampleHTML(q) {
+    const cov = q.coverage.map(c => `${esc(c.title.replace(/^[\d,]+ /, ""))} ${Math.round(100 * c.inSample / c.n)}%`).join(" · ");
+    return `<section class="qa-sample"><h3>QA sample <span class="hint print-hide">Rows to read against the source, with a suggestion for each.</span></h3>
+      <p><b>${fmtCount(q.size)} rows</b> (the smaller of 500 and 10 percent): ${fmtCount(q.flagged)} flagged, ${fmtCount(q.random)} chosen at random${q.strata ? ` across ${esc(q.strata)}` : ""}${q.flaggedTotal > q.flagged ? ` (${fmtCount(q.flaggedTotal)} rows are flagged; the most serious and the rarest findings come first)` : ""}. Seed ${q.seed}.${cov ? ` Coverage of each finding: ${cov}.` : ""}</p>
+      <p class="print-hide"><button class="btn small" type="button" data-qs="show">Show the sample</button> <button class="btn small" type="button" data-qs="resample">Resample the random part</button> <button class="btn small" type="button" data-qs="csv">Download QA sample.csv</button></p></section>`;
   }
 
   // ---------- the two sections (CONS-0062): every finding is an insight or a QA finding, and appears in exactly one section
@@ -519,7 +578,7 @@
     return [["order_id", "date", "location", "item", "qty", "unit_price", "total", "payment"], ...rs.map(r => [r.order, r.date, r.loc, r.item, String(r.qty), r.price.toFixed(2), r.total.toFixed(2), r.pay])];
   }
 
-  const API = { parseDelimited, num, dt, profileCol, analyse, detectOutliers, pickNotable, sections, makeStore, cafeSample, setLimits };
+  const API = { parseDelimited, num, dt, profileCol, analyse, detectOutliers, pickNotable, sections, qaSampleOf, classOfFinding, makeStore, cafeSample, setLimits };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else if (typeof self !== "undefined") self.JAIReport = API;
   if (!root) return;
 
@@ -658,6 +717,12 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
     const f = e.target.closest("[data-find]"); if (f && table) table.showFinding(f.dataset.find);
     const sc = e.target.closest("[data-sec]"); if (sc && table) table.showSection(sc.dataset.sec);
+    const qs = e.target.closest("[data-qs]");
+    if (qs && table && last && last.qaSample) {
+      if (qs.dataset.qs === "show") table.showRows(last.qaSample.rows, "QA sample");
+      else if (qs.dataset.qs === "resample") { choice.seed = Math.floor(Math.random() * 1000000); show2(); status(`New random part drawn (seed ${choice.seed}); the flagged rows stay.`); }
+      else if (qs.dataset.qs === "csv") { const url = URL.createObjectURL(new Blob([Rec.qaSampleCSV(store, last.qaSample)], { type: "text/csv;charset=utf-8" })), link = document.createElement("a"); link.href = url; link.download = "QA sample.csv"; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000); }
+    }
     const w = e.target.closest("[data-row]"); if (w && table && w.classList.contains("wrow")) table.jumpTo(+w.dataset.row);
     const g = e.target.closest("[data-g]"); if (g && table && last && last.breakdown) table.showGroup(last.breakdown.ci, g.dataset.g);
   });
@@ -669,7 +734,7 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     body.classList.add("print-fit"); sh.style.zoom = "1";
     try {
       let set = false;
-      fit: for (const rows of [5, 3, 0]) for (const drop of [0, 1]) {   // keep everything if it fits; else give up the Columns table and shrink the chart (1), then worth-a-look rows, before the type gets smaller than 0.6
+      fit: for (const rows of [5, 3, 0]) for (const drop of [0, 1, 2]) {   // keep everything if it fits; else give up the Columns table and shrink the chart (1), then worth-a-look rows, before the type gets smaller than 0.6
         if (rows === 5) sh.removeAttribute("data-pw"); else sh.dataset.pw = rows;
         if (!drop) sh.removeAttribute("data-ph"); else sh.dataset.ph = drop;
         for (let z = 0.76; z >= 0.595 && !set; z -= 0.02) { sh.style.width = PW / z + "px"; if (z < 0.61) fitLog.push(`${rows}/${drop}:${Math.round(sh.offsetHeight * z)}`); if (sh.offsetHeight * z <= PH) { sh.style.setProperty("--pz", z.toFixed(2)); set = true; } }

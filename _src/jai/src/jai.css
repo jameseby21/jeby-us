@@ -443,3 +443,8 @@ body.print-fit .sheet[data-ph] .sh-cols{display:none}body.print-fit .sheet[data-
 body.print-fit .wrow .wreason{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}body.print-fit .sh-worth.ins li:nth-child(n+4){display:none}
 @media print{.sheet[data-ph] .finds li>span{-webkit-line-clamp:1}.sheet[data-ph] .finds{gap:7px}}
 body.print-fit .sheet[data-ph] .finds li>span{-webkit-line-clamp:1}body.print-fit .sheet[data-ph] .finds{gap:7px}
+.qa-sample p{margin:6px 0 0;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+@media print{.qa-sample p{font-size:12.5px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.qa-sample h3 .hint{display:none}}
+body.print-fit .qa-sample p{font-size:12.5px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+@media print{.sheet[data-ph="2"] .qa-sample{display:none}}
+body.print-fit .sheet[data-ph="2"] .qa-sample{display:none}

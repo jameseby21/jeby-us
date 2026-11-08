@@ -111,6 +111,17 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await js(`document.querySelector('[data-crumbs] .rec-x').click()`); return m.h.join(" / ");
   });
 
+  await check("QA sample: 500 rows, flagged first; Show filters the table, Resample changes only the random part and the seed, the CSV has the issue and suggestion columns", async () => {
+    const info = () => js(`(() => { const q = JAIReportDebug.analysis.qaSample; return { size: q.size, flagged: q.flagged, seed: q.seed, rows: q.rows.slice(), text: document.querySelector('.qa-sample').textContent }; })()`);
+    const a = await info(); assert.strictEqual(a.size, 500); assert(/500 rows.*flagged.*random/.test(a.text), a.text.slice(0, 200));
+    await js(`document.querySelector('[data-qs="show"]').click()`); assert(/Showing 500 of 5,000/.test(await js(`document.querySelector('[data-count]').textContent`))); await js(`document.querySelector('[data-crumbs] .rec-x').click()`);
+    await js(`document.querySelector('[data-qs="resample"]').click()`); const b = await info(); assert.notStrictEqual(b.seed, a.seed); assert.deepStrictEqual(b.rows.slice(0, b.flagged), a.rows.slice(0, a.flagged)); assert.notDeepStrictEqual(b.rows.slice(b.flagged), a.rows.slice(a.flagged));
+    await js(`(() => { window.__qs = null; const real = URL.createObjectURL.bind(URL); URL.createObjectURL = b => { window.__qs = b; return real(b); }; HTMLAnchorElement.prototype.click = function () { window.__qsName = this.download; }; })()`);
+    await js(`document.querySelector('[data-qs="csv"]').click()`); const csv = await js(`window.__qs.text()`), name = await js(`window.__qsName`);
+    const rows = R.parseDelimited(csv); assert.strictEqual(name, "QA sample.csv"); assert.strictEqual(rows.length, 501); assert.deepStrictEqual(rows[0].slice(-2), ["qa_issue", "qa_suggestion"]);
+    return `seed ${a.seed} -> ${b.seed}`;
+  });
+
   console.log("editing and export (CONS-0054)");
   await check("fix the twelve $115.00 prices with Enter: the finding disappears, '12 edits' shows, the location average drops", async () => {
     const before = await js(`document.querySelector('.chart.bars [data-g="Sunny Isles Beach"]').dataset.tip`);
@@ -151,7 +162,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     assert.deepStrictEqual(await js(`JAIReportDebug.store.rows[0].slice()`), before); assert.strictEqual(await js(`document.querySelector('.rec-edits .n').textContent`), `${n0} edits`);
   });
   await check("Download hands the visitor the corrected CSV and the change log as files, made here (no network)", async () => {
-    await js(`window.__dl = []; const real = URL.createObjectURL.bind(URL); URL.createObjectURL = b => { window.__dl.push(b); return real(b); }; HTMLAnchorElement.prototype.click = function () { window.__names = (window.__names || []).concat(this.download); };`);
+    await js(`(() => { window.__dl = []; const real = URL.createObjectURL.bind(URL); URL.createObjectURL = b => { window.__dl.push(b); return real(b); }; HTMLAnchorElement.prototype.click = function () { window.__names = (window.__names || []).concat(this.download); }; })()`);
     await js(`document.querySelector('[data-export]').click()`);
     await js(`document.querySelector('[data-dl]').click()`); await js(`document.querySelector('[data-tab="log"]').click()`); await js(`document.querySelector('[data-dl]').click()`);
     const m = await js(`(async () => ({ names: window.__names, texts: await Promise.all(window.__dl.map(b => b.text())), csv: JAIRecords.exportCSV(JAIReportDebug.store), log: JAIRecords.changeLogCSV(JAIReportDebug.store) }))()`);

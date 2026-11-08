@@ -90,7 +90,14 @@
     return rowsToCSV(L, { delim: ",", eol: "\n" });
   }
 
-  const api = { rowsToCSV, createStore, commitEdit, undoEdit, computeView, visibleRange, exportCSV, changeLogCSV };
+  // the QA sample as its own file: the original columns, then why the row is there and what to do (accept, reject or defer)
+  function qaSampleCSV(s, q) {
+    const head = ["row", ...s.names, "qa_basis", "qa_class", "qa_issue", "qa_suggestion"];
+    const rows = q.rows.map(ri => { const i = q.info.get(ri); return [ri + 2, ...s.rows[ri], i.basis, i.cls || "", i.issue, i.suggestion]; });
+    return rowsToCSV([head, ...rows], { delim: ",", eol: "\n" });
+  }
+
+  const api = { qaSampleCSV, rowsToCSV, createStore, commitEdit, undoEdit, computeView, visibleRange, exportCSV, changeLogCSV };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.JAIRecords = api;
   if (typeof document === "undefined") return;
 
@@ -247,6 +254,7 @@
         clearFilters(); filt.finding = { id: "sec:" + kind, rows, crumb: kind === "insight" ? "Insight rows" : "QA rows" }; refresh(true);
         host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       },
+      showRows(rows, crumb) { clearFilters(); filt.finding = { id: "rows:" + crumb, rows: new Set(rows), crumb }; refresh(true); host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); },
       showGroup(col, val) { clearFilters(); filt.group = { col, val }; refresh(true); host.scrollIntoView({ block: "nearest", behavior: "smooth" }); },
       jumpTo(ri) {
         clearFilters(); hl = ri; recompute(); drawHead(); toolbar(); crumbs();
