@@ -912,14 +912,25 @@
   }
   // The grouping table (CONS-0041): bars with the share of the total, the rows and the mean; a second column nests the biggest kinds under each group; Other holds the rest of the top N
   const pctText = x => (x * 100).toFixed(x < 0.1 && x > 0 ? 1 : 0) + "%";
-  function groupHTML(a) {
-    const g = a.grouping, mx = Math.max(...g.rows.map(r => Math.max(0, r.v)), 1), mean = g.agg === "sum", cell = (r, kid) => {
-      const w = Math.max(r.v > 0 ? 2 : 0, 100 * Math.max(0, r.v) / mx), shown = g.agg === "sum" ? fmt(r.v) : fmtCount(r.v);
-      return `<td class="grp-bar"><span class="grp-barbox"><i style="width:${w.toFixed(1)}%"></i><b>${esc(shown)}</b></span></td><td class="grp-share">${pctText(r.share)}</td>${g.cat2 ? `<td class="grp-within">${kid ? pctText(r.within) : ""}</td>` : ""}<td class="grp-n">${fmtCount(r.n)}</td>${mean ? `<td class="grp-mean">${r.mean == null ? "" : esc(full(r.mean, 2))}</td>` : ""}${g.measure2Name ? `<td class="grp-m2">${r.v2 == null ? "" : esc(fmt(r.v2))}</td>` : ""}`; };
-    const body = g.rows.map(r => `<tr class="grp-parent${r.other ? " other" : ""}"${r.other ? "" : ` data-g="${esc(r.k)}" title="Show these rows"`}><td class="grp-name">${esc(r.k)}</td>${cell(r, false)}</tr>`
-      + r.kids.map(k => `<tr class="grp-child"${k.other ? "" : ` data-g="${esc(r.k)}" data-g2="${esc(k.k)}"`}><td class="grp-name">${esc(k.k)}</td>${cell(k, true)}</tr>`).join("")).join("");
-    const head = `<tr><th>${esc(g.cat)}${g.cat2 ? ` <span class="then">then ${esc(g.cat2)}</span>` : ""}</th><th>${esc(g.measureName)}</th><th>Share of total</th>${g.cat2 ? "<th>Of group</th>" : ""}<th>Rows</th>${mean ? "<th>Mean</th>" : ""}${g.measure2Name ? `<th>${esc(g.measure2Name)}</th>` : ""}</tr>`;
-    return `<h3>${esc(g.measureName)} by ${esc(g.cat)}${g.cat2 ? `, then ${esc(g.cat2)}` : ""} <span class="hint">top ${g.topN}${g.rows.some(r => r.other) ? " and Other" : ""}</span></h3><div class="grp-wrap"><table class="grp"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+  function groupHTML(a, cx = {}) {
+    const cmp = cx.cmp && cx.base && cx.base.grouping ? cx.cmp : null, g = cmp ? cx.base.grouping : a.grouping, mx = Math.max(...g.rows.map(r => Math.max(0, r.v)), 1), mean = g.agg === "sum";
+    // the hover (Chaz T6): the row count, the share, the average and how many of the group's rows are marked; the same words are the row's name for a screen reader
+    const tipLines = (r, cm) => { const L = [[`${r.k}`, 1], [`${fmtCount(r.n)} row${r.n === 1 ? "" : "s"} · ${pctText(r.share)} of the ${g.agg === "sum" ? "total" : g.agg === "distinct" ? "distinct " + g.distinctOf : "rows"}`]];
+      if (g.agg === "sum") L.push([`${g.measureName} ${full(r.v, 0)} · average ${r.mean == null ? "n/a" : full(r.mean, 2)}`]); else if (g.agg === "distinct") L.push([`${fmtCount(r.v)} distinct ${g.distinctOf}`]);
+      if (g.measure2Name && r.v2 != null) L.push([`${g.measure2Name} ${fmt(r.v2)}`]);
+      L.push([`${fmtCount(r.flagged || 0)} of ${fmtCount(r.n)} rows flagged`]); if (cm) L.push([`In the slice: ${fmtCount(cm.n)} row${cm.n === 1 ? "" : "s"}`]);
+      if (!r.other) L.push([`Click or press Enter to filter the records to ${r.k}`]); return L; };
+    const tipAttr = (r, cm) => { const L = tipLines(r, cm); return `data-tip="${L.map(([t, b]) => (b ? `<b>${tipSafe(t)}</b>` : tipSafe(t))).join("<br>")}" aria-label="${esc(L.map(x => x[0]).join(". "))}"`; };
+    const cell = (r, kid, cm) => {
+      const shown = g.agg === "sum" ? fmt(r.v) : fmtCount(r.v), w = Math.max(r.v > 0 ? 2 : 0, 100 * Math.max(0, r.v) / mx);
+      const bar = cmp ? `<span class="grp-track" aria-hidden="true"><i class="whole" style="width:${w.toFixed(1)}%"></i><i class="part" style="width:${Math.min(w, Math.max(cm.v > 0 ? 1.5 : 0, 100 * Math.max(0, cm.v) / mx)).toFixed(1)}%"></i></span>` : `<i style="width:${w.toFixed(1)}%"></i>`;
+      return `<td class="grp-bar"><span class="grp-barbox${cmp ? " cmp" : ""}">${bar}<b>${esc(shown)}</b></span></td><td class="grp-share">${pctText(r.share)}</td>${g.cat2 ? `<td class="grp-within">${kid ? pctText(r.within) : ""}</td>` : ""}<td class="grp-n">${fmtCount(r.n)}</td>${cmp ? `<td class="grp-slice">${fmtCount(cm.n)}</td>` : ""}${mean ? `<td class="grp-mean">${r.mean == null ? "" : esc(full(r.mean, 2))}</td>` : ""}${g.measure2Name ? `<td class="grp-m2">${r.v2 == null ? "" : esc(fmt(r.v2))}</td>` : ""}`; };
+    const pick = (r, extra = "") => (r.other ? "" : ` data-g="${esc(r.k)}"${extra} tabindex="0"`);
+    const body = g.rows.map((r, i) => `<tr class="grp-parent${r.other ? " other" : ""}"${pick(r)} ${tipAttr(r, cmp && cmp[i])}><td class="grp-name">${esc(r.k)}</td>${cell(r, false, cmp && cmp[i])}</tr>`
+      + (cmp ? "" : r.kids.map(k => `<tr class="grp-child"${k.other ? "" : ` data-g="${esc(r.k)}" data-g2="${esc(k.k)}" tabindex="0"`} ${tipAttr(k, null)}><td class="grp-name">${esc(k.k)}</td>${cell(k, true)}</tr>`).join(""))).join("");
+    const head = `<tr><th>${esc(g.cat)}${g.cat2 ? ` <span class="then">then ${esc(g.cat2)}</span>` : ""}</th><th>${esc(g.measureName)}</th><th>Share of total</th>${g.cat2 ? "<th>Of group</th>" : ""}<th>Rows</th>${cmp ? "<th>In slice</th>" : ""}${mean ? "<th>Mean</th>" : ""}${g.measure2Name ? `<th>${esc(g.measure2Name)}</th>` : ""}</tr>`;
+    const tools = `<div class="grp-tools print-hide"><button class="btn small cmp-toggle" type="button" data-compare aria-pressed="${!!cx.compare}">Compare</button>${cx.compare && !cx.sliced ? `<span class="cmp-note" role="status">Filter or search the records to compare a slice with the whole file.</span>` : cmp ? `<span class="cmp-note cmp-key"><i class="k whole" aria-hidden="true"></i>whole file <i class="k part" aria-hidden="true"></i>${esc(cx.label)} (${fmtCount(cx.n)} of ${fmtCount(cx.total)} rows)</span>` : `<span class="cmp-hint">Hover a bar for its numbers; click it to filter the records.</span>`}</div>`;
+    return `<h3>${esc(g.measureName)} by ${esc(g.cat)}${g.cat2 ? `, then ${esc(g.cat2)}` : ""} <span class="hint">top ${g.topN}${g.rows.some(r => r.other) ? " and Other" : ""}${cx.sliced && !cmp ? ` · slice: ${esc(cx.label)}` : ""}</span></h3>${tools}<div class="grp-wrap"><table class="grp${cmp ? " cmp" : ""}"><thead>${head}</thead><tbody>${body}</tbody></table></div>
       ${g.agg === "distinct" ? `<p class="trend-note">Distinct counts do not add up across groups: a value found in two groups is counted in both. Share is of the ${fmtCount(g.total)} distinct values in the whole file.</p>` : ""}`;
   }
   // Worth a look with a Search news button per item (CONS-0047): the last block of Insights. A search opens only when its button is pressed, in a new tab, with the words shown on hover.
@@ -964,11 +975,11 @@
     if (sc.confirmed.length) parts.push(`Kept on the visitor's confirmation that they hold the rights, recorded ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}: ${sc.confirmed.map(c => `${esc(c.name)} (${esc(c.label.toLowerCase())})`).join(", ")}.`);
     if (!parts.length) parts.push("Screened for licensed identifiers, personal data, minors and credentials: nothing found.");
     return `<p class="screen-note">${parts.join(" ")}</p>`; };
-  function sheetHTML(a, notable, ed) {
+  function sheetHTML(a, notable, ed, cx = {}) {
     const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     const kpi = a.kpi;
     const roleOpts = c => { const set = Rules.ROLES.userRoles[c.type === "number" ? "number" : c.type === "date" ? "date" : "other"], cur = c.roleBy === "you" ? c.role : "auto"; return `<option value="auto"${cur === "auto" ? " selected" : ""}>${esc(Dom.roleLabel({ ...c, role: c.detected, roleBy: c.roleBy === "you" ? "values" : c.roleBy }))} (detected)</option>` + set.filter(r => r !== c.detected).map(r => `<option value="${r}"${cur === r ? " selected" : ""}>${r}</option>`).join(""); };
-    const prof = a.cols.slice(0, 12).map(c => `<tr><td>${esc(c.name)}</td><td>${c.type}<span class="role-print"> · ${esc(Dom.roleLabel(c))}</span><select class="role-pick print-hide" data-role="${esc(c.name)}" aria-label="Role of ${esc(c.name)}">${roleOpts(c)}</select></td><td>${pct(c.filled, a.N).toFixed(0)}%</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="3" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
+    const prof = a.cols.slice(0, 12).map(c => `<tr><td><button class="col-btn" type="button" data-colflag="${esc(c.name)}" title="Show the rows with a marked cell in ${esc(c.name)}">${esc(c.name)}</button></td><td>${c.type}<span class="role-print"> · ${esc(Dom.roleLabel(c))}</span><select class="role-pick print-hide" data-role="${esc(c.name)}" aria-label="Role of ${esc(c.name)}">${roleOpts(c)}</select></td><td>${pct(c.filled, a.N).toFixed(0)}%</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="3" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
     const next = a.needsCleanup ? ["Data health check", 8, "a person reads the data and writes down what to fix first"] : ["Focused analysis", 20, "one question answered properly, with the uncertainty stated"];
     const trendSvg = a.trend && a.trend.series.length > 1 ? (a.trend.split ? stackSVG(a.trend, a.measureName) : lineSVG(a.trend, a.measureName)) : "";
     const rep = (a.findingsList || []).find(f => f.id === "repeat" && f.repeat), repNote = rep && trendSvg ? `<p class="trend-note">Repeat occurrences: ${fmtCount(rep.repeat.n)} places appear on more than one date${rep.repeat.pct != null ? `; the median change between their first and last row is ${rep.repeat.pct >= 0 ? "+" : ""}${Math.round(rep.repeat.pct * 100)}%` : ""}.</p>` : "";
@@ -986,14 +997,14 @@
     const qaSample = a.qaSample && typeof qaSampleHTML === "function" ? qaSampleHTML(a.qaSample) : "";
     return `<article class="sheet" aria-label="One-page report">
   <header class="sh-head"><div><span class="wm"><b>JA</b>Insights</span><span class="label">One-page report</span></div>
-    <div class="sh-meta"><b>${esc(a.name)}${a.sheet ? " · " + esc(a.sheet) : ""}</b><span>${today} · ${a.kind === "transactions" ? "kind: transactions (a ledger) · " : ""}made in your browser, nothing uploaded${a.piece ? ` · ${pieceLabel(a.piece)}` : ""}${a.truncated ? ` · free limit: ${MAXC} columns` : ""}${a.pack ? ` · rule pack: ${esc(a.pack.name)}` : ""}</span></div></header>
+    <div class="sh-meta"><b>${esc(a.name)}${a.sheet ? " · " + esc(a.sheet) : ""}</b><span>${today} · ${a.kind === "transactions" ? "kind: transactions (a ledger) · " : ""}made in your browser, nothing uploaded${a.piece ? ` · ${pieceLabel(a.piece)}` : ""}${a.truncated ? ` · free limit: ${MAXC} columns` : ""}${a.pack ? ` · rule pack: ${esc(a.pack.name)}` : ""}${cx.sliced ? ` · slice: ${esc(cx.label)} (${fmtCount(cx.n)} of ${fmtCount(cx.total)} rows)` : ""}</span></div></header>
   <div class="sh-kpis">${kpi.map(([l, v]) => `<div><span class="label">${esc(l)}</span><b${String(v).length > 14 ? ' class="long"' : ""}>${esc(v)}</b></div>`).join("")}</div>
   ${pieceBar(a)}
   ${screenPanel(a)}
   <section class="sh-sec sh-insights" aria-label="Insights"><h2>Insights <span class="sec-n">${sec.insights.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="insight">Show ${fmtCount(insRows.size)} insight rows</button></h2>
     <div class="sh-two">
       <section><h3>What the data says</h3>${listHTML(sec.insights.findings, "Nothing stands out yet. Add a date, a place or a category column and this space fills.")}</section>
-      <section>${a.grouping ? groupHTML(a) : a.breakdown ? `<h3>${esc(a.measureName)} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
+      <section>${a.grouping ? groupHTML(a, cx) : a.breakdown ? `<h3>${esc(a.measureName)} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
     </div>
     ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measureName)} by ${a.trend.unit}${a.trend.split ? `, split by ${esc(a.trend.split.col)}${a.trend.split.top5 ? " (top five and Other)" : ""}` : ""} <span class="hint">date column: ${esc(a.dateCol.name)}</span></h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div>${repNote}</section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
     ${notShownHTML(a)}
@@ -1002,7 +1013,7 @@
   <section class="sh-sec sh-qa" aria-label="QA"><h2>QA <span class="sec-n">${sec.qa.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="qa">Show ${fmtCount(qaRows.size)} QA rows</button></h2>
     <div class="sh-two">
       <section><h3>What to check</h3>${listHTML(sec.qa.findings, "Nothing jumped out. That's rarer than you'd think.")}</section>
-      <section class="sh-health"><h3>Data health</h3><ul class="checks">${a.checks.slice(0, 8).map(c => `<li class="${c.sev}"><i aria-hidden="true">${ICON[c.sev]}</i><span><b>${esc(c.title)}</b><em class="sr">${SEVL[c.sev]}. </em></span></li>`).join("")}</ul></section>
+      <section class="sh-health"><h3>Data health</h3><ul class="checks">${a.checks.slice(0, 8).map(c => { const fd = (a.findingsAll || []).find(f => f.title === c.title && f.n > 0); return `<li class="${c.sev}"><i aria-hidden="true">${ICON[c.sev]}</i><span><b>${fd ? `<button class="hl-btn" type="button" data-find="${esc(fd.id)}" title="Show ${fmtCount(fd.n)} ${fd.n === 1 ? "row" : "rows"} in the table and work the report out for them">${esc(c.title)}</button>` : esc(c.title)}</b><em class="sr">${SEVL[c.sev]}. </em></span></li>`; }).join("")}</ul></section>
     </div>
     ${worthHTML(sec.qa.notable, "Check these", "qa")}
     ${fyiHTML}
@@ -1026,6 +1037,8 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads ${MAXC} 
 
   // ---------- wiring
   let current = null, choice = {}, store = null, table = null, last = null;
+  // the slice and the view (CONS-0051): base is the whole file's analysis (the table's), last is what the sheet shows (the slice's when one is active)
+  let base = null, baseR = null, lastNotable = null, curSlice = null, compare = false, pendingView = null, applying = false, loadedSample = false, filterKey = "", sliceTimer = 0, tipEl = null;
   let activePack = null;
   const packName = () => { const el = $("#pack-name"); if (el) el.textContent = activePack ? `${activePack.name} (${activePack.version || "no version"})` : "none"; };
   const usePack = p => { activePack = Pack.validate(p); packName(); if (current) { choice.pack = activePack; show2(); } status(`Rule pack loaded: ${activePack.name}. Its findings are marked with the pack; the generic ones are unchanged.`); };
@@ -1033,11 +1046,13 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads ${MAXC} 
     if (q && /^[a-z0-9-]+$/.test(q)) fetch(`assets/packs/${q}.json`).then(r => { if (!r.ok) throw new Error("not found"); return r.json(); }).then(usePack).catch(() => status("That rule pack could not be loaded, so the report runs without one.")); }
   { const pk = $("#report-pack"); if (pk) pk.addEventListener("change", async () => { try { usePack(JSON.parse(await pk.files[0].text())); } catch (e) { status(e.message || "That file is not a rule pack."); } pk.value = ""; }); }
   const out = $("#report-out"), status = msg => { $("#report-status").textContent = msg; };
-  function paint(a, first, nb) {
-    last = a; const ed = store ? { n: store.edits.length, cells: store.edited.size } : null, notable = nb || pickNotable(a, store);
+  function paint(a, first, nb, bA, skipTable) {
+    last = a; lastNotable = nb || null; const sliced = !!bA && bA !== a && !!curSlice, ed = store ? { n: store.edits.length, cells: store.edited.size } : null, notable = nb || pickNotable(a, store);
     { const pad = innerWidth <= 760 ? 18 : 38, inner = Math.min(920, $("#rep-sheet").clientWidth || out.clientWidth || 700) - 2 * pad - 2;   // the sheet's own padding and border; charts are drawn at the width they will be shown
       CHART_W = Math.round(Math.max(280, Math.min(680, inner))); BARS_W = Math.round(Math.max(280, Math.min(420, innerWidth <= 760 ? inner : (inner - 30) / 2.15))); }
-    $("#rep-sheet").innerHTML = sheetHTML(a, notable, ed); if (!first) $(".sheet", out).style.animation = "none";
+    const cx = { sliced, compare, base: bA || a, n: curSlice ? curSlice.length : 0, total: (bA || a).N, label: sliceLabel() };
+    if (sliced && compare && a.grouping && bA.grouping) cx.cmp = compareGroups(bA, store.rows, curSlice);
+    $("#rep-sheet").innerHTML = sheetHTML(a, notable, ed, cx); if (!first) $(".sheet", out).style.animation = "none";
     $$(".chart-wrap", out).forEach(wrap => {
       const tip = $(".tip", wrap), svg = $("svg", wrap), xh = $(".xh", wrap);
       const show = (el, ev) => { tip.innerHTML = el.dataset.tip; tip.hidden = false; const r = wrap.getBoundingClientRect(); tip.style.left = Math.min(r.width - 10, Math.max(10, ev.clientX - r.left)) + "px"; tip.style.top = (ev.clientY - r.top) + "px";
@@ -1046,7 +1061,7 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads ${MAXC} 
     });
     if (window.JAI) JAI.fitSvgText($("#rep-sheet"));   // chart words stay 12 px or more however narrow the sheet is (JEBYUS-0058)
     const st = $(".stamp", out); if (st) requestAnimationFrame(() => st.classList.add("hit"));
-    if (table) table.update(a);
+    if (table && !skipTable) table.update(bA || a);
   }
   // The engine: a Web Worker when one can start (https, same origin), else this thread. Either way the work is the same handle() above.
   const engine = (() => {
@@ -1063,22 +1078,33 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads ${MAXC} 
   ("requestIdleCallback" in window ? requestIdleCallback : setTimeout)(() => engine.ready.then(() => engine.call({ op: "warm" })).catch(() => {}));   // warm the Excel reader so the offline check holds for .xlsx too
   let seq = 0, inflight = 0;
   function show(a, notable) {
-    $("#rep-controls").innerHTML = controlsHTML(a); $("#rep-records").innerHTML = ""; table = null;
+    $("#rep-controls").innerHTML = controlsHTML(a); $("#rep-records").innerHTML = ""; table = null; base = a; baseR = { a, notable }; curSlice = null; filterKey = ""; clearTimeout(sliceTimer);
     store = makeStore(current, a); choice.carry = a.screen; choice.pieceCarry = a.piece;   // a recalculation of the trimmed rows keeps this answer
     if (a.piece) { const by = new Map((choice.pieceScreen || []).map(f => [f.name, f])); (a.screen.flagged || []).forEach(f => by.set(f.name, { name: f.name, cls: f.cls, label: f.label, never: f.never, why: f.why, rule: f.rule })); choice.pieceScreen = [...by.values()]; } else delete choice.pieceScreen;   // what a piece flags stays out of the next pieces
     out.hidden = false; $("#report-intake").hidden = true;
     paint(a, true, notable);
-    table = Rec.mountTable($("#rep-records"), { store, analysis: a, fileName: a.name, truncated: a.truncated, piece: a.piece, onChange: reanalyse, say: status });
+    table = Rec.mountTable($("#rep-records"), { store, analysis: a, fileName: a.name, truncated: a.truncated, piece: a.piece, onChange: reanalyse, say: status, onFilter });
+    sliceBar();
+    if (pendingView) { const v = pendingView; pendingView = null; applyView(v); } else syncHash(true);   // a new table starts unfiltered, so the address says so
     out.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
   // the findings, chart and worth-a-look list are worked out again from the current rows (after an edit, a setting change or a resample), off the main thread
-  async function recompute(note, rebuild) {
+  // a slice keeps the pickers the whole file settled on (a column that has one value in the slice is still the Group by), so the panels stay comparable
+  const pinned = a => { const p = { ...choice }; if (p.measure == null && !p.distinct && a.measure) p.measure = a.measure.name; if (p.date == null && a.dateCol) p.date = a.dateCol.name; if (p.cat == null) p.cat = a.cat ? a.cat.name : ""; if (p.split == null) p.split = a.trend && a.trend.split ? a.trend.split.col : ""; return p; };
+  async function recompute(note, rebuild, sliceOnly) {
     const my = ++seq, t0 = performance.now(); inflight++;
     try { const viaFile = rebuild && current.file && last.piece, rows = rebuild ? current.rows : [...store.lead, ...store.rows];   // flipping the header changes which rows are data, so the table is built again from the file as read
-      const r = hydrate(viaFile ? await engine.call({ op: "read", file: current.file, choice: { ...choice, carry: undefined, pieceCarry: undefined }, piece: last.piece.k }) : await engine.call({ op: "analyse", name: current.name, sheet: current.sheet, rows, choice })); if (my !== seq || !current) return;
+      const idx = rebuild || !table || base.kind === "transactions" ? null : table.sliceRows();   // the rows the table shows when something filters them: the report is worked out for those too (a ledger keeps its whole-file panels)
+      let r = sliceOnly && baseR && !rebuild ? baseR : null;   // a filter changed, nothing else: the whole file's numbers are still right
+      if (idx && idx.length) status(`Working out the report for ${idx.length.toLocaleString("en-US")} of ${store.rows.length.toLocaleString("en-US")} rows…`);
+      if (!r) { r = hydrate(viaFile ? await engine.call({ op: "read", file: current.file, choice: { ...choice, carry: undefined, pieceCarry: undefined }, piece: last.piece.k }) : await engine.call({ op: "analyse", name: current.name, sheet: current.sheet, rows, choice })); if (my !== seq || !current) return; }
       if (viaFile) { current = { name: r.name, sheet: r.sheet, rows: r.rows, file: current.file }; if (r.mask) current.rows.mask = r.mask; if (r.fmt) current.rows.fmt = r.fmt; }
       if (rebuild) { const edits = store ? store.edits.length : 0; show(r.a, r.notable); status(note(Math.round(performance.now() - t0)) + (edits ? ` Your ${edits} edit${edits > 1 ? "s were" : " was"} cleared: the table starts again from the file.` : "")); return; }
-      $("#rep-controls").innerHTML = controlsHTML(r.a); paint(r.a, false, r.notable); status(note(Math.round(performance.now() - t0))); } catch (e) { status(e.message || "That could not be worked out."); } finally { inflight--; }
+      let sr = null;
+      if (idx && idx.length) { try { sr = hydrate(await engine.call({ op: "analyse", name: current.name, sheet: current.sheet, rows, choice: pinned(r.a), slice: { lead: store.lead.length, map: idx } })); } catch (e) { sr = null; } if (my !== seq || !current) return; }
+      baseR = r; base = r.a; curSlice = sr ? idx : null;
+      $("#rep-controls").innerHTML = controlsHTML(r.a); paint(sr ? sr.a : r.a, false, sr ? sr.notable : r.notable, r.a); sliceBar();
+      status(sr ? `Report worked out for ${idx.length.toLocaleString("en-US")} of ${store.rows.length.toLocaleString("en-US")} rows in ${Math.round(performance.now() - t0)} ms, on this device. Clear the filter to see the whole file again.` : idx && idx.length ? "That slice is too small to report on, so the panels show the whole file." : note(Math.round(performance.now() - t0))); } catch (e) { status(e.message || "That could not be worked out."); } finally { inflight--; }
   }
   async function goPiece(k) {
     if (!current || !current.file || !last || !last.piece || k < 1 || k > last.piece.n) return;
@@ -1089,36 +1115,106 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads ${MAXC} 
     catch (e) { status(e.message || "That piece could not be read."); }
   }
   function reanalyse() { recompute(ms => `${store.edits.length} edit${store.edits.length === 1 ? "" : "s"}. Findings recalculated in ${ms} ms, on this device.`); }
-  function show2(rebuild) { recompute(ms => `Updated in ${ms} ms, on this device.`, rebuild); }
+  function show2(rebuild) { syncHash(); recompute(ms => `Updated in ${ms} ms, on this device.`, rebuild); }
+  // ---------- the slice and the view (CONS-0051)
+  // What the table is filtered to is the slice. The breadcrumb names it, the panels are worked out for its rows, and the URL hash carries the view (names and clicked values, never rows).
+  const filterWords = f => [f.crumb, f.group && `${f.group.col}: ${f.group.val}${f.group.col2 ? ` · ${f.group.col2}: ${f.group.val2}` : ""}`, f.q && `Search: “${f.q}”`].filter(Boolean);
+  const sliceLabel = () => (table ? filterWords(table.getFilter()).join(" › ") : "");
+  function sliceBar() {
+    const el = $("#rep-slice"); if (!el) return; const f = table ? table.getFilter() : null;
+    if (!f || !f.filtered) { el.hidden = false; el.innerHTML = `<p class="slice-help">Click a finding, a bar, a column name or a health line to work the report out for just those rows. Compare sets a slice beside the whole file. The page address keeps your view, never your data.</p>`; return; }
+    const ledger = base && base.kind === "transactions", note = ledger ? "The panels keep showing the whole file for a ledger; the table is filtered." : !f.shown ? "No record matches, so the panels show the whole file." : "";
+    el.hidden = false;
+    el.innerHTML = `<nav class="slicebar" aria-label="The slice this report is worked out for"><span class="sb-l">Report for</span><button class="rec-link" type="button" data-slice-clear>All records</button><span aria-hidden="true">›</span><span class="here" aria-current="true">${esc(filterWords(f).join(" › "))}</span><span class="sb-n" aria-live="polite">${f.shown.toLocaleString("en-US")} of ${f.total.toLocaleString("en-US")} rows</span><button class="slice-x" type="button" data-slice-clear>Clear ✕</button></nav>${note ? `<p class="sb-note">${esc(note)}</p>` : ""}`;
+  }
+  function onFilter(f, how) {   // the table changed what it shows
+    const key = JSON.stringify([f.id, f.group, f.q]), same = key === filterKey; filterKey = key;
+    syncHash(how === "typing");
+    if (same) return;   // a sort changes the order of the rows, not the slice
+    sliceBar(); clearTimeout(sliceTimer);
+    sliceTimer = setTimeout(() => recompute(ms => `Back to all ${store.rows.length.toLocaleString("en-US")} rows. Report worked out again in ${ms} ms, on this device.`, false, true), how === "typing" ? 250 : 0);
+  }
+  function viewNow() {
+    const f = table ? table.getFilter() : {}, c = choice || {};
+    return { f: f.id || undefined, g: f.group || undefined, q: f.q || undefined, s: f.sort || undefined, cmp: compare || undefined,
+      choice: { measure: c.distinct ? undefined : c.measure, distinct: c.distinct, date: c.date, cat: c.cat, cat2: c.cat2, topN: c.topN, measure2: c.measure2, split: c.split } };
+  }
+  const hashNow = () => encodeView(viewNow(), loadedSample);
+  function syncHash(replace) {   // one history entry per change the visitor makes, so Back and Forward step through the views; typing in the search box only rewrites the entry
+    if (applying || !current) return; const h = hashNow(); if (h === location.hash.replace(/^#/, "")) return;
+    try { history[replace ? "replaceState" : "pushState"](null, "", location.pathname + location.search + (h ? "#" + h : "")); } catch (e) { /* a sandbox that refuses history: the view just is not linkable */ }
+  }
+  // put a view back: from a link, or from Back and Forward. A name that is not in this file is skipped.
+  function applyView(v) {
+    if (!current || !table) { pendingView = v; return; }
+    applying = true; let changed = false;
+    try {
+      const want = v.choice || {}, keys = ["measure", "distinct", "date", "cat", "cat2", "topN", "measure2", "split"], before = JSON.stringify(keys.map(k => choice[k] == null ? null : choice[k]));
+      keys.forEach(k => { delete choice[k]; }); keys.forEach(k => { if (want[k] != null) choice[k] = want[k]; });
+      changed = before !== JSON.stringify(keys.map(k => choice[k] == null ? null : choice[k])); compare = !!v.cmp;
+      table.setFilter({ id: v.f, group: v.g, q: v.q, sort: v.s }, true); filterKey = JSON.stringify([table.getFilter().id, table.getFilter().group, table.getFilter().q]); sliceBar();
+    } finally { applying = false; }
+    clearTimeout(sliceTimer); recompute(ms => `Updated in ${ms} ms, on this device.`, false, !changed);
+  }
+  window.addEventListener("hashchange", () => {
+    if (applying) return; const d = decodeView(location.hash);
+    if (!current) { pendingView = d.view; if (d.sample && !loadedSample) $("#report-sample").click(); return; }
+    if (encodeView(d.view, loadedSample) === hashNow()) return; applyView(d.view);
+  });
+  // the hover for a group's bar, on pointer and on keyboard focus
+  function groupTip() {
+    tipEl = document.createElement("div"); tipEl.className = "gtip print-hide"; tipEl.setAttribute("role", "tooltip"); tipEl.hidden = true; document.body.appendChild(tipEl);
+    const show = (row, x, y) => { tipEl.innerHTML = row.dataset.tip; tipEl.hidden = false; const w = tipEl.offsetWidth, h = tipEl.offsetHeight; tipEl.style.left = Math.max(8, Math.min(innerWidth - w - 8, x)) + "px"; tipEl.style.top = (y + h + 16 > innerHeight ? Math.max(8, y - h - 12) : y + 16) + "px"; };
+    const rowOf = e => e.target.closest && e.target.closest("table.grp tr[data-tip]");
+    out.addEventListener("pointermove", e => { const r = rowOf(e); if (r) show(r, e.clientX, e.clientY); else tipEl.hidden = true; });
+    out.addEventListener("pointerleave", () => { tipEl.hidden = true; });
+    out.addEventListener("focusin", e => { const r = rowOf(e); if (r && r.matches(":focus-visible, :focus")) { const b = r.getBoundingClientRect(); show(r, b.left + Math.min(b.width * .5, 240), b.bottom - b.height * .5); } });
+    out.addEventListener("focusout", () => { tipEl.hidden = true; });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") tipEl.hidden = true; });
+    window.addEventListener("scroll", () => { tipEl.hidden = true; }, { passive: true });
+  }
+  groupTip();
+  const startChoice = () => ({ ...(activePack ? { pack: activePack } : {}), ...((pendingView && pendingView.choice) || {}) });   // a link's pickers are used for the first analysis, so the file is read once
+  function repaint() { if (last) paint(last, false, lastNotable, base && base !== last ? base : undefined, true); }
   function begin(r, t0, given = {}) {
     current = { name: r.name || given.name, sheet: r.sheet || given.sheet, rows: r.rows || given.rows, file: given.file || null };   // the File handle, not its rows: the next piece is read from it, and only one piece is held here if (r.mask) current.rows.mask = r.mask; if (r.fmt) current.rows.fmt = r.fmt;
     show(r.a, r.notable); status(`Read ${r.a.N.toLocaleString("en-US")} rows in ${Math.round(performance.now() - t0)} ms, on this device${engine.mode === "worker" ? " (in a background worker, so the page stayed responsive)" : ""}.`);
   }
   async function run(data) {
-    try { const t0 = performance.now(); choice = activePack ? { pack: activePack } : {}; status("Reading…"); begin(hydrate(await engine.call({ op: "analyse", name: data.name, sheet: data.sheet, rows: data.rows, choice })), t0, data); }
+    try { const t0 = performance.now(); choice = startChoice(); status("Reading…"); begin(hydrate(await engine.call({ op: "analyse", name: data.name, sheet: data.sheet, rows: data.rows, choice })), t0, data); }
     catch (e) { status(e.message || "That file couldn't be read."); }
   }
   async function runFile(f) {
-    try { const t0 = performance.now(); choice = activePack ? { pack: activePack } : {}; status("Reading…"); begin(hydrate(await engine.call({ op: "read", file: f, choice })), t0, { file: f }); }
+    loadedSample = false;
+    try { const t0 = performance.now(); choice = startChoice(); status("Reading…"); begin(hydrate(await engine.call({ op: "read", file: f, choice })), t0, { file: f }); }
     catch (e) { status(e.message || "That file couldn't be read."); }
   }
-  out.innerHTML = `<div id="rep-controls"></div><div id="rep-sheet"></div><section class="records print-hide" id="rep-records" aria-label="All records"></section>`;
+  out.innerHTML = `<div id="rep-controls"></div><div id="rep-slice" class="print-hide" hidden></div><div id="rep-sheet"></div><section class="records print-hide" id="rep-records" aria-label="All records"></section>`;
   out.addEventListener("change", e => { const rp = e.target.closest("[data-role]"); if (rp && current) { choice.roles = { ...(choice.roles || {}), [rp.dataset.role]: rp.value }; show2(); return; }   // a role changed in the Columns table: everything is worked out again
     const s = e.target.closest("[data-ch]"); if (!s || !current) return;
     if (s.dataset.ch === "measure") { if (s.value.startsWith("distinct:")) { choice.distinct = s.value.slice(9); delete choice.measure; } else { delete choice.distinct; choice.measure = s.value; } show2(); return; }
     if (s.dataset.ch === "topN") { choice.topN = +s.value; show2(); return; }
     choice[s.dataset.ch] = s.value;
     if (s.dataset.ch === "header") { delete choice.measure; delete choice.date; delete choice.cat; delete choice.split; delete choice.roles; delete choice.carry; delete choice.worthBy; delete choice.worthSeed; delete choice.cat2; delete choice.distinct; delete choice.measure2; show2(true); } else show2(); });
+  // keyboard: Tab reaches each group's row, Enter or Space does what a click does
+  out.addEventListener("keydown", e => { const r = e.target.matches && e.target.matches("table.grp tr[data-g]") ? e.target : null; if (r && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); r.click(); } });
   out.addEventListener("click", e => {
     if (e.target.closest("[data-print]")) window.print();
-    if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
+    if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; base = baseR = curSlice = null; compare = false; loadedSample = false; filterKey = ""; clearTimeout(sliceTimer); $("#rep-slice").innerHTML = ""; $("#rep-slice").hidden = true; try { history.pushState(null, "", location.pathname + location.search); } catch (err) {} out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
     const cf = e.target.closest("[data-confirm]");
     if (cf && current) { const name = cf.dataset.confirm; choice.confirm = [...new Set([...(choice.confirm || []), name])]; delete choice.carry; recompute(ms => `${name} is included on your confirmation that you hold the rights; the report footer records it. Worked out in ${ms} ms, on this device.`, true); return; }
     const mg = e.target.closest("[data-merge]");
     if (mg && table && last && store) { const fd = (last.findingsList || []).find(x => x.id === mg.dataset.merge && x.merge); if (fd) { const n = Rec.mergeCells(store, fd.merge.ci, fd.merge.map); recompute(ms => `Merged ${n.toLocaleString("en-US")} cell${n === 1 ? "" : "s"} in ${fd.merge.col}. Findings recalculated in ${ms} ms; Undo in the table puts a cell back, one at a time.`); } return; }
     const pcb = e.target.closest("[data-piece]"); if (pcb && last && last.piece) { goPiece(last.piece.k + (pcb.dataset.piece === "next" ? 1 : -1)); return; }
-    const f = e.target.closest("[data-find]"); if (f && table) table.showFinding(f.dataset.find);
-    const sc = e.target.closest("[data-sec]"); if (sc && table) table.showSection(sc.dataset.sec);
+    if (e.target.closest("[data-slice-clear]") && table) { table.clear(); return; }
+    if (e.target.closest("[data-compare]") && last) { compare = !compare; syncHash(); repaint(); status(compare ? (curSlice ? "Compare is on: the outlined bars are the whole file, the red bars are the slice." : "Filter or search the records to compare a slice with the whole file.") : "Compare is off."); return; }
+    const sliced = !!curSlice && last !== base, rowsId = id => (sliced ? "rows:" + id : id);   // a finding of a slice names the slice's rows, which a link must not carry
+    const f = e.target.closest("[data-find]");
+    if (f && table) { const fd = sliced ? (last.findingsAll || []).find(x => x.id === f.dataset.find) : null; if (fd) table.showRows(fd.rows, fd.crumb || fd.title, rowsId(fd.id)); else table.showFinding(f.dataset.find); }
+    const sc = e.target.closest("[data-sec]");
+    if (sc && table) { if (sliced) { const k = sc.dataset.sec, rows = new Set((last.findingsAll || []).filter(x => (x.kind === "insight") === (k === "insight")).flatMap(x => x.rows)); table.showRows([...rows], k === "insight" ? "Insight rows" : "QA rows", "rows:sec:" + k); } else table.showSection(sc.dataset.sec); }
+    const cb = e.target.closest("[data-colflag]");
+    if (cb && table) { if (sliced) { const ci = last.header.indexOf(cb.dataset.colflag), rows = new Set(); last.flags.forEach((_, k) => { const j = k.indexOf(":"); if (+k.slice(j + 1) === ci) rows.add(+k.slice(0, j)); }); if (rows.size) table.showRows([...rows], "Marked cells in " + cb.dataset.colflag, "rows:col:" + cb.dataset.colflag); else status(`No cell in ${cb.dataset.colflag} is marked in this slice.`); } else table.showColumn(cb.dataset.colflag); }
     const qs = e.target.closest("[data-qs]");
     if (qs && table && last && last.qaSample) {
       if (qs.dataset.qs === "show") table.showRows(last.qaSample.rows, "QA sample");
@@ -1135,7 +1231,7 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads ${MAXC} 
     const w = e.target.closest("[data-row]"); if (w && table && w.classList.contains("wrow")) table.jumpTo(+w.dataset.row);
     const g = e.target.closest("[data-g]");
     if (g && table && last && last.grouping) { const gr = last.grouping;
-      if (g.dataset.g2 != null && gr.ci2 != null) { const bl = v => v.trim() || "(blank)", rows = []; store.rows.forEach((r, i) => { if (bl(r[gr.ci]) === g.dataset.g && bl(r[gr.ci2]) === g.dataset.g2) rows.push(i); }); table.showRows(rows, `${g.dataset.g} · ${g.dataset.g2}`); }
+      if (g.dataset.g2 != null && gr.ci2 != null) table.showGroup(gr.ci, g.dataset.g, gr.ci2, g.dataset.g2);
       else table.showGroup(gr.ci, g.dataset.g); }
     else if (g && table && last && last.breakdown) table.showGroup(last.breakdown.ci, g.dataset.g);
   });
@@ -1157,13 +1253,17 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads ${MAXC} 
       if (!set) sh.style.setProperty("--pz", "0.6");
     } finally { sh.style.width = ""; sh.style.zoom = ""; body.classList.remove("print-fit"); }
   }
+  // the Compare layer is a screen layer: a printed slice shows its own numbers, so Compare is switched off for the print and back on after it
+  let printUndo = false;
+  window.addEventListener("beforeprint", () => { if (compare && curSlice && last !== base) { printUndo = true; compare = false; repaint(); } });
+  window.addEventListener("afterprint", () => { if (printUndo) { printUndo = false; compare = true; repaint(); } });
   window.addEventListener("beforeprint", fitPrint);
   const file = $("#report-file"), drop = $("#report-drop");
   file.addEventListener("change", () => { if (file.files[0]) runFile(file.files[0]); });
   ["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
   drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) runFile(f); });
-  $("#report-sample").addEventListener("click", () => run({ name: "cafe-sales-sample.csv (made up)", rows: cafeSample() }));
-  if (location.hash === "#sample") $("#report-sample").click();
-  window.JAIReportDebug = { get pending() { return inflight; }, get engine() { return engine.mode; }, usePack, get pack() { return activePack; }, get table() { return table; }, get store() { return store; }, get analysis() { return last; }, get fitLog() { return fitLog; }, setLimits };
+  $("#report-sample").addEventListener("click", () => { loadedSample = true; run({ name: "cafe-sales-sample.csv (made up)", rows: cafeSample() }); });
+  { const d = decodeView(location.hash); if (Object.keys(d.view).length) pendingView = d.view; if (d.sample) $("#report-sample").click(); }   // #sample alone is the old link; with a view after it, the sample opens in that view
+  window.JAIReportDebug = { get pending() { return inflight; }, get engine() { return engine.mode; }, usePack, get pack() { return activePack; }, get table() { return table; }, get store() { return store; }, get analysis() { return last; }, get base() { return base; }, get slice() { return curSlice; }, get compare() { return compare; }, get hash() { return hashNow(); }, get fitLog() { return fitLog; }, setLimits };
 })();

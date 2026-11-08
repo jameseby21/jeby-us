@@ -70,6 +70,18 @@ module.exports = function (h) {
     assert(byState.every((x, i) => x.v <= aState.grouping.rows[i].v + 1e-9), "the slice never exceeds the whole file");
   });
 
+
+  test("a slice of a later piece keeps the file's own row numbers (the piece's offset plus the place in the file)", () => {
+    const { a } = R.analyseSlice({ name: states.name, rows: [...sS.lead, ...sS.rows] }, CA, sS.lead.length, { cat: "state", pieceCarry: { k: 2, n: 3, offset: 10000, total: 25000, size: 10000 } });
+    const f = a.findingsAll.find(x => x.id === "unit:sale_price"), m = /For example row ([\d,]+)/.exec(f.detail);
+    assert.strictEqual(+m[1].replace(/,/g, ""), f.rows[0] + 10000 + aS.rowBase, f.detail);
+  });
+  test("a slice of 10,000 rows is worked out inside 3 seconds (cafe sample, one location)", () => {
+    const d = { name: "big.csv", rows: R.cafeSample(10000) }, a0 = R.analyse(d), s0 = R.makeStore(d, a0), idx = []; s0.rows.forEach((r, i) => { if (r[a0.cat.i] === "Sunny Isles Beach") idx.push(i); });
+    const t0 = Date.now(), { a } = R.analyseSlice({ name: "big.csv", rows: [...s0.lead, ...s0.rows] }, idx, s0.lead.length, {}); const ms = Date.now() - t0;
+    assert.strictEqual(a.N, idx.length); assert(idx.length > 1500, idx.length); assert(ms < 3000, ms + " ms");
+  });
+
   // ---------- the URL hash
   const rt = (view, sample) => R.decodeView(R.encodeView(view, sample));
   test("hash: a view round-trips through the URL (finding, group, search, sort, compare, pickers)", () => {

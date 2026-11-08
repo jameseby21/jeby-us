@@ -149,9 +149,11 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
       await js(`(() => { const c = document.querySelector('.rec-td.look[data-c="5"]'); c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); })()`);
       await js(`(() => { const inp = document.querySelector('[data-edit]'); inp.value = '$11.50'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
     }
-    await waitFor("document.querySelector('.rec-edits .n').textContent === '12 edits' && !/unit price values/.test(document.querySelector('#rep-sheet .finds').textContent)");
-    const m = await js(`(() => ({ n: document.querySelector('.rec-edits .n').textContent, finds: document.querySelector('#rep-sheet .finds').textContent, edited: document.querySelectorAll('.rec-td.edited').length, tip: document.querySelector('.grp [data-g="Sunny Isles Beach"] .grp-mean').textContent }))()`);
-    assert.strictEqual(m.n, "12 edits"); assert(!/unit price values/.test(m.finds), m.finds.slice(0, 200)); assert(m.edited >= 12, "edited cells " + m.edited);
+    // Changed on purpose (CONS-0051): the table is showing the finding's twelve rows, so the panels are worked out for those twelve rows and, once fixed, they have no finding at all.
+    // The whole file's numbers are the base analysis, which is where the finding and the group's average are read from.
+    await waitFor("document.querySelector('.rec-edits .n').textContent === '12 edits' && JAIReportDebug.pending === 0 && /Nothing jumped out/.test(document.querySelector('#rep-sheet').textContent) && !JAIReportDebug.base.findingsAll.some(f => f.id === 'unit:unit_price')");
+    const m = await js(`(() => ({ n: document.querySelector('.rec-edits .n').textContent, finds: document.querySelector('#rep-sheet').textContent.includes('Nothing jumped out') ? 'none in the slice' : 'findings', edited: document.querySelectorAll('.rec-td.edited').length, tip: String(JAIReportDebug.base.grouping.rows.find(r => r.k === 'Sunny Isles Beach').mean) }))()`);
+    assert.strictEqual(m.n, "12 edits"); assert.strictEqual(m.finds, "none in the slice"); assert(m.edited >= 12, "edited cells " + m.edited);
     const avg = t => +String(t).replace(/,/g, "");
     assert(avg(m.tip) < avg(before), `average ${avg(before)} -> ${avg(m.tip)}`);
     return `average ${avg(before)} -> ${avg(m.tip)}`;
@@ -491,6 +493,151 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     assert(/^Piece 3 of 3 . rows 20,001 to 23,000 of 23,000/.test(p3.bar), p3.bar); assert.strictEqual(p3.held, 3000); assert(p3.nextOff && !p3.prevOff); assert(!p3.hasRef);
     await js(`document.querySelector('[data-piece="prev"]').click()`); await waitFor(`JAIReportDebug.analysis.piece && JAIReportDebug.analysis.piece.k === 2 && JAIReportDebug.store.rows.length === 10000`, 60000);
     return `piece 1 of 3 (10,000 held), piece 2 (rows from 10,002, different findings, ref still out, prints piece 2 of 3 on one page), piece 3 (3,000 held), Previous returns to piece 2`;
+  });
+
+  // ---------- CONS-0051: interactive findings, filters and drill-down
+  console.log("interactive findings, filters and drill-down (CONS-0051)");
+  const ST = JSON.parse(fs.readFileSync(path.join(FXDIR, "sales_states.truth.json"), "utf8")), CAN = ST.ca_rows.length, TOTAL_ST = 803;
+  const quiet = () => waitFor("JAIReportDebug.pending === 0");
+  const text = sel => js(`(document.querySelector(${JSON.stringify(sel)}) || {}).textContent || ""`);
+  const rowsTile = () => js(`[...document.querySelectorAll('.sh-kpis > div')].find(d => /Rows/.test(d.textContent)).querySelector('b').textContent`);
+  const key = async (k, code) => { const vk = code === "Tab" ? 9 : 13; await send("Input.dispatchKeyEvent", { type: "keyDown", key: k, code, windowsVirtualKeyCode: vk, text: k === "Enter" ? "\r" : "" }); await send("Input.dispatchKeyEvent", { type: "keyUp", key: k, code, windowsVirtualKeyCode: vk }); };
+  const sliceOn = () => waitFor("!!JAIReportDebug.slice && JAIReportDebug.pending === 0"), sliceOff = () => waitFor("!JAIReportDebug.slice && JAIReportDebug.pending === 0");
+  async function openStates() { await loadFx("sales_states.csv"); await pick('[data-ch="cat"]', "state"); await waitFor(`document.querySelectorAll('.grp-parent').length === 4`); await quiet(); }
+
+  await check("CONS-0051: click the CA bar: the table, the columns panel and the health lines recompute for CA; the breadcrumb says CA; clearing restores the whole file", async () => {
+    await openStates();
+    const whole = await js(`({ rows: document.querySelector('.sh-kpis').textContent, health: document.querySelector('.sh-health').textContent, cols: document.querySelector('.sh-cols').textContent, count: document.querySelector('[data-count]').textContent })`);
+    assert(/Showing 803 of 803/.test(whole.count) && /duplicate rows/.test(whole.health), whole.count + " / " + whole.health);
+    await js(`document.querySelector('tr.grp-parent[data-g="CA"]').click()`); await sliceOn();
+    const ca = await js(`({ rows: document.querySelector('.sh-kpis').textContent, health: document.querySelector('.sh-health').textContent, cols: document.querySelector('.sh-cols').textContent, count: document.querySelector('[data-count]').textContent,
+      crumb: document.querySelector('#rep-slice .here').textContent, n: document.querySelector('#rep-slice .sb-n').textContent, grp: [...document.querySelectorAll('.grp-parent .grp-name')].map(e => e.textContent), hash: location.hash, status: document.querySelector('#report-status').textContent, tbl: document.querySelector('[data-crumbs]').textContent })`);
+    assert(/CA/.test(ca.crumb) && ca.n === `${CAN} of ${TOTAL_ST} rows`, ca.crumb + " / " + ca.n); assert(new RegExp("Showing " + CAN + " of " + TOTAL_ST).test(ca.count), ca.count);
+    assert(ca.rows.includes(String(CAN)) && ca.rows !== whole.rows, "the Rows tile is the CA count: " + ca.rows); assert.deepStrictEqual(ca.grp, ["CA"]);
+    assert(ca.health !== whole.health && !/\d duplicate rows/.test(ca.health) && /far from the usual/.test(ca.health), "the health lines are CA's own: " + ca.health);
+    assert(ca.cols !== whole.cols, "the Columns panel is CA's own"); assert(/state: CA/.test(ca.tbl), ca.tbl); assert(/g=state&gv=CA/.test(ca.hash), ca.hash); assert(/of 803 rows/.test(ca.status), ca.status);
+    await js(`document.querySelector('[data-slice-clear]').click()`); await sliceOff(); await waitFor(`document.querySelectorAll('.grp-parent').length === 4`);
+    const back = await js(`({ rows: document.querySelector('.sh-kpis').textContent, health: document.querySelector('.sh-health').textContent, cols: document.querySelector('.sh-cols').textContent, hash: location.hash, count: document.querySelector('[data-count]').textContent, help: !!document.querySelector('.slice-help') })`);
+    assert.strictEqual(back.rows, whole.rows); assert.strictEqual(back.health, whole.health); assert.strictEqual(back.cols, whole.cols); assert(!/gv=/.test(back.hash), back.hash); assert(/Showing 803 of 803/.test(back.count) && back.help);
+    return `CA ${CAN} of ${TOTAL_ST} rows; health "${ca.health.slice(0, 50)}..." instead of "${whole.health.slice(0, 40)}..."; hash ${ca.hash}`;
+  });
+
+  await check("CONS-0051: Back and Forward step through the views by the URL hash", async () => {
+    await openStates();
+    await js(`document.querySelector('tr.grp-parent[data-g="CA"]').click()`); await sliceOn();
+    await js(`history.back()`); await sliceOff(); await waitFor(`/Showing 803 of 803/.test(document.querySelector('[data-count]').textContent)`);
+    assert(!/gv=/.test(await js(`location.hash`)), "Back clears the CA filter");
+    await js(`history.forward()`); await sliceOn(); assert(/state: CA/.test(await text('[data-crumbs]')) && /g=state&gv=CA/.test(await js(`location.hash`)));
+    await js(`history.back()`); await sliceOff();
+  });
+
+  await check("CONS-0051: a finding, a health line and a column name each filter the table and work the report out for those rows", async () => {
+    await openStates();
+    const f = await js(`(() => { const b = document.querySelector('.finds [data-find="unit:sale_price"]'); return b && b.parentElement.querySelector('b').textContent; })()`); assert(/4 sale price values/.test(f), f);
+    await js(`document.querySelector('.finds [data-find="unit:sale_price"]').click()`); await sliceOn();
+    assert.strictEqual(await rowsTile(), "4"); assert(/10x too large|Unusual|sale price/i.test(await text('#rep-slice .here')), await text('#rep-slice .here')); assert(/Showing 4 of 803/.test(await text('[data-count]')));
+    await js(`document.querySelector('[data-slice-clear]').click()`); await sliceOff();
+    const hl = await js(`[...document.querySelectorAll('.sh-health .hl-btn')].map(b => b.dataset.find + '=' + b.textContent)`); assert(hl.length >= 2, "health lines that are buttons: " + hl);
+    assert.strictEqual(await js(`document.querySelector('.sh-health .hl-btn[data-find="dup"]') ? 1 : 0`), 1, "the duplicate rows health line is a button: " + hl);
+    await js(`document.querySelector('.sh-health .hl-btn[data-find="dup"]').click()`); await sliceOn();
+    assert.strictEqual(await rowsTile(), "6"); assert(/Showing 6 of 803/.test(await text('[data-count]')));
+    await js(`document.querySelector('[data-slice-clear]').click()`); await sliceOff();
+    await js(`document.querySelector('[data-colflag="sale_price"]').click()`); await sliceOn();
+    const n = await js(`JAIReportDebug.slice.length`); assert(n >= 4 && n < 803, "rows with a marked cell in sale_price: " + n); assert.strictEqual(await rowsTile(), String(n)); assert(/Marked cells in sale_price/.test(await text('#rep-slice .here')));
+    await js(`document.querySelector('[data-slice-clear]').click()`); await sliceOff();
+    return `finding 4 rows, health line "duplicate rows" 6 rows, column sale_price ${n} rows`;
+  });
+
+  await check("CONS-0051: searching the records is a slice too, and the Rows tile follows", async () => {
+    await openStates();
+    await js(`(() => { const q = document.querySelector('[data-q]'); q.value = 'Austin'; q.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    await sliceOn(); const n = await js(`JAIReportDebug.slice.length`); assert(n > 20 && n < 400, n);
+    assert.strictEqual(await rowsTile(), String(n)); assert(/Search: “Austin”/.test(await text('#rep-slice .here'))); assert(/q=Austin/.test(await js(`location.hash`)));
+    await js(`document.querySelector('[data-crumbs] .rec-x').click()`); await sliceOff(); assert(!/q=/.test(await js(`location.hash`)));
+  });
+
+  await check("CONS-0051: hover on a bar shows the row count, share, average and flagged count; Tab reaches the bars; Enter filters; the focus ring is visible", async () => {
+    await openStates();
+    await js(`document.querySelector('tr.grp-parent[data-g="CA"]').scrollIntoView({ block: 'center', behavior: 'instant' })`); await sleep(300);
+    const r = await js(`(() => { const e = document.querySelector('tr.grp-parent[data-g="CA"]'), b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: r.x, y: r.y }); await sleep(150);
+    const t = await js(`(() => { const g = document.querySelector('.gtip'); return { hidden: g.hidden, text: g.innerText, vis: getComputedStyle(g).display }; })()`);
+    assert(!t.hidden && t.vis !== "none", JSON.stringify(t)); assert(/^CA/.test(t.text) && /\d+ rows? · \d+% of the total/.test(t.text) && /average [\d,.]+/.test(t.text) && /\d+ of \d+ rows flagged/.test(t.text), t.text);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 }); await sleep(100); assert.strictEqual(await js(`document.querySelector('.gtip').hidden`), true);
+    await js(`document.activeElement && document.activeElement.blur(); window.scrollTo(0, 0)`); let reached = 0;
+    for (let i = 0; i < 160 && !reached; i++) { await key("Tab", "Tab"); reached = await js(`document.activeElement && document.activeElement.matches('table.grp tr.grp-parent[data-g]') ? 1 : 0`); }
+    assert(reached, "Tab never reached a bar");
+    const ring = await js(`(() => { const e = document.activeElement, cs = getComputedStyle(e); return { name: e.dataset.g, w: parseFloat(cs.outlineWidth), st: cs.outlineStyle, tip: document.querySelector('.gtip').hidden, label: e.getAttribute('aria-label') }; })()`);
+    assert(ring.w >= 2 && ring.st !== "none", "focus ring " + JSON.stringify(ring)); assert.strictEqual(ring.tip, false, "the numbers show on keyboard focus too"); assert(/rows flagged/.test(ring.label), ring.label);
+    await key("Enter", "Enter"); await sliceOn(); assert(await js(`document.querySelector('#rep-slice .here').textContent.includes(${JSON.stringify(ring.name)})`), "Enter filtered to " + ring.name);
+    await js(`document.querySelector('[data-slice-clear]').click()`); await sliceOff();
+    return `tooltip "${t.text.replace(/\n/g, " | ").slice(0, 110)}"; Tab reached ${ring.name}, ring ${ring.w}px, Enter filtered`;
+  });
+
+  await check("CONS-0051: Compare: with no slice it says to filter first; with a slice the whole file is outlined bars and the slice is red bars; it does not print", async () => {
+    await openStates();
+    await js(`document.querySelector('[data-compare]').click()`); await sleep(100);
+    assert.strictEqual((await text('.cmp-note')).trim(), "Filter or search the records to compare a slice with the whole file.");
+    assert.strictEqual(await js(`document.querySelectorAll('.grp-track').length`), 0, "no compare bars without a slice");
+    await js(`document.querySelector('tr.grp-parent[data-g="CA"]').click()`); await waitFor(`!!JAIReportDebug.slice && JAIReportDebug.pending === 0 && document.querySelectorAll('table.grp.cmp .grp-track').length === 4`);
+    const c = await js(`(() => { const rows = [...document.querySelectorAll('table.grp.cmp tr.grp-parent')].map(r => ({ k: r.dataset.g, whole: r.querySelector('i.whole').getBoundingClientRect().width, part: r.querySelector('i.part').getBoundingClientRect().width, inSlice: r.querySelector('.grp-slice').textContent })), w = document.querySelector('table.grp.cmp i.whole'), p = document.querySelector('table.grp.cmp i.part');
+      return { rows, wbg: getComputedStyle(w).backgroundColor, wborder: getComputedStyle(w).borderTopColor, pbg: getComputedStyle(p).backgroundColor, key: document.querySelector('.cmp-key').textContent, hash: location.hash }; })()`);
+    assert.deepStrictEqual(c.rows.map(r => r.k).sort(), ["CA", "FL", "NY", "TX"]); const ca = c.rows.find(r => r.k === "CA");
+    assert(ca.part > 0 && ca.part <= ca.whole + 1, "CA slice bar is inside its whole-file bar: " + JSON.stringify(ca)); assert(Math.abs(ca.part - ca.whole) < 2, "CA's slice is all of CA's bar"); assert(c.rows.filter(r => r.k !== "CA").every(r => r.part === 0 && r.whole > 0 && r.inSlice === "0"), JSON.stringify(c.rows));
+    assert.strictEqual(c.wbg, "rgba(0, 0, 0, 0)", "whole file: outlined, not filled"); assert(/47, 59, 75/.test(c.wborder), c.wborder); assert.strictEqual(c.pbg, "rgb(179, 18, 26)", "slice: red"); assert(/cmp=1/.test(c.hash), c.hash); assert(/whole file/.test(c.key) && /state: CA/.test(c.key), c.key);
+    const pdf = await send("Page.printToPDF", { preferCSSPageSize: true, printBackground: true }), pages = (Buffer.from(pdf.data, "base64").toString("latin1").match(/\/Type\s*\/Page[^s]/g) || []).length;
+    assert.strictEqual(pages, 1, "a printed slice with Compare on is one page, got " + pages); await sleep(200); assert.strictEqual(await js(`JAIReportDebug.compare`), true, "Compare is back on after the print");
+    await send("Emulation.setEmulatedMedia", { media: "print" }); const pr = await js(`({ tools: getComputedStyle(document.querySelector('.grp-tools')).display, bar: getComputedStyle(document.querySelector('#rep-slice')).display, meta: document.querySelector('.sh-meta').textContent })`); await send("Emulation.setEmulatedMedia", { media: "" });
+    assert.strictEqual(pr.tools, "none"); assert.strictEqual(pr.bar, "none"); assert(/slice: state: CA \(\d+ of 803 rows\)/.test(pr.meta), "the printed report says which slice it is: " + pr.meta);
+    await js(`document.querySelector('[data-compare]').click()`); await sleep(100); assert.strictEqual(await js(`document.querySelectorAll('.grp-track').length`), 0, "Compare off");
+    await js(`document.querySelector('[data-slice-clear]').click()`); await sliceOff();
+    return `CA bar ${Math.round(ca.part)}/${Math.round(ca.whole)} px, others 0; printed on ${pages} page`;
+  });
+
+  await check("CONS-0051: Measure, Date and Group by react without a reload, and a slice stays while they change", async () => {
+    await openStates(); await js(`window.__noReload = 1`);
+    await js(`document.querySelector('tr.grp-parent[data-g="CA"]').click()`); await sliceOn();
+    await pick('[data-ch="measure"]', "living_area_sqft"); await waitFor(`/living_area_sqft by state/.test(document.querySelector('.sh-insights').textContent) && JAIReportDebug.pending === 0`);
+    assert.strictEqual(await js(`window.__noReload`), 1, "no reload"); assert(!!(await js(`JAIReportDebug.slice`)), "the slice stays"); assert(/m=living_area_sqft/.test(await js(`location.hash`)));
+    await pick('[data-ch="cat"]', "property_type"); await waitFor(`/by property_type/.test(document.querySelector('.sh-insights').textContent) && JAIReportDebug.pending === 0`);
+    const dateSel = await js(`(() => { const s = document.querySelector('[data-ch="date"]'); return s ? s.value : null; })()`); assert(dateSel, "a Date picker"); await pick('[data-ch="date"]', dateSel); await quiet();
+    assert.strictEqual(await js(`window.__noReload`), 1, "no reload"); assert(/by=property_type/.test(await js(`location.hash`)));
+    return "Measure -> living_area_sqft, Group by -> property_type, Date picker answers, slice CA kept, page not reloaded";
+  });
+
+  await check("CONS-0051: the view survives a reload from its link (names and clicked values only), and the link holds no row", async () => {
+    await send("Page.navigate", { url: "about:blank" }); await sleep(200);
+    await send("Page.navigate", { url: BASE + "/report.html#sample&g=location&gv=Wynwood&cmp=1&m=total" });
+    await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && document.querySelectorAll('.rec-tr').length > 0 && !!JAIReportDebug.slice && JAIReportDebug.pending === 0", 30000);
+    const m = await js(`({ crumb: document.querySelector('#rep-slice .here').textContent, cmp: JAIReportDebug.compare, tracks: document.querySelectorAll('table.grp.cmp .grp-track').length, count: document.querySelector('[data-count]').textContent, hash: location.hash, rows: document.querySelector('.sh-kpis').textContent })`);
+    assert(/location: Wynwood/.test(m.crumb), m.crumb); assert.strictEqual(m.cmp, true); assert(m.tracks >= 5, "compare bars " + m.tracks); assert(/^Showing [\d,]+ of 5,000$/.test(m.count) && !/Showing 5,000/.test(m.count), m.count);
+    assert(/^#sample&/.test(m.hash) && m.hash.length < 120 && !/A10\d\d\d|2026-\d\d-\d\d|Cuban|\$/.test(decodeURIComponent(m.hash)), "no row in the address: " + m.hash);
+    return `reloaded at ${m.hash}: "${m.crumb}", ${m.count}, compare on`;
+  });
+
+  await check("CONS-0051: a ledger keeps its whole-file panels and says so while the table filters; the text of the new controls is at least 12 px", async () => {
+    await loadFx("ledger_header.csv"); const before = await js(`document.querySelector('.sh-kpis').textContent`);
+    await js(`document.querySelector('.finds [data-find]').click()`); await waitFor(`!!document.querySelector('#rep-slice .slicebar')`); await sleep(400); await quiet();
+    const m = await js(`({ kpis: document.querySelector('.sh-kpis').textContent, note: (document.querySelector('.sb-note') || {}).textContent, slice: JAIReportDebug.slice, count: document.querySelector('[data-count]').textContent })`);
+    assert.strictEqual(m.kpis, before, "a ledger's panels are not recomputed"); assert(/panels keep showing the whole file for a ledger/.test(m.note), m.note); assert.strictEqual(m.slice, null); assert(!/Showing (\d+) of \1$/.test(m.count), m.count);
+    await js(`document.querySelector('[data-slice-clear]').click()`); await sleep(200);
+    await openStates(); await js(`document.querySelector('tr.grp-parent[data-g="CA"]').click()`); await sliceOn(); await js(`document.querySelector('[data-compare]').click()`); await sleep(150);
+    const small = await js(`[...document.querySelectorAll('#rep-slice *, .grp-tools *, .grp-tools, .gtip, td.grp-slice')].filter(e => e.childNodes.length && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(e).fontSize) < 12).map(e => e.className + ':' + getComputedStyle(e).fontSize)`);
+    assert.deepStrictEqual(small, [], "text under 12 px: " + small);
+    await js(`document.querySelector('[data-slice-clear]').click()`); await sliceOff();
+    return "ledger: " + m.note;
+  });
+
+  await check("CONS-0051: at 390 px a slice with Compare on does not scroll the page sideways and the slice bar wraps", async () => {
+    await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+    try {
+      await openStates(); await js(`document.querySelector('tr.grp-parent[data-g="CA"]').click()`); await sliceOn();
+      await js(`document.querySelector('[data-compare]').click()`); await waitFor(`document.querySelectorAll('table.grp.cmp .grp-track').length === 4`);
+      const m = await js(`({ sw: document.documentElement.scrollWidth, vw: innerWidth, bar: document.querySelector('.slicebar').getBoundingClientRect().right, wide: [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > 391 && !e.closest('.rec-win') && !e.closest('.grp-wrap') && getComputedStyle(e).position !== 'fixed').slice(0, 6).map(e => e.tagName + '.' + e.className + ':' + Math.round(e.getBoundingClientRect().right)) })`);
+      // the rotated "Checked" stamp reaches 414 px in every state of the report (also without a slice); that is older than CONS-0051 and is reported on the ticket. Everything else must fit.
+      const wide = m.wide.filter(w => !/^SPAN\.stamp/.test(w)); assert.strictEqual(wide.length, 0, `these reach past the ${m.vw} px viewport: ${wide.join(' ')}`); assert(m.bar <= m.vw + 1, "the slice bar fits: " + m.bar);
+      return `nothing but the older stamp reaches past ${m.vw} px (page ${m.sw})`;
+    } finally { await send("Emulation.clearDeviceMetricsOverride"); }
   });
 
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {

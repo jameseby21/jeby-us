@@ -547,3 +547,31 @@ body.print-fit .worth.news{grid-template-columns:repeat(2,minmax(0,1fr))}body.pr
 .pc-btns{display:flex;gap:8px;flex-wrap:wrap}.pc-btns .btn[disabled]{opacity:.45;cursor:default}
 .piece-note{margin:0;font-size:12px;line-height:1.45;color:var(--ink-2)}
 @media (max-width:760px){.pc-btns{width:100%}.pc-btns .btn{flex:1;min-height:44px;justify-content:center}}
+
+/* CONS-0051: click a finding, bar, column or health line and the report is worked out for that slice; hover numbers; Compare. Screen only; none of it prints. */
+.slicebar{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:9px 12px;margin:0 0 12px;border:1px solid var(--rule-2);border-left:3px solid var(--red);border-radius:6px;background:#fff;font-size:14px}
+.slicebar .sb-l{font:500 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.slicebar .here{font-weight:600;overflow-wrap:anywhere}
+.slicebar .sb-n{font:500 12.5px/1 var(--mono);color:var(--ink-2);margin-left:auto}
+.slice-x{border:1px solid var(--rule-2);background:#fff;border-radius:999px;padding:3px 9px;cursor:pointer;font:inherit;font-size:12.5px;color:var(--ink)}
+.slice-x:hover{border-color:var(--red)}
+.slice-help{margin:0 0 10px;font-size:13.5px;line-height:1.5;color:var(--ink-2);max-width:78ch}
+.sb-note{margin:-6px 0 12px;font-size:13px;color:var(--ink-2)}
+.hl-btn,.col-btn{appearance:none;border:0;background:none;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;text-decoration:underline;text-decoration-color:var(--rule-2);text-underline-offset:3px}
+.hl-btn:hover,.col-btn:hover{text-decoration-color:var(--red)}
+table.prof .col-btn{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+tr.grp-parent[data-g],tr.grp-child[data-g]{cursor:pointer}
+tr.grp-parent:focus-visible,tr.grp-child:focus-visible{outline:2px solid var(--red);outline-offset:-2px;border-radius:0}
+.grp-tools{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 8px}
+.cmp-toggle[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.cmp-note,.cmp-hint{font-size:13px;color:var(--ink-2)}
+.cmp-key .k{display:inline-block;width:18px;height:10px;vertical-align:-1px;margin:0 5px 0 12px;box-sizing:border-box;border-radius:0 3px 3px 0}.cmp-key .k:first-child{margin-left:0}
+.cmp-key .k.whole{border:1.5px solid var(--slate)}.cmp-key .k.part{background:var(--red)}
+table.grp.cmp .grp-track{position:relative;display:block;height:14px;flex:1 1 auto;min-width:60px;max-width:70%}
+table.grp.cmp .grp-track i{position:absolute;left:0;top:0;display:block;height:100%;max-width:none;box-sizing:border-box;border-radius:0 4px 4px 0}
+table.grp.cmp .grp-track i.whole{border:1.5px solid var(--slate);background:transparent}
+table.grp.cmp .grp-track i.part{background:var(--red)}
+.gtip{position:fixed;z-index:60;max-width:300px;background:var(--ink);color:#fff;font:400 13px/1.4 var(--sans);padding:8px 10px;border-radius:4px;pointer-events:none}
+.gtip[hidden]{display:none}
+@media print{.slicebar,.slice-help,.sb-note,.grp-tools,.gtip{display:none!important}.hl-btn,.col-btn{text-decoration:none}}
+@media (max-width:760px){.slicebar .sb-n{margin-left:0}}
