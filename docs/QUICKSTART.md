@@ -24,6 +24,8 @@ cd jeby-us && git checkout redesign/2026-11-family-sites
 ```
 preview.cmd        (Windows)
 ./preview.sh       (macOS / Linux)
+
+Both sites by default. Add a tag for one site: `preview.cmd jai` (JA Insights only, http://127.0.0.1:8081) or `preview.cmd jeby` (jeby.us only, http://127.0.0.1:8080); `--no-serve` builds and starts nothing.
 ```
 Open http://127.0.0.1:8080 (jeby.us) and http://127.0.0.1:8081 (JA Insights). You should see the jeby.us home page with the family strip at the top, and the JA Insights home page. Ctrl+C stops both servers.
 

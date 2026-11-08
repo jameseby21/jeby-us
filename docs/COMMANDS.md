@@ -5,7 +5,8 @@ Every command a person or an agent runs day to day. Use `python3` for `python` o
 ## Daily
 | Command | What it does | When |
 | --- | --- | --- |
-| `preview.cmd` / `./preview.sh` | builds both sites, serves jeby.us on 8080 and JA Insights on 8081 | every session that changes content |
+| `preview.cmd` / `./preview.sh` | builds both sites, then serves both from one process: jeby.us on http://127.0.0.1:8080 and JA Insights on http://127.0.0.1:8081; tags pick the sites: `preview.cmd jai` (only JA Insights), `preview.cmd jeby` (only jeby.us), `--no-serve` (build only), `--no-build` (serve the existing build); Ctrl+C stops them | every session that changes content |
+| `python _src/preview.py [jeby] [jai] [--no-build] [--no-serve]` | what the two scripts call; same tags | when a script is not available |
 | `python _src/build.py` | builds into `_src/jeby/out` and `_src/jai/out` | after every source edit |
 | `python _src/check_links.py` | fails on any dead internal or family link | before every PR |
 

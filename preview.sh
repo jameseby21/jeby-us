@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Build both sites, then serve jeby.us on 8080 and JA Insights on 8081. Ctrl+C stops both.
-set -e
+# Build, then serve both sites (jeby.us on 8080, JA Insights on 8081) from this one process. Ctrl+C stops them.
+# Tags: ./preview.sh jai   (only JA Insights)   ./preview.sh jeby   (only jeby.us)   ./preview.sh --no-serve   (build only)
 cd "$(dirname "$0")"
-python3 _src/build.py
-python3 -m http.server 8081 --bind 127.0.0.1 --directory _src/jai/out >/dev/null 2>&1 &
-trap 'kill $! 2>/dev/null' EXIT
-echo; echo "jeby.us      http://127.0.0.1:8080"; echo "JA Insights  http://127.0.0.1:8081"; echo "Press Ctrl+C to stop both."
-python3 -m http.server 8080 --bind 127.0.0.1 --directory _src/jeby/out
+exec python3 _src/preview.py "$@"
