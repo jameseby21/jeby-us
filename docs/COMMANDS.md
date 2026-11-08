@@ -9,6 +9,9 @@ Every command a person or an agent runs day to day. Use `python3` for `python` o
 | `python _src/preview.py [jeby] [jai] [--no-build] [--no-serve]` | what the two scripts call; same tags | when a script is not available |
 | `python _src/build.py` | builds into `_src/jeby/out` and `_src/jai/out` | after every source edit |
 | `python _src/check_links.py` | fails on any dead internal or family link | before every PR |
+| `node _src/jai/tests/run.js` | free report logic tests on synthetic fixtures (outliers, table model, edits, export, notable records); plain Node, no install | after any change to `jai/src/report.js` or `records.js` |
+| `python _src/build.py` then `node _src/jai/tests/browser.js` | renders the built report in headless Edge or Chrome (temporary profile, removed after); prints NOT RUN when no browser or Node older than 22 | before a PR that changes the report page |
+| `python _src/jai/tests/make_fixtures.py` | regenerates the seeded synthetic fixtures under `_src/jai/tests/fixtures/` | only when the fixture shape changes |
 
 ## Data and environment
 | Command | What it does | Notes |
