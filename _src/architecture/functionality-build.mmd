@@ -1,0 +1,49 @@
+flowchart LR
+  subgraph jebyIn["jeby.us inputs · _src/"]
+    content["jeby/src/content.py<br/>CONFIG, ABOUT, STORY, SUPPORT, NOW, PRO,<br/>EXPERIENCE, VENTURES, TUTORING, LAB, QR"]
+    jebyAssets["jeby/src/site.css + site.js"]
+    research["research/src/<br/>common.js, model.js, los-orbit.js,<br/>slides.js, visuals.css, section.html"]
+    static["jeby/static/<br/>favicon, og.png, Drew art and photos,<br/>QR image, project marks, poster.pdf"]
+  end
+
+  subgraph sharedIn["Shared inputs · _src/"]
+    family["family/family.js + family/assets/"]
+    flags["Switches · PREVIEW_SLOTS, CONFIG.booking,<br/>SUPPORT.providers, report_rows, report_cols"]
+  end
+
+  subgraph jaiIn["jainsights.com inputs · _src/jai/src/"]
+    jaiContent["jai_content.py<br/>CONFIG.rate, PACKAGES as hours,<br/>LINES, MARKET, PRODUCT_NOTES, FAQ"]
+    jaiAssets["jai.css + jai.js + report.js"]
+  end
+
+  orchestrator(["_src/build.py<br/>runs jeby/build.py first, then jai/build.py"])
+
+  subgraph jebyBuild["Step 1 · jeby/build.py"]
+    jgen["Generate 8 pages from SPECS<br/>header, footer, meta, Open Graph,<br/>JSON-LD Person on Home"]
+    jcopy["Copy assets, join research JS into<br/>assets/research.js, inline drew-tongue.svg"]
+    jseo["Write CNAME, robots.txt,<br/>sitemap.xml, llms.txt"]
+  end
+
+  subgraph jaiBuild["Step 2 · jai/build.py"]
+    agen["Generate 7 pages<br/>price = hours × rate,<br/>JSON-LD ProfessionalService on Home"]
+    acopy["Copy jai assets + family.js,<br/>take project marks from jeby/out/assets,<br/>write favicon.svg from a string"]
+    aseo["Write CNAME, robots.txt, sitemap.xml"]
+  end
+
+  jebyOut["_src/jeby/out/"]
+  art["_src/jeby/artifact/ · preview<br/>Home written as an artifact fragment"]
+  jaiOut["_src/jai/out/"]
+  root["Repo root<br/>what GitHub Pages serves as jeby.us"]
+
+  orchestrator --> jebyBuild
+  orchestrator --> jaiBuild
+  jebyIn --> jebyBuild
+  sharedIn --> jebyBuild
+  sharedIn --> jaiBuild
+  jaiIn --> jaiBuild
+  content -->|"LAB is shared"| agen
+  jebyBuild --> jebyOut
+  jebyBuild -->|"same pages"| art
+  jaiBuild --> jaiOut
+  jebyOut -->|"project marks"| acopy
+  jebyOut -->|"build.py --publish"| root
