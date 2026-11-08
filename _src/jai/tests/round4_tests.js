@@ -71,4 +71,42 @@ module.exports = function (h) {
     assert.strictEqual(R.analyse(load("ledger_header.csv")).grouping, null, "a ledger's grouping is its merchant list");
     const a = R.analyse(cafeD); assert(a.catCands.length >= 2 && a.distinctCands.some(c => c.name === "order_id") && a.numCols.length >= 2, "choices for the second column, count distinct and the second measure");
   });
+
+  // ---------- CONS-0047: Worth a look, five items, with a Search news button that sends only a name, a street, a city or a category
+  console.log("worth a look and Search news (CONS-0047)");
+  const V = load("venues.csv"), aVen = R.analyse(V), fixRows = a => new Set([...a.flags.entries()].filter(([, f]) => f.sev === "fix").map(([k]) => +k.split(":")[0]));
+  const vq = a => a.worth.items.map(x => x.query);
+  test("worth a look: five items, a seeded random sample by default, the seed shown, the same file gives the same five and another seed gives others", () => {
+    const w = aVen.worth; assert.strictEqual(w.items.length, 5); assert.strictEqual(w.by, "random"); assert(Number.isInteger(w.seed) && w.seed >= 0 && w.seed < 10000, w.seed);
+    assert.deepStrictEqual(R.analyse(V).worth.items.map(x => x.ri), w.items.map(x => x.ri), "the same file gives the same five");
+    const other = R.analyse(V, { worthSeed: w.seed + 1 }).worth; assert.strictEqual(other.seed, w.seed + 1); assert.notDeepStrictEqual(other.items.map(x => x.ri), w.items.map(x => x.ri));
+    assert.strictEqual(new Set(w.items.map(x => x.query)).size, 5, "five different searches"); assert(w.items.every(x => x.title && x.reason && x.ri >= 0 && x.ri < aVen.N));
+  });
+  test("worth a look: rows that QA marks Fix are never sampled, under any seed", () => {
+    const fx = fixRows(aVen); assert(fx.size >= 6, "the venues fixture has Fix rows (the CVS duplicates): " + fx.size);
+    for (let sd = 0; sd < 200; sd++) R.analyse(V, { worthSeed: sd }).worth.items.forEach(x => assert(!fx.has(x.ri), `seed ${sd} sampled Fix row ${x.ri}`));
+    const c = R.analyse({ name: "cafe", rows: R.cafeSample() }); const fc = fixRows(c); assert(fc.size > 10); for (let sd = 0; sd < 30; sd++) R.analyse({ name: "cafe", rows: R.cafeSample() }, { worthSeed: sd }).worth.items.forEach(x => assert(!fc.has(x.ri)));
+  });
+  test("worth a look: with a measure chosen the five are the most prominent, largest first", () => {
+    const d = { name: "cafe", rows: R.cafeSample() }, a = R.analyse(d, { worthBy: "largest" }), mi = a.header.indexOf(a.measure.name), fx = fixRows(a);
+    assert.strictEqual(a.worth.by, "largest"); const vals = a.worth.items.map(x => R.num(d.rows[x.ri + 1][mi])); assert.deepStrictEqual(vals, [...vals].sort((x, y) => y - x));
+    const best = d.rows.slice(1).map((r, i) => [R.num(r[mi]), i]).filter(([, i]) => !fx.has(i)).sort((x, y) => y[0] - x[0] || x[1] - y[1])[0]; assert.strictEqual(vals[0], best[0], "the largest eligible row comes first");
+    assert.strictEqual(R.analyse(d, { measure: a.measure.name }).worth.by, "largest", "choosing a measure picks the prominent rows"); assert.strictEqual(R.analyse(d).worth.by, "random");
+    assert.strictEqual(R.analyse(V, { worthBy: "largest" }).worth.by, "random", "a file with no measure cannot be sampled by size");
+  });
+  test("the news query uses only a name, a street, a city or a category: the house number is dropped, and no owner, phone, email, id or amount is ever in it", () => {
+    aVen.worth.items.forEach(x => { const row = V.rows[x.ri + 1]; assert(x.query.includes('"' + row[0] + '"') && x.query.includes(row[4]), x.query); assert(!x.query.includes(row[2]) && !x.query.includes(row[6]), "no house number or postal code in " + x.query); assert(!x.query.includes(row[9]) && !x.query.includes(row[10]) && !x.query.includes(row[7]), "no id or coordinate"); });
+    const rows = [["name", "street", "city", "owner_name", "phone", "email", "sale_price", "notes"]];
+    for (let i = 0; i < 12; i++) rows.push(["Cafe Uno " + i, (100 + i) + " Ocean Dr", "Miami", "Ana Pérez" + i, "305-555-01" + (10 + i), "ana" + i + "@example.com", String(1000 + i * 17), "free text " + i]);
+    const w = R.analyse({ name: "q.csv", rows }).worth; assert.strictEqual(w.items.length, 5);
+    w.items.forEach(x => { assert(/^"Cafe Uno \d+" "Ocean Dr" Miami$/.test(x.query), x.query); assert(!/Ana|305|example|1[01]\d\d|free text/.test(x.query), "private fields leaked: " + x.query); assert.deepStrictEqual(Object.keys(x.parts).sort(), ["city", "name", "street"]); });
+  });
+  test("with no name, street or city the query is built from category columns; with none of them there is nothing to search and the block says why", () => {
+    const c = R.analyse({ name: "cafe", rows: R.cafeSample() }); assert.strictEqual(c.worth.items.length, 5); c.worth.items.forEach(x => assert(/^"[^"]+"( [A-Za-z ]+)?$/.test(x.query) && !/\d/.test(x.query), x.query));
+    const none = R.analyse({ name: "n.csv", rows: [["a", "b"], ...Array.from({ length: 20 }, (_, i) => [String(i * 3.5), String(i * 7)])] }).worth; assert.strictEqual(none.items.length, 0); assert(/name, street, city or category/.test(none.why), none.why);
+  });
+  test("the worth-a-look pick sees no flagged column: a screened-out name is never searched", () => {
+    const rows = [["name", "ssn", "city"]]; for (let i = 0; i < 12; i++) rows.push(["Cafe " + i, `${100 + i}-45-${1000 + i}`, "Miami"]);
+    const w = R.analyse({ name: "s.csv", rows }).worth; w.items.forEach(x => assert(!/\d{3}-45/.test(x.query + x.title + x.reason)));
+  });
 };

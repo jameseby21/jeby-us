@@ -45,7 +45,7 @@ function cleanup() {
 process.on("exit", cleanup); process.on("SIGINT", () => { cleanup(); process.exit(130); });
 
 let passed = 0, failed = 0;
-const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; console.log(`  ok   ${name}${r ? " (" + r + ")" : ""}`); }, e => { failed++; console.log(`  FAIL ${name}\n       ${String(e.message).split("\n").join("\n       ")}`); });
+const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; console.log(`  ok   ${name}${r ? " (" + r + ")" : ""}`); }, e => { failed++; console.log(`  FAIL ${name}\n       ${String(e.message || (e && e.stack) || e).split("\n").join("\n       ")}`); });
 
 (async () => {
   await startServer(); profile = fs.mkdtempSync(path.join(os.tmpdir(), "jai-browser-")); const port = await freePort();
@@ -410,6 +410,31 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     const c = await js(`({ distinct: [...document.querySelectorAll('[data-ch="measure"] optgroup option')].length, m2: !!document.querySelector('[data-ch="measure2"]') })`); assert(c.distinct >= 2 && c.m2, JSON.stringify(c));
     await pick('[data-ch="measure"]', "distinct:" + (await js(`document.querySelector('[data-ch="measure"] optgroup option').value.slice(9)`))); await waitFor(`/Distinct counts do not add up/.test(document.querySelector('.sh-insights').textContent)`);
     return `nested by city then category, ${m.kids} child rows, crumb "${crumb.slice(0, 40)}", printed on ${pages} page, Top 3 gives ${t.other}, ${c.distinct} columns offered for count distinct`;
+  });
+
+  await check("CONS-0047: Worth a look is five items and the last block of Insights; Search news shows its query on focus or hover, opens a new tab only when pressed, and nothing is requested before that", async () => {
+    await loadFx("venues.csv"); const reqBefore = requests.length;
+    const m = await js(`(() => { const blocks = [...document.querySelectorAll('.sh-insights > section, .sh-insights > details')], last = blocks[blocks.length - 1], items = [...document.querySelectorAll('.sh-worth.news .worth li')];
+      return { lastIsWorth: !!last && last.classList.contains('sh-worth'), n: items.length, btns: document.querySelectorAll('.sh-worth.news [data-news]').length, seed: (document.querySelector('.seedtag') || {}).textContent, toggle: !!document.querySelector('.pickby'), info: document.querySelector('.news-info').textContent, q: items[0].querySelector('.news-tip code').textContent, title: items[0].querySelector('b').textContent }; })()`);
+    assert(m.lastIsWorth, "Worth a look must be the last block of Insights"); assert.strictEqual(m.n, 5); assert.strictEqual(m.btns, 5); assert(/^seed \d+$/.test(m.seed), m.seed); assert(!m.toggle, "venues has no measure, so no Picked by choice");
+    assert(/Searches only start when you press a button/.test(m.info), m.info); assert(/^".+" ".+" .+$/.test(m.q), m.q);
+    await js(`document.querySelector('[data-news]').focus()`); const tip = await js(`(() => { const t = document.querySelector('.news-tip'); return { d: getComputedStyle(t).display, text: t.textContent }; })()`);
+    assert.strictEqual(tip.d, "block", "the query is shown on focus (and on hover)"); assert(tip.text.includes(m.q) && /Never used: owner, phone, email or any amount/.test(tip.text) && /Nothing is sent until you click/.test(tip.text), tip.text);
+    assert.strictEqual(requests.slice(reqBefore).filter(r => /news\.google|google\./.test(r.url)).length, 0, "no request to a news site before a click");
+    await js(`window.__opens = []; window.open = (u, t, f) => { window.__opens.push([u, t, f]); return null; }; document.querySelector('[data-news]').click()`);
+    const o = await js(`({ opens: window.__opens, label: document.querySelector('button.news.done').textContent, done: document.querySelector('.news-done').textContent, status: document.querySelector('#report-status').textContent })`);
+    assert.strictEqual(o.opens.length, 1); assert(o.opens[0][0].startsWith("https://news.google.com/search?q=") && decodeURIComponent(o.opens[0][0].split("q=")[1]) === m.q, o.opens[0][0]); assert(/_blank/.test(o.opens[0][1]) && /noopener/.test(o.opens[0][2]));
+    assert(/^Searched/.test(o.label) && /Opened Google News in a new tab at/.test(o.done), o.label + " | " + o.done);
+    const before = await js(`[...document.querySelectorAll('.sh-worth.news .worth li')].map(l => l.dataset.ri).join()`); await js(`document.querySelector('[data-reseed]').click()`);
+    await waitFor(`JAIReportDebug.pending === 0 && [...document.querySelectorAll('.sh-worth.news .worth li')].map(l => l.dataset.ri).join() !== '${before}'`);
+    const fixes = await js(`(() => { const fx = new Set([...JAIReportDebug.analysis.flags.entries()].filter(([, f]) => f.sev === 'fix').map(([k]) => +k.split(':')[0])); return [...document.querySelectorAll('.sh-worth.news .worth li')].filter(l => fx.has(+l.dataset.ri)).length; })()`);
+    assert.strictEqual(fixes, 0, "a row QA marks Fix is never sampled");
+    await send("Emulation.setEmulatedMedia", { media: "print" }); const pr = await js(`getComputedStyle(document.querySelector('.wnews')).display`); await send("Emulation.setEmulatedMedia", { media: "" }); assert.strictEqual(pr, "none", "the buttons do not print");
+    await loadFx("sales_clean.csv");
+    const t = await js(`({ toggle: [...document.querySelectorAll('.pickby .seg')].map(b => b.textContent + ':' + b.getAttribute('aria-pressed')).join('|') })`); assert(/^Random:true\|Largest .+:false$/.test(t.toggle), t.toggle);
+    await js(`document.querySelector('[data-by="largest"]').click()`); await waitFor(`JAIReportDebug.pending === 0 && document.querySelector('[data-by="largest"]').getAttribute('aria-pressed') === 'true'`);
+    const l = await js(`[...document.querySelectorAll('.sh-worth.news .wreason')].map(x => x.textContent)`); assert(l.length === 5 && l.every(x => /^Largest /.test(x) || x.length > 0), l.join(" | "));
+    return `five items, query "${m.q}", the tab opens on click (window.open stubbed, so no real tab was opened), Pick five others changes the five`;
   });
 
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {

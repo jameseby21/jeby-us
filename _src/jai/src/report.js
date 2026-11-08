@@ -580,7 +580,7 @@
         merchants: LD_.merchants.slice(0, Rules.LEDGER.topMerchants).map(m => ({ name: m.name, out: m.out, n: m.n, variants: m.variants.slice(0, 6) })), recurring: LD_.recurring.map(({ rows, ...r }) => ({ ...r, nRows: rows.length })),
         largest: LD_.largest, weekday: LD_.weekday, dupPairs: LD_.dupPairs.length, refundPairs: LD_.refundPairs.length, balanceBreaks: LD_.balanceBreaks ? LD_.balanceBreaks.length : null, gaps: LD_.gaps, unreadable: LD_.unreadable } : null,
       truncated, allRows, allCols, cols, header, measure, dateCol, cat, grouping, distinctCands, m2Cands, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, pack: packInfo, classCounts, qaSample, notChecked: Dom.notChecked(cols, ledger), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
-    res.kpi = kpiOf(res); return res;
+    res.kpi = kpiOf(res); res.worth = pickWorth(res, body, choice); return res;
   }
 
   // the tiles at the top of the sheet. Rows is always a count of rows; Total <column> is a sum of that column and carries a money sign only when the column is money (CONS-0074)
@@ -644,6 +644,47 @@
     return `<section class="qa-sample"><h3>QA sample <span class="hint print-hide">Rows to read against the source, with a suggestion for each.</span></h3>
       <p><b>${fmtCount(q.size)} rows</b> (the smaller of 500 and 10 percent): ${fmtCount(q.flagged)} flagged, ${fmtCount(q.random)} chosen at random${q.strata ? ` across ${esc(q.strata)}` : ""}${q.flaggedTotal > q.flagged ? ` (${fmtCount(q.flaggedTotal)} rows are flagged; the most serious and the rarest findings come first)` : ""}. Seed ${q.seed}.${cov ? ` Coverage of each finding: ${cov}.` : ""}</p>
       <p class="print-hide"><button class="btn small" type="button" data-qs="show">Show the sample</button> <button class="btn small" type="button" data-qs="resample">Resample the random part</button> <button class="btn small" type="button" data-qs="csv">Download QA sample.csv</button></p></section>`;
+  }
+
+  // ---------- worth a look (CONS-0047): five items, a seeded random sample by default or the most prominent when a measure is chosen, and for each a news search that is built from a name, a street, a city or a category only
+  // Rows that QA marks Fix are never sampled (a row the report thinks is almost certainly wrong is not a story). The query never holds an owner, a person, a phone, an email, an id or an amount: only those columns are ever read.
+  const NOT_PUBLIC = /owner|person|first|last|full|customer|client|contact|employee|patient|student|guardian|buyer|seller|tenant|agent|user|member|e-?mail|phone|mobile|fax|ssn|account|card|salary|wage/i;
+  const NEWS_NOTE = "This file has no name, street, city or category column, so there is nothing to search for.";
+  function newsCols(a) {
+    const cs = a.cols, pub = c => !NOT_PUBLIC.test(c.name), notPlace = ["address", "unit", "city", "state", "postal", "coordinates"];
+    const idName = /(^|[_\s-])(id|uuid|guid|code|key|number|num|no)$/i, name = cs.find(c => pub(c) && !idName.test(c.name.trim()) && c.type !== "number" && c.type !== "date" && !notPlace.includes(c.role) && Dom.DOMAIN.nameName.test(c.name)) || null;   // a name is often unique on every row, so it may be typed as an id
+    const street = cs.find(c => c.role === "address" && pub(c) && c.type !== "number" && !/(line|addr\w*)[_\s-]*(2|two)$/i.test(c.name.trim())) || null;
+    const city = cs.find(c => pub(c) && (c.role === "city" || (/^(city|town|location|neighbou?rhood|county|branch|store)$/i.test(c.name.trim()) && (c.type === "category" || c.type === "text")))) || null;
+    const category = cs.find(c => pub(c) && c.type === "category" && c !== city && c !== name && /category|type|industry|segment|department|product|item|class|kind/i.test(c.name)) || null;
+    return { name, street, city, category, usable: !!(name || street || category) };
+  }
+  const stripNumber = v => v.replace(/^\s*\d+[A-Za-z]?(?:-\d+)?\s+/, "");
+  function newsFor(nc, r) {
+    const get = c => (c && r[c.i] != null ? String(r[c.i]).trim() : ""), parts = {};
+    const name = get(nc.name), street = stripNumber(get(nc.street)), city = get(nc.city), category = get(nc.category);
+    if (name) parts.name = name; if (street) parts.street = street; if (city) parts.city = city; if (!name && !street && category) parts.category = category;
+    if (!parts.name && !parts.street && !parts.category) return null;
+    const query = [parts.name && `"${parts.name}"`, parts.street && `"${parts.street}"`, parts.category && `"${parts.category}"`, parts.city].filter(Boolean).join(" ");
+    return { parts, query, title: [parts.name, parts.street, parts.category, parts.city].filter(Boolean).join(" · ") };
+  }
+  function pickWorth(a, body, choice) {
+    const nc = newsCols(a), N = body.length, seed = choice.worthSeed != null ? (choice.worthSeed >>> 0) % 10000 : hashStr(a.header.join("|") + "|" + N + "|worth") % 10000;
+    const want = choice.worthBy || (choice.measure ? "largest" : "random"), by = want === "largest" && a.measure ? "largest" : "random";
+    const base = { by, seed, total: N, measureName: a.measure ? a.measure.name : null, canLargest: !!a.measure, cols: { name: nc.name && nc.name.name, street: nc.street && nc.street.name, city: nc.city && nc.city.name, category: nc.category && nc.category.name }, items: [], why: "" };
+    if (!nc.usable) return { ...base, why: nc.city ? "This file has a city but no name, street or category column; a city alone is too broad to search for." : NEWS_NOTE };
+    const fix = new Set(), why = new Map(); a.flags.forEach((f, k) => { const [ri, ci] = k.split(":").map(Number); if (f.sev === "fix") fix.add(ri); else if (!why.has(ri) || ci < why.get(ri).ci) why.set(ri, { ci, f }); });
+    let order = [];
+    for (let ri = 0; ri < N; ri++) if (!fix.has(ri)) order.push(ri);
+    if (by === "largest") { const mi = a.measure.i, v = ri => num(body[ri][mi]); order = order.filter(ri => v(ri) > 0).sort((x, y) => v(y) - v(x) || x - y); }
+    else { const rnd = mulberry(seed); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } }
+    const med = by === "largest" ? median(body.map(r => num(r[a.measure.i])).filter(x => x > 0)) : NaN, money = a.measure ? MONEY_RE.test(a.measure.name) : false, seen = new Set(), items = [];
+    for (const ri of order) {
+      if (items.length >= 5) break; const n = newsFor(nc, body[ri]); if (!n || seen.has(n.query)) continue; seen.add(n.query);
+      const w = why.get(ri), v = by === "largest" ? num(body[ri][a.measure.i]) : NaN;
+      const reason = w ? plain(w.f.why) : by === "largest" ? `Largest ${a.measure.name}: ${fv(money, v)}${med > 0 ? (isFar(v / med) ? `, far above the median ${fv(money, med)}` : `, ${xs(v / med)} the median ${fv(money, med)}`) : ""}.` : "Random pick: no rule flagged this row.";
+      items.push({ ri, title: n.title, reason, sev: w ? (w.f.pri || w.f.sev) : "", query: n.query, parts: n.parts });
+    }
+    return { ...base, items };
   }
 
   // ---------- the two sections (CONS-0062): every finding is an insight or a QA finding, and appears in exactly one section
@@ -820,6 +861,21 @@
     return `<h3>${esc(g.measureName)} by ${esc(g.cat)}${g.cat2 ? `, then ${esc(g.cat2)}` : ""} <span class="hint">top ${g.topN}${g.rows.some(r => r.other) ? " and Other" : ""}</span></h3><div class="grp-wrap"><table class="grp"><thead>${head}</thead><tbody>${body}</tbody></table></div>
       ${g.agg === "distinct" ? `<p class="trend-note">Distinct counts do not add up across groups: a value found in two groups is counted in both. Share is of the ${fmtCount(g.total)} distinct values in the whole file.</p>` : ""}`;
   }
+  // Worth a look with a Search news button per item (CONS-0047): the last block of Insights. A search opens only when its button is pressed, in a new tab, with the words shown on hover.
+  const searched = new Map();   // query -> the time it was opened, for the "Searched" state
+  function worthNewsHTML(a) {
+    const w = a.worth; if (!w) return "";
+    const by = w.canLargest ? `<span class="pickby print-hide" role="group" aria-label="Picked by"><span class="pb-l">Picked by</span><button type="button" class="seg" data-by="random" aria-pressed="${w.by === "random"}">Random</button><button type="button" class="seg" data-by="largest" aria-pressed="${w.by === "largest"}">Largest ${esc(w.measureName)}</button></span>` : "";
+    const seed = w.by === "random" && w.items.length ? `<span class="seedtag print-hide">seed ${w.seed}</span> <button class="rec-link print-hide" type="button" data-reseed>Pick five others</button>` : "";
+    const li = x => { const done = searched.get(x.query), shown = "https://news.google.com/search?q=" + encodeURIComponent(x.query);
+      return `<li data-ri="${x.ri}"><button class="wrow" type="button" data-row="${x.ri}"><i class="sev ${x.sev || "none"}" aria-hidden="true">${x.sev === "fix" ? "×" : x.sev === "look" ? "!" : ""}</i><span><b>${esc(x.title)}</b><span class="wreason">${esc(x.reason)}</span></span></button>
+        <span class="wnews print-hide"><button class="btn small news${done ? " done" : ""}" type="button" data-news="${x.ri}" aria-describedby="nt${x.ri}">${done ? "Searched" : "Search news"} <span aria-hidden="true">↗</span></button>
+        <span class="news-tip" id="nt${x.ri}" role="tooltip">This opens Google News in a new tab and searches for:<code>${esc(x.query)}</code>Built from ${esc(Dom.listWords(Object.keys(x.parts).map(k => k === "name" ? "name" : k)))}. Never used: owner, phone, email or any amount.<small>Nothing is sent until you click, and then only these words.</small></span>
+        <small class="news-q">Searches: ${esc(x.query)}</small>${done ? `<small class="news-done">Opened Google News in a new tab at ${esc(done)}. <button class="rec-link" type="button" data-news="${x.ri}">Search again</button></small>` : ""}</span></li>`; };
+    return `<section class="sh-worth ins news" data-block="worth"><h3>Worth a look <span class="hint print-hide">${w.items.length ? `${w.items.length === 5 ? "Five" : w.items.length} picked from ${fmtCount(w.total)} rows. Click a name to find it in the table.` : ""}</span></h3>
+      ${w.items.length ? `<div class="worth-ctl">${by}${seed}</div><ol class="worth news">${w.items.map(li).join("")}</ol>
+      <p class="news-info print-hide"><b aria-hidden="true">i</b> Searches only start when you press a button. They open in a new tab with the words shown on hover; nothing else from your file leaves this device.</p>` : `<p class="calm">${esc(w.why || "Nothing to show.")}</p>`}</section>`;
+  }
   const notShownHTML = a => a.notShown && a.notShown.length ? `<details class="not-shown print-hide"><summary>Not shown (${a.notShown.length})</summary><p class="hint">Held back by the insight gate, so the report shows fewer insights rather than wrong ones.</p><ul>${a.notShown.map(h => `<li><b>${esc(h.title)}</b> ${esc(h.reason)}</li>`).join("")}</ul></details>` : "";
   // How to supplement your data (CONS-0042): the last section of every report, chosen by the detected shape from sources.js; screen only, so the one-page print is unchanged
   function suppHTML(a) {
@@ -871,8 +927,8 @@
       <section>${a.grouping ? groupHTML(a) : a.breakdown ? `<h3>${esc(a.measureName)} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
     </div>
     ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measureName)} by ${a.trend.unit}${a.trend.split ? `, split by ${esc(a.trend.split.col)}${a.trend.split.top5 ? " (top five and Other)" : ""}` : ""} <span class="hint">date column: ${esc(a.dateCol.name)}</span></h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div>${repNote}</section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
-    ${worthHTML(sec.insights.notable, "Worth a look", "ins")}
     ${notShownHTML(a)}
+    ${worthNewsHTML(a)}
   </section>
   <section class="sh-sec sh-qa" aria-label="QA"><h2>QA <span class="sec-n">${sec.qa.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="qa">Show ${fmtCount(qaRows.size)} QA rows</button></h2>
     <div class="sh-two">
@@ -972,7 +1028,7 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     if (s.dataset.ch === "measure") { if (s.value.startsWith("distinct:")) { choice.distinct = s.value.slice(9); delete choice.measure; } else { delete choice.distinct; choice.measure = s.value; } show2(); return; }
     if (s.dataset.ch === "topN") { choice.topN = +s.value; show2(); return; }
     choice[s.dataset.ch] = s.value;
-    if (s.dataset.ch === "header") { delete choice.measure; delete choice.date; delete choice.cat; delete choice.split; delete choice.roles; delete choice.carry; delete choice.cat2; delete choice.distinct; delete choice.measure2; show2(true); } else show2(); });
+    if (s.dataset.ch === "header") { delete choice.measure; delete choice.date; delete choice.cat; delete choice.split; delete choice.roles; delete choice.carry; delete choice.worthBy; delete choice.worthSeed; delete choice.cat2; delete choice.distinct; delete choice.measure2; show2(true); } else show2(); });
   out.addEventListener("click", e => {
     if (e.target.closest("[data-print]")) window.print();
     if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
@@ -988,6 +1044,13 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
       else if (qs.dataset.qs === "resample") { choice.seed = Math.floor(Math.random() * 1000000); show2(); status(`New random part drawn (seed ${choice.seed}); the flagged rows stay.`); }
       else if (qs.dataset.qs === "csv") { const url = URL.createObjectURL(new Blob([Rec.qaSampleCSV(store, last.qaSample)], { type: "text/csv;charset=utf-8" })), link = document.createElement("a"); link.href = url; link.download = "QA sample.csv"; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000); }
     }
+    const nw = e.target.closest("[data-news]");
+    if (nw && last && last.worth) { const it = last.worth.items.find(x => String(x.ri) === nw.dataset.news);
+      if (it) { const at = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); searched.set(it.query, at); window.open("https://news.google.com/search?q=" + encodeURIComponent(it.query), "_blank", "noopener,noreferrer");
+        const li = nw.closest("li"), b = li.querySelector("button.news"); b.classList.add("done"); b.firstChild.textContent = "Searched "; let d = li.querySelector(".news-done"); if (!d) { d = document.createElement("small"); d.className = "news-done"; li.querySelector(".wnews").appendChild(d); }
+        d.innerHTML = `Opened Google News in a new tab at ${esc(at)}. <button class="rec-link" type="button" data-news="${it.ri}">Search again</button>`; status(`Opened Google News in a new tab for ${it.query}. Nothing else from your file was sent.`); } return; }
+    const bw = e.target.closest("[data-by]"); if (bw && current) { choice.worthBy = bw.dataset.by; show2(); return; }
+    if (e.target.closest("[data-reseed]") && current) { choice.worthSeed = Math.floor(Math.random() * 10000); show2(); status(`Five others picked (seed ${choice.worthSeed}); the same file and seed give the same five.`); return; }
     const w = e.target.closest("[data-row]"); if (w && table && w.classList.contains("wrow")) table.jumpTo(+w.dataset.row);
     const g = e.target.closest("[data-g]");
     if (g && table && last && last.grouping) { const gr = last.grouping;
