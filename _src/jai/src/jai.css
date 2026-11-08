@@ -525,3 +525,18 @@ body.print-fit .worth.news{grid-template-columns:repeat(2,minmax(0,1fr))}body.pr
 /* a wide table inside the sheet scrolls in its own box instead of widening the page */
 .sh-two>*{min-width:0}
 @media screen and (max-width:760px){.sh-two{grid-template-columns:minmax(0,1fr)}}
+
+/* phone (CONS-0056): worth-a-look items are cards, and a cell is edited one field at a time in a sheet at the bottom of the screen */
+.rec-sheet{position:fixed;left:0;right:0;bottom:0;z-index:75;background:#fff;border-top:2px solid var(--ink);padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));box-shadow:0 -14px 34px rgba(0,0,0,.22)}
+.rec-sheet[hidden]{display:none}
+.rec-sheet label{display:grid;gap:6px;font:500 12px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.rec-sheet input{font:400 18px/1.3 var(--sans);letter-spacing:0;text-transform:none;color:var(--ink);padding:10px 12px;min-height:44px;border:1px solid var(--ink);border-radius:6px;width:100%}
+.rec-sheet .rec-why{margin:8px 0 0;font-size:14px;line-height:1.45;color:var(--ink-2)}.rec-sheet .rec-msg{margin:6px 0 0;min-height:0;font-size:14px;color:var(--red-hi)}
+.rec-sheet-btns{display:flex;gap:10px;margin-top:10px}.rec-sheet-btns .btn{flex:1;min-height:44px;justify-content:center}
+@media screen and (max-width:760px){
+  .sh-worth .worth{gap:10px}
+  .sh-worth .worth li{border:1px solid var(--rule);border-radius:10px;padding:4px 12px 10px;background:#fff}
+  .sh-worth .worth li .wrow{padding:8px 0}
+  .rec-td{cursor:pointer}
+}
+@media print{.rec-sheet{display:none!important}}

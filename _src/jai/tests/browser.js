@@ -451,6 +451,30 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     return `without edits ${plain0.pages} page (${p0.worth} worth-a-look rows), with one edit ${edited.pages} page; footnote: "${p1.note.slice(0, 60)}"`;
   });
 
+  await check("CONS-0056: at 390 x 844 no state of the report scrolls the page sideways; the Row column stays pinned; worth-a-look items are cards; editing opens one field at a time", async () => {
+    await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+    const out = [], overflow = async tag => { const m = await js(`({ sw: document.documentElement.scrollWidth, vw: innerWidth })`); assert(m.sw <= m.vw + 1, `${tag}: the page is ${m.sw} px wide in a ${m.vw} px viewport`); out.push(`${tag} ${m.sw}/${m.vw}`); };
+    try {
+      for (const fx of ["venues.csv", "sales_clean.csv", "sales_planted.csv", "ledger_header.csv", "records_mixed.csv"]) { await loadFx(fx); await overflow(fx);
+        if (fx === "venues.csv") { await pick('[data-ch="cat"]', "city"); await waitFor(`document.querySelectorAll('.grp-parent').length === 5`); await pick('[data-ch="cat2"]', "category"); await waitFor(`document.querySelectorAll('.grp-child').length > 5`); await overflow("venues nested grouping"); await js(`document.querySelector('details.not-shown') && (document.querySelector('details.not-shown').open = true)`); } }
+      await loadFx("sales_clean.csv"); await js(`document.querySelector('.rec-win').scrollTop = 0; document.querySelector('.rec-win').scrollLeft = 300`); await sleep(150);
+      const st = await js(`(() => { const w = document.querySelector('.rec-win'), wb = w.getBoundingClientRect(), f = document.querySelector('.rec-td.first'), h = document.querySelector('.rec-thead'); return { pos: getComputedStyle(f).position, dx: Math.abs(f.getBoundingClientRect().left - wb.left), sl: w.scrollLeft, hpos: getComputedStyle(h).position, h: innerHeight }; })()`);
+      assert.strictEqual(st.pos, "sticky"); assert(st.sl > 0 && st.dx <= 2, "the Row column moved " + JSON.stringify(st)); assert.strictEqual(st.h, 844);
+      const cards = await js(`(() => [...document.querySelectorAll('.sh-worth .worth li')].map(l => { const cs = getComputedStyle(l), r = l.getBoundingClientRect(); return { br: parseFloat(cs.borderTopLeftRadius), bw: parseFloat(cs.borderTopWidth), pad: parseFloat(cs.paddingLeft), fits: r.left >= 0 && r.right <= innerWidth + 1 }; }))()`);
+      assert(cards.length >= 5, "cards: " + cards.length); cards.forEach(c => { assert(c.br >= 8 && c.bw >= 1 && c.pad >= 8 && c.fits, JSON.stringify(c)); });
+      await js(`document.querySelector('.rec-win').scrollLeft = 0; document.querySelector('.rec-td[data-c="1"]').scrollIntoView({ block: 'center' })`); await sleep(150);
+      await js(`document.querySelector('.rec-td[data-c="1"]').click()`); await waitFor(`!!document.querySelector('.rec-sheet:not([hidden]) input[data-sedit]')`);
+      const e1 = await js(`({ inputs: document.querySelectorAll('.rec-sheet input').length, td: document.querySelectorAll('.rec-td input').length, label: document.querySelector('.rec-sheet label').textContent, mode: document.querySelector('.rec-sheet input').inputMode, box: (() => { const r = document.querySelector('.rec-sheet').getBoundingClientRect(); return { l: r.left, r: r.right, b: r.bottom, h: innerHeight }; })() })`);
+      assert.strictEqual(e1.inputs, 1, "one field at a time"); assert.strictEqual(e1.td, 0, "no inline editor in the table on a phone"); assert(/Row \d+ . /.test(e1.label), e1.label); assert.strictEqual(e1.mode, "decimal"); assert(e1.box.l >= 0 && e1.box.r <= 391 && e1.box.b <= e1.box.h + 1, JSON.stringify(e1.box));
+      await js(`(() => { const i = document.querySelector('.rec-sheet input'); i.value = '$98,765'; document.querySelector('.rec-sheet form').requestSubmit(); })()`);
+      await waitFor(`JAIReportDebug.store.edits.length === 1 && !!document.querySelector('.rec-sheet[hidden]')`); assert(/98,?765/.test(await js(`JSON.stringify(JAIReportDebug.store.edits[0])`)), "the edit was saved");
+      await js(`document.querySelector('.rec-td[data-c="1"]').click()`); await waitFor(`!!document.querySelector('.rec-sheet:not([hidden]) input')`); await js(`document.querySelector('[data-scancel]').click()`);
+      await waitFor(`!!document.querySelector('.rec-sheet[hidden]')`); assert.strictEqual(await js(`JAIReportDebug.store.edits.length`), 1, "Cancel changes nothing");
+      await overflow("after editing");
+    } finally { await send("Emulation.clearDeviceMetricsOverride"); }
+    return out.join(", ") + "; Row column pinned; cards; the editor opens one field in a bottom sheet";
+  });
+
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {
     await send("Page.navigate", { url: "file:///" + PAGE.replace(/\\/g, "/") + "#sample" }); await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && document.querySelectorAll('.rec-tr').length > 0", 20000);
     assert.strictEqual(await js(`JAIReportDebug.engine`), "main"); assert.strictEqual(await js(`JAIReportDebug.store.rows.length`), 5000);

@@ -119,7 +119,7 @@
     for (let c = 0; c < NC; c++) { let m = String(s.names[c]).length + 3; for (let i = 0, n = Math.min(300, s.rows.length); i < n; i++) m = Math.max(m, s.rows[i][c].length); widths.push(Math.max(70, Math.min(260, Math.round(m * 7.9 + 28)))); }
     const template = widths.map(w => w + "px").join(" "), totalW = widths.reduce((x, y) => x + y, 0);
     host.innerHTML = `
-<div class="rec-head"><h2>All records</h2><span class="rec-hint">Every row the report read. Double-click a cell to correct it. Nothing you change leaves this tab.</span></div>
+<div class="rec-head"><h2>All records</h2><span class="rec-hint">Every row the report read. Double-click a cell to correct it (on a phone, tap it). Nothing you change leaves this tab.</span></div>
 <div class="rec-tools"><label class="rec-search"><span aria-hidden="true">⌕</span><input type="search" data-q placeholder="Search every column" aria-label="Search the records"></label><div class="rec-edits" data-edits></div></div>
 <div class="rec-tools"><nav class="rec-crumbs" data-crumbs aria-label="Filter"></nav><span class="rec-count" data-count aria-live="polite"></span></div>
 <div class="rec-win" data-win role="grid" aria-label="Records" aria-rowcount="${s.rows.length + 1}" tabindex="0"><div class="rec-thead" data-thead role="row"></div><div class="rec-tbody" data-tbody></div></div>
@@ -200,6 +200,23 @@
     function startEdit(cell) { if (!cell || cell.dataset.c == null) return; editing = { ri: +cell.dataset.r, ci: +cell.dataset.c }; tip.style.opacity = 0; draw(true); }
     function stopEdit(focus) { const e = editing; editing = null; draw(true); if (focus && e) { const c = tbody.querySelector(`[data-r="${e.ri}"][data-c="${e.ci}"]`); if (c) c.focus(); } }
     tbody.addEventListener("dblclick", e => startEdit(e.target.closest(".rec-td")));
+    // ----- on a phone one field is edited at a time, in a sheet at the bottom of the screen (CONS-0056): a double-tap is hard to do, a tap is not
+    const narrow = () => typeof matchMedia === "function" && matchMedia("(max-width: 760px)").matches;
+    const sheet = document.createElement("div"); sheet.className = "rec-sheet"; sheet.hidden = true; host.appendChild(sheet);
+    let sheetAt = null;
+    function closeSheet(focus) { const at = sheetAt; sheetAt = null; sheet.hidden = true; sheet.innerHTML = ""; if (focus && at) { const c = tbody.querySelector(`[data-r="${at.ri}"][data-c="${at.ci}"]`); if (c) c.focus({ preventScroll: true }); } }
+    function openSheet(ri, ci) {
+      const row = s.rows[ri], fl = flags.get(ri + ":" + ci); sheetAt = { ri, ci };
+      sheet.innerHTML = `<form class="rec-sheet-in" novalidate><label>Row ${(ri + s.rowBase).toLocaleString("en-US")} · ${esc(s.names[ci])}<input data-sedit value="${esc(row[ci])}" inputmode="${s.isNum[ci] ? "decimal" : "text"}" autocomplete="off" aria-label="Edit ${esc(s.names[ci])}, row ${ri + s.rowBase}"></label>${fl ? `<p class="rec-why">${fl.why}</p>` : ""}<p class="rec-msg" role="alert"></p>
+        <div class="rec-sheet-btns"><button type="submit" class="btn red">Save</button><button type="button" class="btn" data-scancel>Cancel</button></div></form>`;
+      sheet.hidden = false; const inp = sheet.querySelector("input"); inp.focus(); inp.select();
+    }
+    tbody.addEventListener("click", e => { if (!narrow() || editing) return; const c = e.target.closest(".rec-td"); if (!c || c.dataset.c == null) return; openSheet(+c.dataset.r, +c.dataset.c); });
+    sheet.addEventListener("submit", e => { e.preventDefault(); if (!sheetAt) return; const inp = sheet.querySelector("input"), at = sheetAt, r = commitEdit(s, at.ri, at.ci, inp.value);
+      if (!r.ok) { sheet.querySelector(".rec-msg").textContent = r.reason; o.say && o.say(r.reason); return; }
+      closeSheet(true); draw(true); if (r.changed) { toolbar(); o.onChange(); } });
+    sheet.addEventListener("click", e => { if (e.target.closest("[data-scancel]")) closeSheet(true); });
+    sheet.addEventListener("keydown", e => { if (e.key === "Escape") { e.preventDefault(); closeSheet(true); } });
     tbody.addEventListener("keydown", e => {
       const inp = e.target.closest("[data-edit]");
       if (inp) {
