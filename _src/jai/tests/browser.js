@@ -97,11 +97,18 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
   });
   await check("records worth a look: at most ten, click scrolls to and highlights the row", async () => {
     await js(`document.querySelector('[data-crumbs] .rec-x').click()`);
-    const n = await js(`document.querySelectorAll('.worth .wrow').length`); assert(n >= 5 && n <= 10, n);
-    const first = await js(`document.querySelector('.worth .wrow b').textContent`); assert(/unit_price/.test(first), first);
-    await js(`document.querySelectorAll('.worth .wrow')[5].click()`); await sleep(400);
+    const n = await js(`document.querySelectorAll('.sh-qa .worth .wrow').length`); assert(n >= 5 && n <= 7, n);
+    const first = await js(`document.querySelector('.sh-qa .worth .wrow b').textContent`); assert(/unit_price/.test(first), first);
+    await js(`document.querySelectorAll('.sh-qa .worth .wrow')[5].click()`); await sleep(400);
     const m = await js(`(() => { const h = document.querySelector('.rec-tr.hl'); const w = document.querySelector('.rec-win').getBoundingClientRect(), r = h && h.getBoundingClientRect(); return { found: !!h, inside: !!h && r.top >= w.top - 1 && r.bottom <= w.bottom + 1, text: h && h.textContent.slice(0, 40) }; })()`);
     assert(m.found && m.inside, JSON.stringify(m));
+  });
+
+  await check("the report has two sections, Insights then QA, each with a count, and each finding sits in one of them; the table filters to either", async () => {
+    const m = await js(`(() => { const h = [...document.querySelectorAll('.sheet .sh-sec > h2')].map(e => e.firstChild.textContent.trim() + ' ' + e.querySelector('.sec-n').textContent); const lis = [...document.querySelectorAll('.sheet .finds li b')].map(e => e.textContent); return { h, dup: lis.length - new Set(lis).size, ins: document.querySelectorAll('.sh-insights .finds li').length, qa: document.querySelectorAll('.sh-qa .finds li').length }; })()`);
+    assert.strictEqual(m.h.length, 2); assert(/^Insights \d+$/.test(m.h[0]) && /^QA \d+$/.test(m.h[1]), m.h.join()); assert.strictEqual(m.dup, 0, "a finding appears twice"); assert(m.qa >= 3, "qa findings " + m.qa);
+    await js(`document.querySelector('[data-sec="qa"]').click()`); const c = await js(`document.querySelector('[data-crumbs]').textContent`); assert(/QA rows/.test(c), c);
+    await js(`document.querySelector('[data-crumbs] .rec-x').click()`); return m.h.join(" / ");
   });
 
   console.log("editing and export (CONS-0054)");
@@ -161,16 +168,16 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
   });
   await check("print hides the table and keeps at most five records worth a look", async () => {
     await send("Emulation.setEmulatedMedia", { media: "print" });
-    const m = await js(`({ rec: getComputedStyle(document.querySelector('.records')).display, sixth: getComputedStyle(document.querySelectorAll('.worth li')[5]).display, fifth: getComputedStyle(document.querySelectorAll('.worth li')[4]).display, controls: getComputedStyle(document.querySelector('.report-controls')).display, note: getComputedStyle(document.querySelector('.edit-note')).display, note_txt: document.querySelector('.edit-note').textContent })`);
+    const m = await js(`({ rec: getComputedStyle(document.querySelector('.records')).display, sixth: getComputedStyle(document.querySelectorAll('.sh-qa .worth li')[5]).display, fifth: getComputedStyle(document.querySelectorAll('.sh-qa .worth li')[4]).display, controls: getComputedStyle(document.querySelector('.report-controls')).display, note: getComputedStyle(document.querySelector('.edit-note')).display, note_txt: document.querySelector('.edit-note').textContent })`);
     await send("Emulation.setEmulatedMedia", { media: "" });
     assert.strictEqual(m.rec, "none"); assert.strictEqual(m.sixth, "none"); assert.notStrictEqual(m.fifth, "none"); assert.strictEqual(m.controls, "none"); assert.notStrictEqual(m.note, "none"); assert(/^11 edits were made in this browser session \(\d+ cells changed, counting totals worked out again\); the findings/.test(m.note_txt), m.note_txt);
   });
   await check("records worth a look prints as part of the one page: the printed report is a single page and the list holds at most five records", async () => {
     const pdf = await send("Page.printToPDF", { preferCSSPageSize: true, printBackground: true }), txt = Buffer.from(pdf.data, "base64").toString("latin1");
-    const pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length; assert.strictEqual(pages, 1, "printed pages: " + pages);
-    const f = await js(`(() => { const sh = document.querySelector('.sheet'); return { z: sh.style.getPropertyValue('--pz'), rows: sh.dataset.pw || '5' } })()`);
+    const pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length; const dbg = await js(`(() => { const sh = document.querySelector('.sheet'); return { pz: sh.style.getPropertyValue('--pz'), pw: sh.dataset.pw, ph: sh.dataset.ph, h: sh.offsetHeight, fit: JAIReportDebug.fitLog.join(' ') }; })()`); assert.strictEqual(pages, 1, "printed pages: " + pages + " " + JSON.stringify(dbg));
+    const f = await js(`(() => { const sh = document.querySelector('.sheet'); return { z: sh.style.getPropertyValue('--pz'), rows: sh.dataset.pw || '5', health: !sh.dataset.ph, drop: sh.dataset.ph || '0' } })()`);
     assert(+f.rows >= 3, "worth-a-look rows kept in print: " + f.rows);
-    return `1 printed page at zoom ${f.z}, ${f.rows} worth-a-look rows`;
+    return `1 printed page at zoom ${f.z}, ${f.rows} worth-a-look rows, print detail level ${f.drop} (0 = everything kept)`;
   });
   await check("nothing leaves the browser: no request while working, none that is a POST or PUT, ever", async () => {
     // a web font the page's own stylesheet asks for the first time a glyph style is drawn is a plain GET for a public file, carrying nothing of the visitor's

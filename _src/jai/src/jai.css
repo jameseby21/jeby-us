@@ -422,3 +422,24 @@ body.print-fit .worth{gap:0 22px}body.print-fit .wrow{padding:5px 0}
 body.print-fit .sh-trend .chart-wrap svg{max-height:210px}
 body.print-fit .finds li>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 body.print-fit .sheet:not([data-pw]) .worth li:nth-child(n+6),body.print-fit .sheet[data-pw="3"] .worth li:nth-child(n+4),body.print-fit .sheet[data-pw="0"] .sh-worth{display:none}
+
+/* the two sections of the report (CONS-0062) */
+.sh-sec{display:grid;gap:18px;border-top:2px solid var(--ink);padding-top:12px}
+.sh-sec>h2{display:flex;align-items:baseline;gap:10px;margin:0;font:400 24px/1.15 var(--serif)}
+.sh-sec>h2 .sec-n{font:500 12px/1 var(--mono);color:#fff;background:var(--ink);border-radius:999px;padding:4px 8px}
+.sh-qa>h2 .sec-n{background:var(--red)}
+.sh-sec>h2 .rec-link{margin-left:auto;font-size:12.5px}
+.finds small.rule{grid-column:2;font-size:12px;line-height:1.4;color:var(--muted)}
+.not-checked{margin:0;font-size:13px;color:var(--ink-2);line-height:1.5}
+.class-counts{margin:0 0 8px;font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}
+.cls{font:500 11.5px/1 var(--mono);padding:3px 6px;border-radius:4px}
+.cls.hard{background:var(--red-tint);color:var(--red)}.cls.adv{background:var(--slate-tint);color:var(--slate)}
+.rec-td.ctx{box-shadow:inset 3px 0 0 var(--rule-2)}
+@media print{.sh-sec{gap:10px;padding-top:8px}.sh-sec>h2{font-size:18px}.finds small.rule{display:none}}
+body.print-fit .sh-sec{gap:10px;padding-top:8px}body.print-fit .sh-sec>h2{font-size:18px}body.print-fit .finds small.rule{display:none}
+@media print{.sheet[data-ph] .sh-cols{display:none}.sheet[data-ph] .sh-trend .chart-wrap svg{max-height:165px}}
+body.print-fit .sheet[data-ph] .sh-cols{display:none}body.print-fit .sheet[data-ph] .sh-trend .chart-wrap svg{max-height:165px}
+@media print{.wrow .wreason{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.sh-worth.ins li:nth-child(n+4){display:none}}
+body.print-fit .wrow .wreason{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}body.print-fit .sh-worth.ins li:nth-child(n+4){display:none}
+@media print{.sheet[data-ph] .finds li>span{-webkit-line-clamp:1}.sheet[data-ph] .finds{gap:7px}}
+body.print-fit .sheet[data-ph] .finds li>span{-webkit-line-clamp:1}body.print-fit .sheet[data-ph] .finds{gap:7px}

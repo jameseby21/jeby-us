@@ -442,7 +442,13 @@
     const findingsAll = findings.filter(f => f.id && f.n > 0);
     const rank = { fix: 0, look: 1, ok: 2 }; checks.sort((a, b) => rank[a.sev] - rank[b.sev]);
     const needsCleanup = checks.some(c => c.sev === "fix");
-    return { name: data.name, sheet: data.sheet, N, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsAll, flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+    return { name: data.name, sheet: data.sheet, N, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+  }
+
+  // ---------- the two sections (CONS-0062): every finding is an insight or a QA finding, and appears in exactly one section
+  function sections(a, notable) {
+    const list = a.findingsList || a.findings || [], ins = list.filter(f => f.kind === "insight"), qa = list.filter(f => f.kind !== "insight");
+    return { insights: { findings: ins, notable: (notable || []).filter(w => w.kind === "insight") }, qa: { findings: qa, notable: (notable || []).filter(w => w.kind !== "insight"), checks: a.checks } };
   }
 
   // ---------- records worth a look (CONS-0050): up to ten, most serious first, one reason each
@@ -459,9 +465,11 @@
     cand.sort((x, y) => SEVRANK[y.sev] - SEVRANK[x.sev] || y.fe - x.fe || y.eff - x.eff || y.n - x.n || x.ri - y.ri);
     const out = [], used = new Map(), picked = new Set();
     const where = ri => a.cat ? ` · ${rows[ri][a.cat.i].trim() || "(blank)"}` : "";
-    const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, id: c.id || null, title: `Row ${(c.ri + 2).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason: reason + (oneOf(c.id) > 1 ? ` One of ${oneOf(c.id).toLocaleString("en-US")} rows with this problem.` : "") });
+    const kindOf = id => { const f = a.findingsList && a.findingsList.find(x => x.id === id); return f ? f.kind : (id === "rank" || id === "largest" || id === "recent") ? "insight" : "qa"; };
+    const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, kind: kindOf(c.id), id: c.id || null, title: `Row ${(c.ri + 2).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason: reason + (oneOf(c.id) > 1 ? ` One of ${oneOf(c.id).toLocaleString("en-US")} rows with this problem.` : "") });
     const oneOf = id => { const f = a.findingsAll.find(x => x.id === id); return f ? f.n : 0; };   // a list of ten cannot hold every row of a big finding, so each entry says how many there are
-    for (const c of cand) { if (out.length >= 10) break; if (c.id === "gaps") continue; /* a blank cell is a column-wide matter, not a record to read */ if ((used.get(c.id) || 0) >= PER_FINDING) continue; used.set(c.id, (used.get(c.id) || 0) + 1); picked.add(c.ri); out.push(entry(c, plain(c.why), c.sev)); }
+    const qaCap = 7, nIn = k => out.filter(w => w.kind === k).length;
+    for (const c of cand) { if (out.length >= 10) break; if (kindOf(c.id) === "qa" && nIn("qa") >= qaCap) continue; if (kindOf(c.id) === "insight" && nIn("insight") >= 10 - qaCap) continue; if (c.id === "gaps") continue; /* a blank cell is a column-wide matter, not a record to read */ if ((used.get(c.id) || 0) >= PER_FINDING) continue; used.set(c.id, (used.get(c.id) || 0) + 1); picked.add(c.ri); out.push(entry(c, plain(c.why), c.sev)); }
     if (out.length < 10 && a.measure && a.cat) {   // a record that would change the order of the groups if it were removed
       const mi = a.measure.i, ci = a.cat.i, sums = new Map(); rows.forEach(r => { const k = r[ci].trim() || "(blank)"; sums.set(k, (sums.get(k) || 0) + (num(r[mi]) || 0)); });
       const order = m => [...m.entries()].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1)).map(e => e[0]);
@@ -511,7 +519,7 @@
     return [["order_id", "date", "location", "item", "qty", "unit_price", "total", "payment"], ...rs.map(r => [r.order, r.date, r.loc, r.item, String(r.qty), r.price.toFixed(2), r.total.toFixed(2), r.pay])];
   }
 
-  const API = { parseDelimited, num, dt, profileCol, analyse, detectOutliers, pickNotable, makeStore, cafeSample, setLimits };
+  const API = { parseDelimited, num, dt, profileCol, analyse, detectOutliers, pickNotable, sections, makeStore, cafeSample, setLimits };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else if (typeof self !== "undefined") self.JAIReport = API;
   if (!root) return;
 
@@ -570,22 +578,38 @@
     const next = a.needsCleanup ? ["Data health check", 8, "a person reads the data and writes down what to fix first"] : ["Focused analysis", 20, "one question answered properly, with the uncertainty stated"];
     const trendSvg = a.trend && a.trend.series.length > 1 ? lineSVG(a.trend, a.measure ? a.measure.name : "Rows") : "";
     const tableRows = (a.trend ? a.trend.series.map(p => `<tr><td>${a.trend.label(p.t)}</td><td>${full(p.v, 0)}</td></tr>`).join("") : "");
-    const finds = a.findings.length ? `<ol class="finds">${a.findings.map(f => `<li><b>${esc(f.title)}</b><span>${esc(f.detail)}</span>${f.id && f.n ? `<button class="rec-link print-hide" type="button" data-find="${esc(f.id)}">Show ${fmtCount(f.n)} ${f.n === 1 ? "row" : "rows"}</button>` : ""}</li>`).join("")}</ol>` : `<p class="calm">Nothing jumped out. That's rarer than you'd think.</p>`;
-    const worth = notable.length ? `<section class="sh-worth"><h3>Records worth a look <span class="hint print-hide">Click one to find it in the table.</span></h3><ol class="worth">${notable.map(w => `<li><button class="wrow" type="button" data-row="${w.ri}"><i class="sev ${w.sev}" aria-hidden="true">${w.sev === "fix" ? "×" : w.sev === "look" ? "!" : "·"}</i><span><b>${esc(w.title)}</b><span class="wreason">${esc(w.reason)}</span></span></button></li>`).join("")}</ol></section>` : "";
+    const sec = sections(a, notable);
+    const li = f => `<li><b>${esc(f.title)}</b><span>${esc(f.detail)}</span>${f.rule ? `<small class="rule print-hide">Rule: ${esc(f.rule)} To do: ${esc(f.todo)}</small>` : ""}${f.id && f.n ? `<button class="rec-link print-hide" type="button" data-find="${esc(f.id)}">Show ${fmtCount(f.n)} ${f.n === 1 ? "row" : "rows"}</button>` : ""}</li>`;
+    const listHTML = (fs, none) => fs.length ? `<ol class="finds">${fs.slice(0, 6).map(li).join("")}</ol>` : `<p class="calm">${none}</p>`;
+    const worthHTML = (list, title, cls) => list.length ? `<section class="sh-worth ${cls}"><h3>${title} <span class="hint print-hide">Click one to find it in the table.</span></h3><ol class="worth">${list.map(w => `<li><button class="wrow" type="button" data-row="${w.ri}"><i class="sev ${w.sev}" aria-hidden="true">${w.sev === "fix" ? "×" : w.sev === "look" ? "!" : "·"}</i><span><b>${esc(w.title)}</b><span class="wreason">${esc(w.reason)}</span></span></button></li>`).join("")}</ol></section>` : "";
+    const qaRows = new Set(sec.qa.findings.flatMap(f => f.rows || [])), insRows = new Set(sec.insights.findings.flatMap(f => f.rows || []));
+    const nc = a.notChecked && a.notChecked.missing.length ? `<p class="not-checked"><b>Not checked:</b> ${a.notChecked.missing.map(m => `${esc(m.label)} (needs ${esc(m.because.join(" and "))})`).join("; ")}.</p>` : "";
+    const classRow = a.classCounts && a.classCounts.length ? `<p class="class-counts"><b>By class:</b> ${a.classCounts.map(c => `<span class="cls ${c.hard ? "hard" : "adv"}">${esc(c.label)} ${c.n}</span>`).join(" ")}</p>` : "";
+    const qaSample = a.qaSample && typeof qaSampleHTML === "function" ? qaSampleHTML(a.qaSample) : "";
     return `<article class="sheet" aria-label="One-page report">
   <header class="sh-head"><div><span class="wm"><b>JA</b>Insights</span><span class="label">One-page report</span></div>
-    <div class="sh-meta"><b>${esc(a.name)}${a.sheet ? " · " + esc(a.sheet) : ""}</b><span>${today} · made in your browser, nothing uploaded${a.truncated ? ` · free limit: ${Math.min(a.allRows, MAXR).toLocaleString("en-US")} rows × ${Math.min(a.allCols, MAXC)} columns` : ""}</span></div></header>
+    <div class="sh-meta"><b>${esc(a.name)}${a.sheet ? " · " + esc(a.sheet) : ""}</b><span>${today} · made in your browser, nothing uploaded${a.truncated ? ` · free limit: ${Math.min(a.allRows, MAXR).toLocaleString("en-US")} rows × ${Math.min(a.allCols, MAXC)} columns` : ""}${a.pack ? ` · rule pack: ${esc(a.pack.name)}` : ""}</span></div></header>
   <div class="sh-kpis">${kpi.map(([l, v]) => `<div><span class="label">${esc(l)}</span><b${String(v).length > 14 ? ' class="long"' : ""}>${esc(v)}</b></div>`).join("")}</div>
-  <div class="sh-two">
-    <section><h3>What stands out</h3>${finds}</section>
-    <section><h3>Data health</h3><ul class="checks">${a.checks.slice(0, 8).map(c => `<li class="${c.sev}"><i aria-hidden="true">${ICON[c.sev]}</i><span><b>${esc(c.title)}</b><em class="sr">${SEVL[c.sev]}. </em></span></li>`).join("")}</ul></section>
-  </div>
-  ${worth}
-  ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measure ? a.measure.name : "Rows")} by ${a.trend.unit}</h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div></section>` : `<section class="sh-trend"><h3>Trend</h3><p class="calm">No date column found. Add one and this space shows the trend.</p></section>`}
-  <div class="sh-two">
-    <section>${a.breakdown ? `<h3>${esc(a.measure ? a.measure.name : "Rows")} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
-    <section><h3>Columns</h3><table class="prof"><thead><tr><th>Column</th><th>Type · role</th><th>Filled</th></tr></thead><tbody>${prof}</tbody></table></section>
-  </div>
+  <section class="sh-sec sh-insights" aria-label="Insights"><h2>Insights <span class="sec-n">${sec.insights.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="insight">Show ${fmtCount(insRows.size)} insight rows</button></h2>
+    <div class="sh-two">
+      <section><h3>What the data says</h3>${listHTML(sec.insights.findings, "Nothing stands out yet. Add a date, a place or a category column and this space fills.")}</section>
+      <section>${a.breakdown ? `<h3>${esc(a.measure ? a.measure.name : "Rows")} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
+    </div>
+    ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measure ? a.measure.name : "Rows")} by ${a.trend.unit}</h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div></section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
+    ${worthHTML(sec.insights.notable, "Worth a look", "ins")}
+  </section>
+  <section class="sh-sec sh-qa" aria-label="QA"><h2>QA <span class="sec-n">${sec.qa.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="qa">Show ${fmtCount(qaRows.size)} QA rows</button></h2>
+    <div class="sh-two">
+      <section><h3>What to check</h3>${listHTML(sec.qa.findings, "Nothing jumped out. That's rarer than you'd think.")}</section>
+      <section class="sh-health"><h3>Data health</h3><ul class="checks">${a.checks.slice(0, 8).map(c => `<li class="${c.sev}"><i aria-hidden="true">${ICON[c.sev]}</i><span><b>${esc(c.title)}</b><em class="sr">${SEVL[c.sev]}. </em></span></li>`).join("")}</ul></section>
+    </div>
+    ${worthHTML(sec.qa.notable, "Check these", "qa")}
+    ${qaSample}
+    <div class="sh-two">
+      <section class="sh-cols"><h3>Columns</h3>${classRow}<table class="prof"><thead><tr><th>Column</th><th>Type · role</th><th>Filled</th></tr></thead><tbody>${prof}</tbody></table></section>
+      <section>${nc}</section>
+    </div>
+  </section>
   ${ed && ed.n ? `<p class="print-only edit-note">${ed.n} edit${ed.n > 1 ? "s were" : " was"} made in this browser session${ed.cells !== ed.n ? ` (${ed.cells} cells changed, counting totals worked out again)` : ""}; the findings above are recalculated from the corrected values.</p>` : ""}
   <footer class="sh-foot"><div><span class="label">What I'd do next</span><p><b>${next[0]}</b>, ${next[1]} h × $${RATE} = $${(next[1] * RATE).toLocaleString("en-US")}: ${next[2]}. This page is an automatic first pass; that's the human one.</p></div>
     <span class="stamp">Checked</span></footer>
@@ -633,20 +657,23 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     if (e.target.closest("[data-print]")) window.print();
     if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
     const f = e.target.closest("[data-find]"); if (f && table) table.showFinding(f.dataset.find);
+    const sc = e.target.closest("[data-sec]"); if (sc && table) table.showSection(sc.dataset.sec);
     const w = e.target.closest("[data-row]"); if (w && table && w.classList.contains("wrow")) table.jumpTo(+w.dataset.row);
     const g = e.target.closest("[data-g]"); if (g && table && last && last.breakdown) table.showGroup(last.breakdown.ci, g.dataset.g);
   });
   // One printed page: letter paper with .4in margins is 739 x 979 css px. Lay the sheet out at the printed width, then keep the most worth-a-look rows (5, then 3, then none)
   // at the largest zoom that fits. The floor is .6 (about 6 pt): a dense sheet with five findings only fits that small, and the list gives way before the report does.
+  const fitLog = [];
   function fitPrint() {
-    const sh = $(".sheet", out); if (!sh || out.hidden) return; const PW = 739, PH = 975, body = document.body;
+    const sh = $(".sheet", out); if (!sh || out.hidden) return; const PW = 739, PH = 975, body = document.body; fitLog.length = 0;
     body.classList.add("print-fit"); sh.style.zoom = "1";
     try {
       let set = false;
-      for (const rows of [5, 3, 0]) {
+      fit: for (const rows of [5, 3, 0]) for (const drop of [0, 1]) {   // keep everything if it fits; else give up the Columns table and shrink the chart (1), then worth-a-look rows, before the type gets smaller than 0.6
         if (rows === 5) sh.removeAttribute("data-pw"); else sh.dataset.pw = rows;
-        for (let z = 0.76; z >= 0.595 && !set; z -= 0.02) { sh.style.width = PW / z + "px"; if (sh.offsetHeight * z <= PH) { sh.style.setProperty("--pz", z.toFixed(2)); set = true; } }
-        if (set) break;
+        if (!drop) sh.removeAttribute("data-ph"); else sh.dataset.ph = drop;
+        for (let z = 0.76; z >= 0.595 && !set; z -= 0.02) { sh.style.width = PW / z + "px"; if (z < 0.61) fitLog.push(`${rows}/${drop}:${Math.round(sh.offsetHeight * z)}`); if (sh.offsetHeight * z <= PH) { sh.style.setProperty("--pz", z.toFixed(2)); set = true; } }
+        if (set) break fit;
       }
       if (!set) sh.style.setProperty("--pz", "0.6");
     } finally { sh.style.width = ""; sh.style.zoom = ""; body.classList.remove("print-fit"); }
@@ -659,5 +686,5 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
   drop.addEventListener("drop", async e => { const f = e.dataTransfer.files[0]; if (f) { status("Reading…"); try { run(await readFile(f)); } catch (x) { status(x.message); } } });
   $("#report-sample").addEventListener("click", () => run({ name: "cafe-sales-sample.csv (made up)", rows: cafeSample() }));
   if (location.hash === "#sample") $("#report-sample").click();
-  window.JAIReportDebug = { get table() { return table; }, get store() { return store; }, get analysis() { return last; }, setLimits };
+  window.JAIReportDebug = { get table() { return table; }, get store() { return store; }, get analysis() { return last; }, get fitLog() { return fitLog; }, setLimits };
 })();

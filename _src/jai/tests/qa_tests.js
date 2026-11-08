@@ -81,4 +81,22 @@ module.exports = function (h) {
     const cafe = cafeA.findingsAll.find(x => x.id === "dup"); assert(cafe && cafe.n === 18, "cafe sample exact copies: " + (cafe && cafe.n));
     assert.strictEqual(aV.findingsAll.some(x => x.id === "dup" || x.id === "dupnear"), false, "venues has no duplicate rows");
   });
+
+  // ---------- CONS-0062
+  console.log("Insights and QA (CONS-0062)");
+  const nC = R.pickNotable(aC, R.makeStore(county, aC)), secC = R.sections(aC, nC);
+  test("every finding carries a kind and renders in exactly one section", () => {
+    [aC, aP, cafeA, aV].forEach(a => { a.findingsList.forEach(f => assert(f.kind === "insight" || f.kind === "qa", "kind of " + f.title));
+      const s = R.sections(a, []), ins = new Set(s.insights.findings), qa = new Set(s.qa.findings);
+      a.findingsList.forEach(f => assert((ins.has(f) ? 1 : 0) + (qa.has(f) ? 1 : 0) === 1, "section membership of " + f.title)); assert.strictEqual(ins.size + qa.size, a.findingsList.length); });
+  });
+  test("county sales: Insights hold repeat occurrences, top and bottom by ratio and the timeline findings; QA holds nominal, duplicates, outliers", () => {
+    const ins = secC.insights.findings.map(f => f.id), qa = secC.qa.findings.map(f => f.id);
+    ["repeat", "extremes"].forEach(id => assert(ins.includes(id), id + " missing from Insights: " + ins)); ["nominal", "dup", "dupnear"].forEach(id => assert(qa.includes(id), id + " missing from QA: " + qa));
+    assert(!ins.some(id => qa.includes(id)));
+  });
+  test("records worth a look split into Worth a look (insight) and Check these (QA), at most ten together, each entry in one block", () => {
+    assert(secC.qa.notable.length > 0 && secC.insights.notable.length > 0, `${secC.qa.notable.length} qa / ${secC.insights.notable.length} insight`);
+    assert(nC.length <= 10); secC.qa.notable.forEach(w => assert.strictEqual(w.kind, "qa")); secC.insights.notable.forEach(w => assert.strictEqual(w.kind, "insight"));
+  });
 };

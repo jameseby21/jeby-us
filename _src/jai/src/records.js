@@ -242,6 +242,11 @@
         clearFilters(); filt.finding = { id, rows: new Set(f.rows), crumb: f.crumb || f.title }; refresh(true);
         host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       },
+      showSection(kind) {   // every row behind an Insight, or every row behind a QA finding
+        const fs = a.findingsAll.filter(f => (f.kind === "insight") === (kind === "insight")), rows = new Set(fs.flatMap(f => f.rows));
+        clearFilters(); filt.finding = { id: "sec:" + kind, rows, crumb: kind === "insight" ? "Insight rows" : "QA rows" }; refresh(true);
+        host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      },
       showGroup(col, val) { clearFilters(); filt.group = { col, val }; refresh(true); host.scrollIntoView({ block: "nearest", behavior: "smooth" }); },
       jumpTo(ri) {
         clearFilters(); hl = ri; recompute(); drawHead(); toolbar(); crumbs();
