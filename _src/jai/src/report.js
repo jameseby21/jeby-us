@@ -945,7 +945,7 @@
     <p class="hdr-note${a.hdr.isHeader && a.hdr.conf !== "low" && !a.hdr.forced && !a.hdr.titleRows.length && !a.hdr.replaced.length ? " print-hide" : ""}"><b>Header:</b> ${esc(a.hdr.note)}${a.hdr.titleRows.length ? ` Skipped: “${esc(a.hdr.titleRows[0])}”${a.hdr.titleRows.length > 1 ? ` and ${a.hdr.titleRows.length - 1} more` : ""}.` : ""} <span class="print-hide">Wrong? Change “First row” at the top.</span></p>
   </section>
   ${suppHTML(a)}
-  ${ed && ed.n ? `<p class="print-only edit-note">${ed.n} edit${ed.n > 1 ? "s were" : " was"} made in this browser session${ed.cells !== ed.n ? ` (${ed.cells} cells changed, counting totals worked out again)` : ""}; the findings above are recalculated from the corrected values.</p>` : ""}
+  ${ed && ed.n && ed.cells ? `<p class="print-only edit-note">${ed.cells} cell${ed.cells === 1 ? "" : "s"} corrected in this browser session${ed.cells !== ed.n ? ` (${ed.n} edit${ed.n === 1 ? "" : "s"}, counting totals worked out again)` : ""}; the findings above are recalculated from the corrected values.</p>` : ""}
   ${screenNote(a)}
   <footer class="sh-foot"><div><span class="label">What I'd do next</span><p><b>${next[0]}</b>, ${next[1]} h × $${RATE} = $${(next[1] * RATE).toLocaleString("en-US")}: ${next[2]}. This page is an automatic first pass; that's the human one.</p></div>
     <span class="stamp">Checked</span></footer>

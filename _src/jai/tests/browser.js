@@ -205,7 +205,7 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await send("Emulation.setEmulatedMedia", { media: "print" });
     const m = await js(`({ rec: getComputedStyle(document.querySelector('.records')).display, sixth: getComputedStyle(document.querySelectorAll('.sh-qa .worth li')[5]).display, fifth: getComputedStyle(document.querySelectorAll('.sh-qa .worth li')[4]).display, controls: getComputedStyle(document.querySelector('.report-controls')).display, note: getComputedStyle(document.querySelector('.edit-note')).display, note_txt: document.querySelector('.edit-note').textContent })`);
     await send("Emulation.setEmulatedMedia", { media: "" });
-    assert.strictEqual(m.rec, "none"); assert.strictEqual(m.sixth, "none"); assert.notStrictEqual(m.fifth, "none"); assert.strictEqual(m.controls, "none"); assert.notStrictEqual(m.note, "none"); assert(/^11 edits were made in this browser session \(\d+ cells changed, counting totals worked out again\); the findings/.test(m.note_txt), m.note_txt);
+    assert.strictEqual(m.rec, "none"); assert.strictEqual(m.sixth, "none"); assert.notStrictEqual(m.fifth, "none"); assert.strictEqual(m.controls, "none"); assert.notStrictEqual(m.note, "none"); assert(/^\d+ cells corrected in this browser session \(11 edits, counting totals worked out again\); the findings/.test(m.note_txt), m.note_txt);   // CONS-0055: the footnote says how many cells were corrected
   });
   await waitFor("JAIReportDebug.pending === 0");
   await check("records worth a look prints as part of the one page: the printed report is a single page and the list holds at most five records", async () => {
@@ -435,6 +435,20 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await js(`document.querySelector('[data-by="largest"]').click()`); await waitFor(`JAIReportDebug.pending === 0 && document.querySelector('[data-by="largest"]').getAttribute('aria-pressed') === 'true'`);
     const l = await js(`[...document.querySelectorAll('.sh-worth.news .wreason')].map(x => x.textContent)`); assert(l.length === 5 && l.every(x => /^Largest /.test(x) || x.length > 0), l.join(" | "));
     return `five items, query "${m.q}", the tab opens on click (window.open stubbed, so no real tab was opened), Pick five others changes the five`;
+  });
+
+  await check("CONS-0055: print to PDF is one Letter page with and without edits: no records table, at most five worth-a-look rows, and an edits footnote only when there were edits", async () => {
+    const pdfOf = async () => { const pdf = await send("Page.printToPDF", { preferCSSPageSize: true, printBackground: true }), txt = Buffer.from(pdf.data, "base64").toString("latin1");
+      return { pages: (txt.match(/\/Type\s*\/Page[^s]/g) || []).length, letter: /\/MediaBox\s*\[\s*0\s+0\s+612(\.0+)?\s+792(\.0+)?\s*\]/.test(txt) }; };
+    const inPrint = async () => { await send("Emulation.setEmulatedMedia", { media: "print" });
+      const m = await js(`(() => { const vis = e => !!e && e.getClientRects().length > 0, worth = [...document.querySelectorAll('.sh-worth.ins .worth li')].filter(l => vis(l)).length; return { table: getComputedStyle(document.querySelector('.records')).display, worth, note: vis(document.querySelector('.edit-note')) ? document.querySelector('.edit-note').textContent : null, buttons: [...document.querySelectorAll('[data-news]')].filter(vis).length }; })()`);
+      await send("Emulation.setEmulatedMedia", { media: "" }); return m; };
+    await loadFx("sales_clean.csv"); const plain0 = await pdfOf(), p0 = await inPrint();
+    assert.strictEqual(plain0.pages, 1, "without edits: " + plain0.pages + " pages"); assert(plain0.letter, "Letter paper"); assert.strictEqual(p0.table, "none"); assert(p0.worth >= 1 && p0.worth <= 5, "worth-a-look rows in print: " + p0.worth); assert.strictEqual(p0.note, null, "no footnote without edits"); assert.strictEqual(p0.buttons, 0, "no buttons in print");
+    await js(`document.querySelector('.rec-td[data-c="1"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`); await js(`(() => { const inp = document.querySelector('[data-edit]'); inp.value = '123456'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
+    await waitFor(`JAIReportDebug.pending === 0 && JAIReportDebug.store.edits.length === 1`); const edited = await pdfOf(), p1 = await inPrint();
+    assert.strictEqual(edited.pages, 1, "with edits: " + edited.pages + " pages"); assert(edited.letter); assert.strictEqual(p1.table, "none"); assert(p1.worth <= 5); assert(p1.note && /^\d+ cells? corrected in this browser session/.test(p1.note), p1.note);
+    return `without edits ${plain0.pages} page (${p0.worth} worth-a-look rows), with one edit ${edited.pages} page; footnote: "${p1.note.slice(0, 60)}"`;
   });
 
   await check("opened from a file (no worker allowed there) the page falls back to this thread and still produces the report", async () => {
