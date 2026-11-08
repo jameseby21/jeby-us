@@ -7,6 +7,7 @@ The source and the published pages of [jeby.us](https://jeby.us) (James Eby) and
 - [Quickstart](docs/QUICKSTART.md): a clean clone to both sites running locally, then the checks.
 - [Useful commands](docs/COMMANDS.md): every command a person or an agent runs, with what it does and when.
 - [Release process](docs/RELEASE.md) and [architecture](_src/ARCHITECTURE.md).
+- [Documentation ownership map](docs/doc-ownership.yaml): which document section owns each file under `_src/`, `docs/` and `.github/`; `python _src/check_docs.py` checks it (standards rule 20).
 
 ## What is free, what is paid, and under which license
 
