@@ -27,8 +27,8 @@ HERO = "Super serious about my silliness."
 
 ABOUT_LONG = [
     "I live in Miami with Drew, a Scottish Terrier who appears on more of my projects than I do.",
-    "I studied statistics at Carnegie Mellon. My undergraduate research asked whether the standard way of weighing galaxy clusters was counting the same data more than once. It was. I still like that kind of problem best: the accepted answer is a little wrong and nobody has checked.",
-    "Away from the keyboard I mostly pick things that can't be rushed: machining, golf, diving, archery, kayaking with Drew, and brisket on the Big Green Egg, which is twelve hours of patience for twenty minutes of dinner.",
+    "I studied statistics at Carnegie Mellon University with a concentration in computer science, I am a senior BI manager, and I'm drawn to difficult problems.",
+    "Away from the keyboard I like things that can't be rushed: machining, golf, diving, archery, kayaking with Drew, and brisket, which is twelve hours of patience for twenty minutes of dinner.",
 ]
 FACTS = [("Based", "Miami, FL"), ("Studied", "B.S. Statistics, Carnegie Mellon, 2019"),
          ("Off the clock", "Machining, golf, SCUBA, archery, kayaking with Drew, and brisket")]
@@ -39,25 +39,23 @@ DREW = {
     "short": "He's on my business cards, my QR codes and half my projects. Nobody asked him.",
 }
 
-# The story and the support section are no longer shown (James, 2026-11-08: the personal pages link to work instead
-# of narrating it). Kept here so either can come back with one line in build.py; nothing below is rendered.
 # The story (About page, #story). DRAFT: every line is for James to check; only facts he has stated are used.
-# HEALTH_DETAIL is James's own words about his health, as much or as little as he wants. Empty = the sentence is left out.
-HEALTH_DETAIL = "The health part is real: open-heart surgery, a Bentall procedure, a new mechanical heart valve, and a kidney transplant may be next."
+# HEALTH_DETAIL is James's own words about his health: open-heart surgery and no more (James, 2026-11-12).
+HEALTH_DETAIL = "I had open-heart surgery."
 STORY = {
     "title": "The story so far",
     "chapters": [
-        {"when": "2015", "head": "A problem I couldn't leave alone",
-         "body": "My undergraduate research at Carnegie Mellon asked whether the way astronomers weigh galaxy clusters was quietly counting the same data more than once. It was. That's still my favorite kind of problem: one where the accepted answer is a little bit wrong and nobody has checked."},
-        {"when": "2019 – 2025", "head": "Building teams from nothing",
-         "body": "Six years in business intelligence. I founded two analytics functions, led a company-wide Power BI rollout, moved a warehouse to Snowflake, and mentored the analysts who run those systems now. I kept teaching the whole way: about ten years of tutoring, a coding camp for kids, and college TA work."},
-        {"when": "2025 – now", "head": "Then my health stepped in", "break": True,
-         "body": "In 2025 the startup where I'd built the analytics function ran out of money while I was in the hospital, and the job went with it.",
+        {"when": "High school", "head": "The math club",
+         "body": "It started with the math club. In 2013 I took sixth place in statistics at the Mu Alpha Theta national convention. [James: a line or two about the club]"},
+        {"when": "2015 – 2019", "head": "Carnegie Mellon",
+         "body": "I studied statistics, with a concentration in computer science. My undergraduate research asked whether the usual way of weighing galaxy clusters counted the same data more than once. It did. I was president of the archery club, and I taught kids to code at a summer camp."},
+        {"when": "2019 – 2025", "head": "Work",
+         "body": "Six years in business intelligence, the last of them leading analytics at a startup. The details are on the Professional page."},
+        {"when": "2025", "head": "Then my health stepped in", "break": True,
+         "body": "In 2025 the startup ran out of money while I was in the hospital, and the job went with it.",
          "after": "I couldn't choose that part. I could choose what to do with the time I had."},
-        {"when": "Since then", "head": "So I kept building",
-         "body": "The Lab now holds more than a dozen projects: a real-estate analytics platform, a free learning library that starts with a data analysis course, keyboard lighting software, a band game, a houseplant that roasts your friends, and the galaxy research, rebuilt. Every one of them gets a free version. Along the way I worked out a way of building with AI coding agents where every mistake becomes a test, so it can't happen twice."},
-        {"when": "Next", "head": "What I'm after",
-         "body": "Happiness is the goal, and trying new things is what makes me happy. Right now that means teaching again, taking on data work through JA Insights, and finding my next role leading a BI team. Drew handles morale."},
+        {"when": "Since then", "head": "I kept building",
+         "body": "I build things in my spare time: a real-estate database, a free learning library, keyboard lighting software, a band game, and a houseplant that roasts your friends. Each has a free version. I'm teaching again, and I'm looking for my next BI leadership role. Drew handles morale."},
     ],
 }
 SUPPORT = {
@@ -72,7 +70,7 @@ PREVIEW_SLOTS = False  # show empty draft slots and unconfigured providers in pr
 NOW = [
     ("Research", "Picking the galaxy-cluster work back up, ten years after the poster, to see if it holds.", "research.html"),
     ("Building", "A band game that turns any song into a chart you can actually play.", "lab.html#musicalgames"),
-    ("Teaching", "Taking on math, statistics and data students again, in English or Spanish.", "teach.html"),
+    ("Teaching", "Taking on math, statistics and data students again.", "teach.html"),
     ("Work", "Looking for my next BI leadership role.", "professional.html"),
 ]
 

@@ -327,7 +327,7 @@ def story_html():
             extra += f'<p class="turn">{E(c["after"])}</p>'
         chs.append(f'<li class="ch{" break" if c.get("break") else ""}"><span class="when">{E(c["when"])}</span><h3>{E(c["head"])}</h3><p>{E(c["body"])}</p>{extra}</li>')
     return f'''<section class="wrap block" id="story" aria-labelledby="story-h"><div class="story-grid">
-  <div class="story-side"><div class="eyebrow">{E(C.STORY["title"])}</div><h2 id="story-h">How I got here, in five parts.</h2><p>The short version. If it lands with you, the end says how to help.</p></div>
+  <div class="story-side"><div class="eyebrow">{E(C.STORY["title"])}</div><h2 id="story-h">How I got here.</h2><p>The short version, in five parts.</p></div>
   <ol class="story"><span class="runner" aria-hidden="true"></span>{"".join(chs)}</ol></div></section>'''
 
 def support_html():
@@ -359,6 +359,7 @@ about = f'''
     <div class="tile drew-tile" id="drew"><div class="eyebrow">{E(C.DREW["role"])}</div>{DREW}<h2>{E(C.DREW["title"])}</h2><p>{E(C.DREW["short"])}</p></div>
   </div>
 </div></section>
+{story_html()}
 <section class="wrap block" id="contact" aria-labelledby="contact-h"><div class="callout"><div><div class="eyebrow">Contact</div><h3 id="contact-h">Email is the fastest way to reach me.</h3><p class="muted" style="margin-top:6px" data-email="{email}" data-show>{email}</p></div>
   <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn solid" href="#" data-copy-email="{email}">{ICON_MAIL} Copy email</a><a class="btn" href="{C.CONFIG["linkedin"]}" target="_blank" rel="noopener">{ICON_LI} LinkedIn</a><a class="btn" href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">{ICON_IG} Instagram</a><a class="btn" href="{C.CONFIG["github"]}" target="_blank" rel="noopener">{ICON_GH} GitHub</a></div></div></section>'''
 
