@@ -84,7 +84,7 @@ def page(key, title, desc, body, extra_head="", extra_js="", artifact=False):
 drew_src = (ST / "drew-tongue.svg").read_text(encoding="utf-8")
 drew_svg = re.sub(r"<style>.*?</style>", "", drew_src, flags=re.S).replace('class="tongue"', 'class="tongue-anim"').replace('id="mouth"', 'id="drew-mouth"').replace("url(#mouth)", "url(#drew-mouth)")
 drew_svg = re.sub(r'<svg ([^>]*?) width="512" height="504"', r'<svg \1', drew_svg).replace("<title>Drew sticking his tongue out</title>", "")
-DREW = f'<div class="drew-art" role="button" tabindex="0" aria-label="Drew, a black Scottish Terrier, illustrated. Press to make him stick his tongue out.">{drew_svg}</div>'
+DREW = '<div class="drew-photo"><img src="assets/james-drew-600.jpg" alt="Drew, a black Scottish Terrier, in James&#39;s arms in a Miami backyard" width="600" height="750" loading="lazy"></div>'
 
 def mark(item):
     t = BR.tile(item["id"], themed=True)
@@ -121,7 +121,7 @@ home = f'''
 <section class="hero wrap">
   <div class="eyebrow">Miami, FL</div>
   <h1 class="page-title">James <span style="white-space:nowrap"><em>Eby</em><span class="dot-slot" aria-hidden="true"></span></span></h1>
-  <ul class="disciplines" aria-label="Some of what I spend time on">{"".join(f"<li>{E(d)}</li>" for d in C.DISCIPLINES)}</ul>
+  <ul class="disciplines" aria-label="Some of what I spend time on">{"".join(f'<li><a href="{E(h)}">{E(d)}</a></li>' for d, h in C.DISCIPLINES)}</ul>
   <p class="lede">This is the personal site: Drew, side projects, a ten-year-old research poster, and whatever's on the smoker. Work has its own pages.</p>
   <p class="hero-work">Work: <a href="professional.html">Professional</a> · <a data-x="jai" data-p="index.html">JA Insights</a> · <a href="teach.html">Teach</a></p>
 </section>
@@ -353,10 +353,10 @@ about = f'''
 </section>
 <section class="wrap block" style="padding-top:0"><div class="about-grid">
   <div class="prose">{"".join(f"<p>{E(p)}</p>" for p in C.ABOUT_LONG)}<p class="work-line">Work lives on other pages: <a href="professional.html">Professional</a>, <a data-x="jai" data-p="index.html">JA Insights</a> and <a href="teach.html">Teach</a>.</p>
-    <div class="tile" style="margin-top:28px"><dl class="facts">{"".join(f"<dt>{E(a)}</dt><dd>{E(b)}</dd>" for a, b in C.FACTS)}</dl><a class="go" href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">@jeby_d on Instagram {ARROW}</a></div></div>
+    <div class="tile" id="interests" style="margin-top:28px"><dl class="facts">{"".join(f"<dt>{E(a)}</dt><dd>{E(b)}</dd>" for a, b in C.FACTS)}</dl><a class="go" href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">@jeby_d on Instagram {ARROW}</a></div></div>
   <div style="display:grid;gap:16px">
     <figure class="photo"><img src="assets/james-drew.jpg" srcset="assets/james-drew-600.jpg 600w, assets/james-drew.jpg 1000w" sizes="(max-width:860px) 92vw, 460px" alt="James holding Drew, his black Scottish Terrier, in a Miami backyard" width="1000" height="1250"><figcaption>Drew and me.</figcaption></figure>
-    <div class="tile drew-tile"><div class="eyebrow">{E(C.DREW["role"])}</div>{DREW}<h2>{E(C.DREW["title"])}</h2><p>{E(C.DREW["short"])}</p></div>
+    <div class="tile drew-tile" id="drew"><div class="eyebrow">{E(C.DREW["role"])}</div>{DREW}<h2>{E(C.DREW["title"])}</h2><p>{E(C.DREW["short"])}</p></div>
   </div>
 </div></section>
 <section class="wrap block" id="contact" aria-labelledby="contact-h"><div class="callout"><div><div class="eyebrow">Contact</div><h3 id="contact-h">Email is the fastest way to reach me.</h3><p class="muted" style="margin-top:6px" data-email="{email}" data-show>{email}</p></div>

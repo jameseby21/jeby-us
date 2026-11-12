@@ -17,7 +17,8 @@ CONFIG = {
 }
 
 # The words the red dot hops across on the home hero before it lands as the full stop. Personal, not a skills list.
-DISCIPLINES = ["Statistics", "Galaxy clusters", "Machining", "Golf", "SCUBA", "Brisket", "Drew"]
+DISCIPLINES = [("Statistics", "research.html"), ("Galaxy clusters", "research.html"), ("Machining", "about.html#interests"),
+               ("Golf", "about.html#interests"), ("SCUBA", "about.html#interests"), ("Brisket", "about.html#interests"), ("Drew", "about.html#drew")]
 
 # Voice (James, 2026-11-08): personal pages call him James, never jeby; work is a link, not a story.
 # jeby is his online handle and can introduce him on professional pages only.

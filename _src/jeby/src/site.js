@@ -113,9 +113,24 @@
       for (const w of words) { await hop(wordPos(w), 420); light(w); }
       light(null); await hop(home, 640); busy = false;
     }
-    let back;
-    words.forEach(w => w.addEventListener("mouseenter", async () => { if (busy) return; clearTimeout(back); busy = true; light(w); await hop(wordPos(w), 380); busy = false;
-      back = setTimeout(async () => { if (busy) return; busy = true; light(null); await hop(slotPos(), 520); busy = false; }, 1100); }));
+    /* Event-driven per word: the dot always targets the latest word entered or focused. A run of hops is a
+       queue of one: if the target changes mid-hop the loop re-aims after the landing, so no word is skipped. */
+    const list = $(".disciplines"); let back, target = null, running = false;
+    async function chase() {
+      if (running) return; running = true;
+      while (target !== undefined) {
+        const t = target; target = undefined;
+        if (t === "home") { light(null); await hop(slotPos(), 480); }
+        else { light(t); await hop(wordPos(t), 300); }
+      }
+      running = false;
+    }
+    const aim = t => { if (busy || reduced()) return; clearTimeout(back); target = t; chase(); };
+    const link = w => w.querySelector("a") || w;
+    words.forEach(w => { const a = link(w);
+      a.addEventListener("pointerenter", () => aim(w)); a.addEventListener("focus", () => aim(w)); a.addEventListener("mouseenter", () => aim(w)); });
+    if (list) { list.addEventListener("pointerleave", () => { back = setTimeout(() => aim("home"), 400); });
+      list.addEventListener("focusout", e => { if (!list.contains(e.relatedTarget)) back = setTimeout(() => aim("home"), 400); }); }
     addEventListener("resize", () => { if (!busy) { home = slotPos(); place(home); } });
     const start = () => intro();
     (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(() => setTimeout(start, 250));

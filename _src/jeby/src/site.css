@@ -91,8 +91,9 @@ section.block{padding-block:40px}
 .dot-slot{display:inline-block;width:.2em;height:.2em;margin-left:.04em;vertical-align:baseline}
 .jdot{position:absolute;left:0;top:0;border-radius:50%;background:var(--red);will-change:transform;pointer-events:none;z-index:2;opacity:0;transition:opacity .3s}
 .disciplines{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:34px;padding:0;list-style:none}
-.disciplines li{font:500 13px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);cursor:default;transition:color .2s;padding-top:14px}
-.disciplines li.on{color:var(--fg)}
+.disciplines li{font:500 13px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);transition:color .2s;padding-top:14px}
+.disciplines a{color:inherit;text-decoration:none;display:inline-block;padding:2px 0}
+.disciplines li.on,.disciplines a:hover,.disciplines a:focus-visible{color:var(--fg)}
 .hero .lede{margin-top:28px}
 
 /* ---------- bento ---------- */
@@ -109,6 +110,8 @@ a.tile:hover{border-color:var(--line-2);transform:translateY(-2px)}
 .drew-tile{background:var(--plate);color:var(--plate-ink);border-color:transparent}
 .drew-tile p{color:#4b4740}
 .drew-tile .eyebrow{color:#5f5a52}
+.drew-photo{width:100%;aspect-ratio:4/3;margin:6px 0 4px;border-radius:12px;overflow:hidden}
+.drew-photo img{width:100%;height:100%;object-fit:cover;object-position:50% 70%;display:block}
 .drew-art{width:min(100%,300px);aspect-ratio:1000/985;margin:-6px auto 0;cursor:pointer}
 .drew-art svg{width:100%;height:auto;display:block}
 .tongue-anim{transform-box:view-box;transform-origin:561px 773px}
