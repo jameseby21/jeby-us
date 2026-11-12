@@ -52,7 +52,7 @@ def footer():
     return f'''<footer class="site-footer"><div class="wrap">
   <div><p class="sig">No trackers and no pop-ups. Just pages.</p><small>© <span data-year>2026</span> James Eby · Miami, FL</small></div>
   <div><h3>Site</h3><ul><li><a href="index.html">Home</a></li>{site}</ul></div>
-  <div><h3>Free</h3><ul><li><a data-x="jai" data-p="report.html">Data report</a></li><li><a href="qr.html">Dog QR prompt</a></li><li><a href="lab.html">Open-source projects</a></li></ul></div>
+  <div><h3>Free</h3><ul><li><a data-x="jai" data-p="report.html">Data report</a></li><li><a href="qr.html">Image to QR code</a></li><li><a href="lab.html">Open-source projects</a></li></ul></div>
   <div><h3>Elsewhere</h3><ul><li><a href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">Instagram</a></li><li><a href="{C.CONFIG["linkedin"]}" target="_blank" rel="noopener">LinkedIn</a></li><li><a href="{C.CONFIG["github"]}" target="_blank" rel="noopener">GitHub</a></li>{f'<li><a href="{C.CONFIG["youtube"]}" target="_blank" rel="noopener">YouTube</a></li>' if C.CONFIG["youtube"] else ""}<li><a href="#" data-copy-email="{C.CONFIG["email"]}">Email</a></li></ul></div>
   <div><h3>Family</h3><ul><li><a data-x="jai" data-p="index.html">JA Insights</a> <span class="muted">· data consulting</span></li><li><a href="lab.html">jebyLabs</a> <span class="muted">· open source</span></li><li>jeby Real Estate</li><li>jeby Industries</li></ul></div>
 </div></footer>'''
@@ -111,7 +111,7 @@ def free_strip(title="Free things"):
   <div class="free-head"><div class="eyebrow" id="free-h"><b>●</b> {title}</div></div>
   <div class="free-grid">
     <a class="free-card" data-x="jai" data-p="report.html"><span class="free-ico" aria-hidden="true">{ICON_REPORT}</span><span><b>A one-page report on your data</b><small>Drop in a spreadsheet. It never leaves your browser.</small></span>{ARROW}</a>
-    <a class="free-card" href="qr.html"><span class="free-ico qr" aria-hidden="true"><img src="drew-qr.png" alt=""></span><span><b>The dog QR prompt</b><small>How I turned Drew into a QR code that scans.</small></span>{ARROW}</a>
+    <a class="free-card" href="qr.html"><span class="free-ico qr" aria-hidden="true"><img src="drew-qr.png" alt=""></span><span><b>Turn any image into a QR code</b><small>{E(C.QR["card"])}</small></span>{ARROW}</a>
     <a class="free-card" href="lab.html"><span class="free-ico marks-mini" aria-hidden="true">{"".join(mark(i) for g in C.LAB for i in g["items"][:1])}</span><span><b>{sum(len(g["items"]) for g in C.LAB)} open projects</b><small>Every one has a free version.</small></span>{ARROW}</a>
   </div>
 </section>'''
@@ -368,15 +368,16 @@ about = f'''
 def qr_page(src):
     return f'''
 <section class="wrap page-head qr-head">
-  <div class="qr-copy"><div class="eyebrow">The Drew QR</div>
+  <div class="qr-copy"><div class="eyebrow">Free prompt</div>
   <h1 class="page-title">{E(C.QR["title"])}.</h1>
   <p class="lede">{E(C.QR["lede"])}</p>
   <div class="actions"><button class="btn solid" type="button" data-copy-text="qr-prompt">Copy the prompt {ARROW}</button><a class="btn" href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">{ICON_IG} Follow @jeby_d</a></div></div>
-  <figure class="qr-fig"><img src="drew-qr.png" alt="The Drew QR code, with Drew's face worked into the pattern" width="560" height="560"><figcaption>The original Drew QR.</figcaption></figure>
+  <figure class="qr-fig"><img src="drew-qr.png" alt="The Drew QR code, with Drew's face worked into the pattern" width="560" height="560"><figcaption>The first one: Drew.</figcaption></figure>
 </section>
 <section class="wrap block" style="padding-top:8px"><div class="prompt-card" data-src="{src}"><div class="prompt-bar"><span class="eyebrow">The prompt</span><button class="btn small" type="button" data-copy-text="qr-prompt">Copy</button></div>
 <pre id="qr-prompt">{E(C.QR["prompt"])}</pre>
-<p>Paste it into an assistant that can run code, attach your picture and swap in your link. Why code: an image model draws something that looks like a QR code. Code builds one that is one, then checks it.</p></div></section>
+<p>Paste it into your chat assistant, attach your image and swap in your link. Why code: an image model draws something that looks like a QR code. Code builds one that is one, then checks it.</p></div></section>
+<section class="wrap block" style="padding-top:0" id="will-it-work" aria-labelledby="wiw-h"><div class="tile"><h2 id="wiw-h">Will it work in my AI?</h2>{"".join(f"<p>{E(t)}</p>" for t in C.QR["will_it_work"])}</div></section>
 {free_strip("More free things")}'''
 # ---------------------------------------------------------------- write
 research_head = '<link rel="stylesheet" href="assets/research.css">'
@@ -389,8 +390,8 @@ SPECS = [
     ("lab", "Lab · jebyLabs", "jebyLabs: real-estate analytics, a band game, open-source tools and hardware experiments by James Eby.", lab, "", ""),
     ("research", "Research · James Eby", "Predicting the masses of galaxy clusters using weighted linear regression: an animated slideshow of the 2015 Carnegie Mellon poster.", research, research_head, research_js),
     ("about", "About · James Eby", "About James Eby, and Drew.", about, "", ""),
-    ("qr", "The dog QR prompt · jeby.us", "How to turn your dog into a QR code that actually scans: a free prompt that makes the AI write, blend and test the code.", qr_page("qr"), "", ""),
-    ("yt", "The dog QR prompt · jeby.us", "How to turn your dog into a QR code that actually scans: a free prompt that makes the AI write, blend and test the code.", qr_page("yt"), '<link rel="canonical" href="https://jeby.us/qr">', ""),
+    ("qr", "Turn any image into a QR code · jeby.us", "A free prompt that has your chat AI blend any image into a QR code and test that it scans.", qr_page("qr"), "", ""),
+    ("yt", "Turn any image into a QR code · jeby.us", "A free prompt that has your chat AI blend any image into a QR code and test that it scans.", qr_page("yt"), '<link rel="canonical" href="https://jeby.us/qr">', ""),
 ]
 for key, title, desc, body, xh, xj in SPECS:
     fn = "index.html" if key == "home" else f"{key}.html"
@@ -424,7 +425,7 @@ shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT 
 - [Research](https://jeby.us/research): Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression (Carnegie Mellon, 2015).
 - [About](https://jeby.us/about): James, and Drew.
 - [Free data report](https://jainsights.com/report): a one-page report on any spreadsheet, run in the browser.
-- [Dog QR prompt](https://jeby.us/qr): a prompt that makes an AI build a picture QR code that scans.
+- [Turn any image into a QR code](https://jeby.us/qr): a prompt that makes a chat AI build a picture QR code and test that it scans.
 Contact: {C.CONFIG["email"]} · {C.CONFIG["instagram"]} · {C.CONFIG["linkedin"]} · {C.CONFIG["github"]}
 """, encoding="utf-8")
 print("built", sorted(p.name for p in OUT.iterdir()))
