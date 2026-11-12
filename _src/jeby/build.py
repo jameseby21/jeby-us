@@ -52,9 +52,9 @@ def footer():
     return f'''<footer class="site-footer"><div class="wrap">
   <div><p class="sig">No trackers and no pop-ups. Just pages.</p><small>© <span data-year>2026</span> James Eby · Miami, FL</small></div>
   <div><h3>Site</h3><ul><li><a href="index.html">Home</a></li>{site}</ul></div>
-  <div><h3>Free</h3><ul><li><a data-x="jai" data-p="report.html">Data report</a></li><li><a href="qr.html">Image to QR code</a></li><li><a href="lab.html">Open-source projects</a></li></ul></div>
+  <div><h3>Free</h3><ul><li><a data-x="jai" data-p="report.html">Data report</a></li><li><a href="qr.html">Image to QR code</a></li><li><a href="lab.html">Lab projects</a></li></ul></div>
   <div><h3>Elsewhere</h3><ul><li><a href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">Instagram</a></li><li><a href="{C.CONFIG["linkedin"]}" target="_blank" rel="noopener">LinkedIn</a></li><li><a href="{C.CONFIG["github"]}" target="_blank" rel="noopener">GitHub</a></li>{f'<li><a href="{C.CONFIG["youtube"]}" target="_blank" rel="noopener">YouTube</a></li>' if C.CONFIG["youtube"] else ""}<li><a href="#" data-copy-email="{C.CONFIG["email"]}">Email</a></li></ul></div>
-  <div><h3>Family</h3><ul><li><a data-x="jai" data-p="index.html">JA Insights</a> <span class="muted">· data consulting</span></li><li><a href="lab.html">jebyLabs</a> <span class="muted">· open source</span></li><li>jeby Real Estate</li><li>jeby Industries</li></ul></div>
+  <div><h3>Family</h3><ul><li><a data-x="jai" data-p="index.html">JA Insights</a> <span class="muted">· data consulting</span></li><li><a href="lab.html">jebyLabs</a> <span class="muted">· projects</span></li><li>jeby Real Estate</li><li>jeby Industries</li></ul></div>
 </div></footer>'''
 
 PERSON = {"@context": "https://schema.org", "@type": "Person", "name": "James Eby", "alternateName": "jeby", "url": "https://jeby.us/",
@@ -111,8 +111,8 @@ def free_strip(title="Free things"):
   <div class="free-head"><div class="eyebrow" id="free-h"><b>●</b> {title}</div></div>
   <div class="free-grid">
     <a class="free-card" data-x="jai" data-p="report.html"><span class="free-ico" aria-hidden="true">{ICON_REPORT}</span><span><b>A one-page report on your data</b><small>Drop in a spreadsheet. It never leaves your browser.</small></span>{ARROW}</a>
-    <a class="free-card" href="qr.html"><span class="free-ico qr" aria-hidden="true"><img src="drew-qr.png" alt=""></span><span><b>Turn any image into a QR code</b><small>{E(C.QR["card"])}</small></span>{ARROW}</a>
-    <a class="free-card" href="lab.html"><span class="free-ico marks-mini" aria-hidden="true">{"".join(mark(i) for g in C.LAB for i in g["items"][:1])}</span><span><b>{sum(len(g["items"]) for g in C.LAB)} open projects</b><small>Every one has a free version.</small></span>{ARROW}</a>
+    <a class="free-card" href="qr.html"><span class="free-ico qr" aria-hidden="true"><img src="drew-qr.png" alt=""></span><span><b>Put your image in a QR code</b><small>{E(C.QR["card"])}</small></span>{ARROW}</a>
+    <a class="free-card" href="lab.html"><span class="free-ico marks-mini" aria-hidden="true">{"".join(mark(i) for g in C.LAB for i in g["items"][:1])}</span><span><b>{sum(len(g["items"]) for g in C.LAB)} projects</b><small>Each says if it is live, in build or an idea.</small></span>{ARROW}</a>
   </div>
 </section>'''
 
@@ -154,7 +154,7 @@ home = f'''
     <a class="tile span-8" href="lab.html">
       <div class="eyebrow">Lab</div>
       <h3>Things I build in my spare time</h3>
-      <p>A real-estate database, a band game, keyboard lighting, a houseplant that heckles people. Each one has a free version.</p>
+      <p>A real-estate database, a band game, keyboard lighting, a houseplant that heckles people. A few are live; the rest are in build or still ideas.</p>
       <div class="marks">{"".join(mark(i) for g in C.LAB for i in g["items"] if i["id"] != "jebyus")}</div>
       <span class="go">All {sum(len(g["items"]) for g in C.LAB)} projects {ARROW}</span>
     </a>
@@ -244,7 +244,8 @@ teach = f'''
 <section class="wrap page-head">
   <div class="eyebrow">Teach</div>
   <h1 class="page-title">Tutoring in math, statistics and data.</h1>
-  <p class="lede">One-on-one, online or in Miami, in English or Spanish. Every subject starts with a short, cheap trial lesson, so you find out whether we work well together before you pay for more.</p>
+  <p class="lede">One-on-one, online or in Miami, in English or Spanish. Every subject starts with a short, low-priced trial lesson, so you find out whether we work well together before you pay for more.</p>
+  <p class="note">State: in build. Booking goes by email for now; there is no calendar or online checkout yet.</p>
   <div class="actions"><a class="btn solid" {booking("Free 20-minute intro")}>Book a free 20-minute intro {ARROW}</a><a class="btn" href="#faq">Questions first</a></div>
 </section>
 <section class="wrap block">
@@ -290,10 +291,10 @@ def lab_item(it):
     links = []
     if it.get("page"): links.append(f'<a class="btn small" href="{it["page"]}">Open {ARROW}</a>')
     if it["code"]: links.append(f'<a class="btn small" href="{it["code"]}" target="_blank" rel="noopener">{ICON_GH} Code</a>')
-    else: links.append('<span class="status">Code private for now</span>')
-    if it["jai"]: links.append(f'<a class="btn small solid" data-x="jai" data-p="products.html#{it["jai"]}">Paid version at JA Insights {ARROW}</a>')
-    tiers = f'''<div class="tiers"><div class="tier"><span class="eyebrow">Free · jebyLabs</span><p>{E(it["open"])}</p></div>
-      <div class="tier{" paid" if it["paid"] else " none"}"><span class="eyebrow">Paid · JA Insights</span><p>{E(it["paid"] or "No paid version planned")}</p></div></div>'''
+    else: links.append('<span class="status">Code private</span>')
+    if it["jai"]: links.append(f'<a class="btn small solid" data-x="jai" data-p="products.html#{it["jai"]}">Paid plan at JA Insights {ARROW}</a>')
+    tiers = f'''<div class="tiers"><div class="tier"><span class="eyebrow">{"Free · jebyLabs" if it["status"] in ("Live", "Preview") else "Free version, planned"}</span><p>{E(it["open"])}</p></div>
+      <div class="tier{" paid" if it["paid"] else " none"}"><span class="eyebrow">Paid version, planned</span><p>{E(it["paid"] or "No paid version planned")}</p></div></div>'''
     return f'''<details class="row lab-row" id="{it["id"]}"><summary>{mark(it)}<span class="who">{E(it["name"])}<span>{E(it["status"])}</span></span><span class="lead">{E(it["line"])}</span><span class="chev" aria-hidden="true"></span></summary>
 <div class="row-body lab-body"><div><p>{E(it["detail"])}</p><div class="chips">{"".join(f'<span class="chip">{E(t)}</span>' for t in it["stack"])}</div>{tiers}<div class="lab-links">{"".join(links)}</div></div></div></details>'''
 groups = "".join(f'''<section class="lab-group"><h2 class="group-title">{E(g["group"])} · {len(g["items"])}</h2><div class="rows">{"".join(lab_item(it) for it in g["items"])}</div></section>''' for g in C.LAB)
@@ -301,8 +302,8 @@ nproj = sum(len(g["items"]) for g in C.LAB)
 lab = f'''
 <section class="wrap page-head">
   <div class="eyebrow">Lab</div>
-  <h1 class="page-title">Every project, open by default.</h1>
-  <p class="lede">{nproj} projects across data, games, hardware and tools. Each one gets a free version under jebyLabs, and where it makes sense, a supported paid version through <a data-x="jai" data-p="products.html">JA Insights</a>. Open any row for the details.</p>
+  <h1 class="page-title">The Lab.</h1>
+  <p class="lede">{nproj} projects across data, games, hardware and tools. Each row says where it stands: live, preview, in build or idea. A free version is the plan for each; where it isn't out yet, the row says so. Paid versions through <a data-x="jai" data-p="products.html">JA Insights</a> are plans too. Open any row for the details.</p>
   <div class="actions"><a class="btn" href="{C.CONFIG["github"]}" target="_blank" rel="noopener">{ICON_GH} All code on GitHub</a></div>
 </section>
 <section class="wrap block">{groups}</section>'''
@@ -337,12 +338,12 @@ def support_html():
         elif C.PREVIEW_SLOTS: pills.append(f'<span class="btn small pending" title="Not set up yet">{E(name)} · setting up</span>')
     sponsor = f'<li class="wide"><b>Sponsor the open work</b><span>Monthly or once, any amount.</span><div class="help-act">{"".join(pills)}</div></li>' if pills else ""
     return f'''<section class="wrap block" id="support" aria-labelledby="support-h"><div class="support">
-  <div class="support-head"><div class="eyebrow">If this landed with you</div><h2 id="support-h">Four ways to help, from free to paid.</h2><p>{E(C.SUPPORT["note"])}</p></div>
+  <div class="support-head"><div class="eyebrow">If this landed with you</div><h2 id="support-h">Ways to help, from free to paid.</h2><p>{E(C.SUPPORT["note"]) if pills else ""}</p></div>
   <ol class="help">
     <li><b>Share the story</b><span>It's free, and it helps the most.</span><div class="help-act"><button class="btn small solid" type="button" data-share="{E(C.SUPPORT["share_url"])}" data-title="James Eby: the story so far">Share {ARROW}</button></div></li>
     <li><b>Use or star a project</b><span>Stars and issues make the open work easier to find.</span><div class="help-act"><a class="btn small" href="{C.CONFIG["github"]}" target="_blank" rel="noopener">{ICON_GH} GitHub</a><a class="btn small" href="lab.html">The Lab</a></div></li>
     {sponsor}
-    <li><b>Hire me, or book a lesson</b><span>Paid work keeps the open projects free.</span><div class="help-act"><a class="btn small" href="professional.html">Professional</a><a class="btn small" href="teach.html">Teach</a><a class="btn small" data-x="jai" data-p="index.html">JA Insights</a></div></li>
+    <li><b>Hire me, or book a lesson</b><span>Paid work pays for the time I spend on the projects.</span><div class="help-act"><a class="btn small" href="professional.html">Professional</a><a class="btn small" href="teach.html">Teach</a><a class="btn small" data-x="jai" data-p="index.html">JA Insights</a></div></li>
   </ol></div></section>'''
 
 # ---------------------------------------------------------------- about
@@ -390,8 +391,8 @@ SPECS = [
     ("lab", "Lab · jebyLabs", "jebyLabs: real-estate analytics, a band game, open-source tools and hardware experiments by James Eby.", lab, "", ""),
     ("research", "Research · James Eby", "Predicting the masses of galaxy clusters using weighted linear regression: an animated slideshow of the 2015 Carnegie Mellon poster.", research, research_head, research_js),
     ("about", "About · James Eby", "About James Eby, and Drew.", about, "", ""),
-    ("qr", "Turn any image into a QR code · jeby.us", "A free prompt that has your chat AI blend any image into a QR code and test that it scans.", qr_page("qr"), "", ""),
-    ("yt", "Turn any image into a QR code · jeby.us", "A free prompt that has your chat AI blend any image into a QR code and test that it scans.", qr_page("yt"), '<link rel="canonical" href="https://jeby.us/qr">', ""),
+    ("qr", "Put your image in a QR code · jeby.us", "A free prompt that asks a chat AI to blend your image into a QR code and test it.", qr_page("qr"), "", ""),
+    ("yt", "Put your image in a QR code · jeby.us", "A free prompt that has your chat AI blend any image into a QR code and test that it scans.", qr_page("yt"), '<link rel="canonical" href="https://jeby.us/qr">', ""),
 ]
 for key, title, desc, body, xh, xj in SPECS:
     fn = "index.html" if key == "home" else f"{key}.html"
@@ -421,11 +422,11 @@ shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT 
 
 - [Professional](https://jeby.us/professional): Director-level BI and data science; experience, timeline, résumé.
 - [Teach](https://jeby.us/teach): tutoring (math, SAT/ACT math, statistics, data analysis), first-job mentorship, résumé services. English and Spanish.
-- [Lab](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, learningLabs (a free learning library with a data analysis course), a band game, Lighting Lab, Quorum, Plantriloquist, AppForge, a route optimizer and driver tracking for small businesses, and a dog territory app.
+- [Lab](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, learningLabs (a learning library, data analysis course in progress), a band game, Lighting Lab, Quorum, Plantriloquist, AppForge, and ideas for a route optimizer, driver tracking and a dog territory app. Each listing says if it is live, preview, in build or an idea.
 - [Research](https://jeby.us/research): Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression (Carnegie Mellon, 2015).
 - [About](https://jeby.us/about): James, and Drew.
 - [Free data report](https://jainsights.com/report): a one-page report on any spreadsheet, run in the browser.
-- [Turn any image into a QR code](https://jeby.us/qr): a prompt that makes a chat AI build a picture QR code and test that it scans.
+- [Put your image in a QR code](https://jeby.us/qr): a prompt that asks a chat AI to build a picture QR code and test it.
 Contact: {C.CONFIG["email"]} · {C.CONFIG["instagram"]} · {C.CONFIG["linkedin"]} · {C.CONFIG["github"]}
 """, encoding="utf-8")
 print("built", sorted(p.name for p in OUT.iterdir()))
