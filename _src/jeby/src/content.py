@@ -22,16 +22,16 @@ DISCIPLINES = [("Statistics", "research.html"), ("Galaxy clusters", "research.ht
 
 # Voice (James, 2026-11-08): personal pages call him James, never jeby; work is a link, not a story.
 # jeby is his online handle and can introduce him on professional pages only.
-ABOUT_SHORT = ("I live in Miami with Drew. I studied statistics at Carnegie Mellon, I speak English and Spanish, "
-               "and I have more side projects than free evenings.")
+ABOUT_SHORT = "I live in Miami with Drew. I studied statistics at Carnegie Mellon, and I have more side projects than free evenings."
+HERO = "Super serious about my silliness."
 
 ABOUT_LONG = [
     "I live in Miami with Drew, a Scottish Terrier who appears on more of my projects than I do.",
     "I studied statistics at Carnegie Mellon. My undergraduate research asked whether the standard way of weighing galaxy clusters was counting the same data more than once. It was. I still like that kind of problem best: the accepted answer is a little wrong and nobody has checked.",
     "Away from the keyboard I mostly pick things that can't be rushed: machining, golf, diving, archery, kayaking with Drew, and brisket on the Big Green Egg, which is twelve hours of patience for twenty minutes of dinner.",
 ]
-FACTS = [("Based", "Miami, FL"), ("Roots", "Nicaraguan"), ("Studied", "B.S. Statistics, Carnegie Mellon, 2019"), ("Speaks", "English, Spanish, some French"),
-         ("Off the clock", "Gunsmithing and machining, golf, SCUBA, archery, kayaking with Drew, and brisket on the Big Green Egg")]
+FACTS = [("Based", "Miami, FL"), ("Studied", "B.S. Statistics, Carnegie Mellon, 2019"),
+         ("Off the clock", "Machining, golf, SCUBA, archery, kayaking with Drew, and brisket")]
 
 DREW = {
     "title": "Drew",
@@ -81,7 +81,7 @@ PRO = {
     "summary": ("I'm James Eby, jeby to most people in tech. Six years in business intelligence and data science: I founded two analytics functions, "
                 "led a company-wide Power BI rollout and a Snowflake migration, and mentored the analysts who run those systems now. "
                 "Statistics from Carnegie Mellon, enough software engineering to build what the numbers need, and English and Spanish with clients and executives."),
-    "stats": [("6+", "years in BI and data science"), ("2", "analytics functions founded"), ("~1,000", "webinar attendees reached"), ("2", "languages, native")],
+    "stats": [("6+", "years in BI and data science"), ("2", "analytics functions founded"), ("1", "company-wide Power BI rollout led"), ("~10", "years of teaching and tutoring")],
 }
 
 # Experience from resume_extended (Nov 2026). Bracketed placeholders are left out on the web.
@@ -104,7 +104,7 @@ EXPERIENCE = [
                  "Prototyped new products in Python and Excel, later built into the client portal"],
      "tags": ["Python", "Excel", "MDM", "Team lead"]},
     {"id": "autoquotes", "org": "AutoQuotes (now Revalize), LLC", "title": "Business Intelligence Analyst", "start": [2020, 6], "end": [2021, 10],
-     "lead": "Founded AQ Data; built churn health scores and presented to about 1,000 webinar attendees.",
+     "lead": "Founded AQ Data; built churn health scores; ran industry trend webinars.",
      "bullets": ["Founded AQ Data, delivering custom reporting, business insights, and KPI dashboards in Power BI",
                  "Presented commercial-kitchen industry trend reports in 3–4 webinars reaching roughly 1,000 participants",
                  "Built and automated customer health scores to reduce churn; set post-launch baselines and target metrics",

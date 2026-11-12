@@ -122,7 +122,7 @@ home = f'''
   <div class="eyebrow">Miami, FL</div>
   <h1 class="page-title">James <span style="white-space:nowrap"><em>Eby</em><span class="dot-slot" aria-hidden="true"></span></span></h1>
   <ul class="disciplines" aria-label="Some of what I spend time on">{"".join(f'<li><a href="{E(h)}">{E(d)}</a></li>' for d, h in C.DISCIPLINES)}</ul>
-  <p class="lede">This is the personal site: Drew, side projects, a ten-year-old research poster, and whatever's on the smoker. Work has its own pages.</p>
+  <p class="lede">{E(C.HERO)}</p>
   <p class="hero-work">Work: <a href="professional.html">Professional</a> · <a data-x="jai" data-p="index.html">JA Insights</a> · <a href="teach.html">Teach</a></p>
 </section>
 {free_strip()}
