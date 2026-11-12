@@ -27,7 +27,7 @@ HERO = "Super serious about my silliness."
 
 ABOUT_LONG = [
     "I live in Miami with Drew, a Scottish Terrier who appears on more of my projects than I do.",
-    "I studied statistics at Carnegie Mellon University with a concentration in computer science, and I've spent six years in business intelligence.",
+    "I studied statistics at Carnegie Mellon University with a concentration in computer science, I am a senior BI manager, and I'm drawn to difficult problems.",
     "Away from the keyboard I like things that can't be rushed: machining, golf, diving, archery, kayaking with Drew, and brisket, which is twelve hours of patience for twenty minutes of dinner.",
 ]
 FACTS = [("Based", "Miami, FL"), ("Studied", "B.S. Statistics, Carnegie Mellon, 2019"),
@@ -299,7 +299,7 @@ LAB = [
 
 # Free things that bring people in. Featured on Home, in the footer and in the family strip.
 QR = {
-    "title": "Put your image in a QR code",
+    "title": "Turn your image into a QR code",
     "lede": "A pet, a logo, a painting, a photo of your street. The first AI-made versions I tried looked right and didn't scan. This prompt has the AI build a real QR code, blend your image into it, and test it before it hands it over.",
     "card": "A prompt that asks your chat AI to blend your image into a QR code and test it. Drew was the first.",
     "will_it_work": [

@@ -111,7 +111,7 @@ def free_strip(title="Free things"):
   <div class="free-head"><div class="eyebrow" id="free-h"><b>●</b> {title}</div></div>
   <div class="free-grid">
     <a class="free-card" data-x="jai" data-p="report.html"><span class="free-ico" aria-hidden="true">{ICON_REPORT}</span><span><b>A one-page report on your data</b><small>Drop in a spreadsheet. It never leaves your browser.</small></span>{ARROW}</a>
-    <a class="free-card" href="qr.html"><span class="free-ico qr" aria-hidden="true"><img src="drew-qr.png" alt=""></span><span><b>Put your image in a QR code</b><small>{E(C.QR["card"])}</small></span>{ARROW}</a>
+    <a class="free-card" href="qr.html"><span class="free-ico qr" aria-hidden="true"><img src="drew-qr.png" alt=""></span><span><b>Turn your image into a QR code</b><small>{E(C.QR["card"])}</small></span>{ARROW}</a>
     <a class="free-card" href="lab.html"><span class="free-ico marks-mini" aria-hidden="true">{"".join(mark(i) for g in C.LAB for i in g["items"][:1])}</span><span><b>{sum(len(g["items"]) for g in C.LAB)} projects</b><small>Each says if it is live, in build or an idea.</small></span>{ARROW}</a>
   </div>
 </section>'''
@@ -391,8 +391,8 @@ SPECS = [
     ("lab", "Lab · jebyLabs", "jebyLabs: real-estate analytics, a band game, open-source tools and hardware experiments by James Eby.", lab, "", ""),
     ("research", "Research · James Eby", "Predicting the masses of galaxy clusters using weighted linear regression: an animated slideshow of the 2015 Carnegie Mellon poster.", research, research_head, research_js),
     ("about", "About · James Eby", "About James Eby, and Drew.", about, "", ""),
-    ("qr", "Put your image in a QR code · jeby.us", "A free prompt that asks a chat AI to blend your image into a QR code and test it.", qr_page("qr"), "", ""),
-    ("yt", "Put your image in a QR code · jeby.us", "A free prompt that has your chat AI blend any image into a QR code and test that it scans.", qr_page("yt"), '<link rel="canonical" href="https://jeby.us/qr">', ""),
+    ("qr", "Turn your image into a QR code · jeby.us", "A free prompt that asks a chat AI to blend your image into a QR code and test it.", qr_page("qr"), "", ""),
+    ("yt", "Turn your image into a QR code · jeby.us", "A free prompt that has your chat AI blend any image into a QR code and test that it scans.", qr_page("yt"), '<link rel="canonical" href="https://jeby.us/qr">', ""),
 ]
 for key, title, desc, body, xh, xj in SPECS:
     fn = "index.html" if key == "home" else f"{key}.html"
@@ -426,7 +426,7 @@ shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT 
 - [Research](https://jeby.us/research): Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression (Carnegie Mellon, 2015).
 - [About](https://jeby.us/about): James, and Drew.
 - [Free data report](https://jainsights.com/report): a one-page report on any spreadsheet, run in the browser.
-- [Put your image in a QR code](https://jeby.us/qr): a prompt that asks a chat AI to build a picture QR code and test it.
+- [Turn your image into a QR code](https://jeby.us/qr): a prompt that asks a chat AI to build a picture QR code and test it.
 Contact: {C.CONFIG["email"]} · {C.CONFIG["instagram"]} · {C.CONFIG["linkedin"]} · {C.CONFIG["github"]}
 """, encoding="utf-8")
 print("built", sorted(p.name for p in OUT.iterdir()))
