@@ -208,7 +208,7 @@ details.lab-row>summary{grid-template-columns:44px minmax(0,1fr) minmax(0,1.6fr)
 .sheet .sub{font:500 12px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:#d11f29;margin-top:10px}
 .sheet .contacts{margin-top:8px;color:#4c4840;display:flex;flex-wrap:wrap;gap:2px 14px}
 .sheet .contacts a{color:inherit}
-.sheet h4{font:600 12px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:#d11f29;margin:22px 0 10px}
+.sheet h3{font:600 12px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:#d11f29;margin:22px 0 10px}
 .sheet .job{margin-bottom:12px}
 .sheet .l1{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .sheet .l1 b{font-weight:700}
@@ -291,7 +291,7 @@ details.group[open]>summary .chev{transform:rotate(180deg)}
 /* ---------- footer ---------- */
 .site-footer{margin-top:80px;border-top:1px solid var(--line);padding-block:48px 56px}
 .site-footer .wrap{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(4,minmax(0,1fr));gap:32px}
-.site-footer h3{font:500 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.site-footer h2{font:500 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
 .site-footer ul{list-style:none;margin:0;padding:0;display:grid;gap:9px}
 .site-footer a{text-decoration:none;color:var(--fg-2)}
 .site-footer a:hover{color:var(--fg)}

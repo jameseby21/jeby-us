@@ -50,9 +50,9 @@ def footer():
   <div><a class="wordmark" href="index.html"><span class="wm"><b>JA</b>Insights</span><span class="tag">Data · Automation · Growth</span></a>
     <small>JA Insights LLC · Miami, Florida · <a href="#" data-copy-email="{EMAIL}">{EMAIL}</a></small>
     <div class="scottie">{SCOTTIE}<span>Drew double-checked the math.</span></div></div>
-  <div><h3>Services</h3><ul>{svc}</ul></div>
-  <div><h3>Practice</h3><ul><li><a href="approach.html">Approach and pricing</a></li><li><a href="products.html">Products</a></li><li><a href="about.html">About</a></li><li><a href="contact.html">Contact</a></li></ul></div>
-  <div><h3>Family</h3><ul><li><a data-x="jeby" data-p="index.html">jeby.us</a> · the founder</li><li><a data-x="jeby" data-p="lab.html">jebyLabs</a> · free versions</li><li>jeby Real Estate</li><li><a href="{J.CONFIG["linkedin"]}" target="_blank" rel="noopener">LinkedIn</a></li></ul></div>
+  <div><h2>Services</h2><ul>{svc}</ul></div>
+  <div><h2>Practice</h2><ul><li><a href="approach.html">Approach and pricing</a></li><li><a href="products.html">Products</a></li><li><a href="about.html">About</a></li><li><a href="contact.html">Contact</a></li></ul></div>
+  <div><h2>Family</h2><ul><li><a data-x="jeby" data-p="index.html">jeby.us</a> · the founder</li><li><a data-x="jeby" data-p="lab.html">jebyLabs</a> · free versions</li><li>jeby Real Estate</li><li><a href="{J.CONFIG["linkedin"]}" target="_blank" rel="noopener">LinkedIn</a></li></ul></div>
 </div></footer>'''
 
 def page(key, title, desc, body):
@@ -154,7 +154,7 @@ page("index", "JA Insights · Data work you can check", "Dashboards, analysis an
 
 # Services
 tabs = "".join(f'<button role="tab" id="t-{l["id"]}" aria-controls="p-{l["id"]}" data-hash="{l["id"]}">{E(l["tab"])}</button>' for l in J.LINES)
-panels = "".join(f'''<div class="tabpanel" role="tabpanel" id="p-{l["id"]}" aria-labelledby="t-{l["id"]}"><div class="svc"><div><span class="label">{E(l["tools"])}</span><h3 style="margin-top:12px">{E(l["title"])}</h3>
+panels = "".join(f'''<div class="tabpanel" role="tabpanel" id="p-{l["id"]}" aria-labelledby="t-{l["id"]}"><div class="svc"><div><span class="label">{E(l["tools"])}</span><h2 style="margin-top:12px">{E(l["title"])}</h2>
 <p class="lede" style="font-size:18px">{E(l["line"])} {E(l["body"])}</p><ul>{"".join(f"<li>{E(d)}</li>" for d in l["does"])}</ul>
 <p style="margin-top:20px" class="meta">Typical package: <b>{E(PK[l["from"]]["name"])}</b>, {PK[l["from"]]["hours"]} h × ${RATE} = <b>{price(PK[l["from"]])}</b></p></div>
 <div class="fit"><div><span class="label"><b>●</b> A good fit</span><p style="margin-top:8px">{E(l["fit"])}</p></div><div class="no"><span class="label">Not a fit</span><p style="margin-top:8px">{E(l["nofit"])}</p></div>
@@ -167,7 +167,7 @@ page("services", "Services and prices · JA Insights", "Dashboards, analysis, au
 <section class="block" id="rate-card" style="background:var(--paper-2)"><div class="wrap"><div class="block-head"><h2>Rate card</h2><p>Hours are the only number set per package. Prices are hours × ${RATE}, so you can check every one.</p></div>{rate_table()}</div></section>
 <section class="block" id="estimate-block"><div class="wrap"><div class="block-head"><h2>Build an <span class="u">estimate</span>.</h2><p>Tick what you might need. The receipt adds it up the same way a real quote does.</p></div>
 <div class="estimator"><div class="opts" id="estimate" data-rate="{RATE}">{opts}</div>
-<div class="receipt" id="receipt" aria-live="polite"><span class="stamp">Checked</span><h4>Estimate</h4><div class="label" style="margin-bottom:12px">JA Insights · rate ${RATE}/h</div><div id="receipt-lines"></div>
+<div class="receipt" id="receipt" aria-live="polite"><span class="stamp">Checked</span><h3>Estimate</h3><div class="label" style="margin-bottom:12px">JA Insights · rate ${RATE}/h</div><div id="receipt-lines"></div>
 <p class="small">An estimate, not a quote. The written quote after a call is built the same way, and it's fixed unless the scope changes.</p></div></div></div></section>
 {band("Not sure which one fits?", "Intro call")}''')
 
@@ -232,7 +232,7 @@ fam = [("jeby.us", "James's own site: work history, teaching, research and the p
 famc = "".join(f'<div><span class="label">Family</span><h3>{E(n)}</h3><p>{E(d)}</p>' + (f'<a data-x="{x}" data-p="{p}">Visit {E(n)} {ARROW}</a>' if x else '<span class="meta">Site coming</span>') + "</div>" for n, d, x, p in fam)
 page("about", "About · JA Insights", "JA Insights is a one-person data consultancy in Miami, run by statistician James Eby.",
      page_head("About", "A small practice, on purpose.", J.ABOUT["lede"] + " You talk to the person doing the work, from the first call to the handover.") + f'''
-<section class="block" style="padding-top:40px"><div class="wrap"><div class="founder"><div class="mono-avatar" aria-hidden="true">JE</div><div><span class="label">Founder</span><h3 style="margin-top:8px">{E(fname)}</h3><p>{E(fbio)}</p>
+<section class="block" style="padding-top:40px"><div class="wrap"><div class="founder"><div class="mono-avatar" aria-hidden="true">JE</div><div><span class="label">Founder</span><h2 style="margin-top:8px">{E(fname)}</h2><p>{E(fbio)}</p>
 <div class="cta" style="margin-top:18px"><a class="btn" data-x="jeby" data-p="about.html">Read James's story on jeby.us {ARROW}</a><a class="btn" data-x="jeby" data-p="professional.html">Work history</a></div></div></div></div></section>
 <section class="block" style="padding-top:8px"><div class="wrap"><div class="block-head"><h2>The practice</h2><p>The facts, in one place.</p></div><dl class="kv">{kv}</dl></div></section>
 <section class="block"><div class="wrap"><div class="block-head"><h2>Part of the jeby family</h2><p>Three names, one person, one way of working.</p></div><div class="cols3">{famc}</div></div></section>''')
