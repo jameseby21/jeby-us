@@ -46,7 +46,7 @@ STORY = {
     "title": "The story so far",
     "chapters": [
         {"when": "High school", "head": "The math club",
-         "body": "It started with the math club. In 2013 I took sixth place in statistics at the Mu Alpha Theta national convention. [James: a line or two about the club]"},
+         "body": "It started with the math club. In 2013 I took sixth place in statistics at the Mu Alpha Theta national convention."},
         {"when": "2015 – 2019", "head": "Carnegie Mellon",
          "body": "I studied statistics, with a concentration in computer science. My undergraduate research asked whether the usual way of weighing galaxy clusters counted the same data more than once. It did. I was president of the archery club, and I taught kids to code at a summer camp."},
         {"when": "2019 – 2025", "head": "Work",
