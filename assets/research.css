@@ -78,7 +78,7 @@
 .deck-stage{position:relative;touch-action:pan-y}
 .deck-cover{height:640px}
 .deck-split{display:grid;grid-template-columns:minmax(0,.82fr) minmax(0,1.5fr);height:640px;border:1px solid #22212a;border-radius:18px;overflow:hidden;background:#0d0d11}
-.deck-text{padding:30px 28px;display:flex;flex-direction:column;gap:14px;overflow:auto;min-width:0;border-right:1px solid #22212a}
+.deck-text{padding:28px 28px;display:flex;flex-direction:column;gap:12px;overflow:auto;min-width:0;border-right:1px solid #22212a}
 .deck-eyebrow{font:500 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#9b98a8}
 .deck-eyebrow b{color:#ff2b3d;font-weight:600}
 .deck-text h3{margin:0;font-family:"Archivo","Arial Narrow",system-ui,sans-serif;font-weight:800;font-stretch:110%;font-size:clamp(21px,2.1vw,27px);line-height:1.1;letter-spacing:-.015em;text-wrap:balance;color:#eeecf2}
@@ -110,3 +110,6 @@
 :root[data-theme="light"] .rs-foot{color:var(--muted)}:root[data-theme="light"] .rs-foot a{color:var(--fg)}   /* the page is dark by design; these two lines sit on the light page when the visitor picks light */
 .deck-improve{display:grid;gap:4px;padding:12px 14px;border-radius:10px;background:rgba(255,43,61,.08);border:1px solid rgba(255,43,61,.35);font-size:14px;line-height:1.5;color:#eeecf2}
 .deck-improve b{font:600 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#ff2b3d}
+
+.deck-watch{display:grid;gap:3px;font-size:13.5px;line-height:1.5;color:#b9b6c6;border-left:2px solid rgba(238,236,242,.25);padding-left:12px}
+.deck-watch b{font:600 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#eeecf2}

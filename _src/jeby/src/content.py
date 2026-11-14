@@ -16,27 +16,30 @@ CONFIG = {
     },
 }
 
-DISCIPLINES = ["Statistics", "Software", "Business intelligence", "Teaching", "Astrophysics", "Real estate", "Music games"]
+# The words the red dot hops across on the home hero before it lands as the full stop. Personal, not a skills list.
+DISCIPLINES = ["Statistics", "Galaxy clusters", "Machining", "Golf", "SCUBA", "Brisket", "Drew"]
 
-ABOUT_SHORT = ("I studied statistics at Carnegie Mellon, spent six years building analytics teams "
-               "from scratch, and I can't leave a hard problem alone, whether it's a churn model, a galaxy cluster or a houseplant that talks back. "
-               "I live in Miami and work in English and Spanish.")
+# Voice (James, 2026-11-08): personal pages call him James, never jeby; work is a link, not a story.
+# jeby is his online handle and can introduce him on professional pages only.
+ABOUT_SHORT = ("I live in Miami with Drew. I studied statistics at Carnegie Mellon, I speak English and Spanish, "
+               "and I have more side projects than free evenings.")
 
 ABOUT_LONG = [
-    "I'm James Eby, jeby for short. I'm a statistician by training, a builder by habit and a teacher by choice.",
-    "At Carnegie Mellon I studied statistics with a computer science concentration, and my undergraduate research asked whether the way astronomers weigh galaxy clusters was quietly double-counting its data. It was.",
-    "Since then I've founded two analytics functions, led a company-wide Power BI rollout, moved a data warehouse to Snowflake, and mentored the analysts who now run those systems. Along the way I kept teaching: about ten years of tutoring, a coding camp for kids, and college TA work.",
-    "Today I run JA Insights, my data practice, and jebyLabs, where the side projects live: a real-estate analytics platform, a band game that turns any song into a chart, keyboard lighting software, and a Raspberry Pi houseplant with opinions.",
+    "I live in Miami with Drew, a Scottish Terrier who appears on more of my projects than I do.",
+    "I studied statistics at Carnegie Mellon. My undergraduate research asked whether the standard way of weighing galaxy clusters was counting the same data more than once. It was. I still like that kind of problem best: the accepted answer is a little wrong and nobody has checked.",
+    "Away from the keyboard I mostly pick things that can't be rushed: machining, golf, diving, archery, kayaking with Drew, and brisket on the Big Green Egg, which is twelve hours of patience for twenty minutes of dinner.",
 ]
 FACTS = [("Based", "Miami, FL"), ("Roots", "Nicaraguan"), ("Studied", "B.S. Statistics, Carnegie Mellon, 2019"), ("Speaks", "English, Spanish, some French"),
          ("Off the clock", "Gunsmithing and machining, golf, SCUBA, archery, kayaking with Drew, and brisket on the Big Green Egg")]
 
 DREW = {
     "title": "Drew",
-    "role": "Chief Morale Officer",
-    "short": "My dog, the face on my QR codes, and the reason most of what I build ships with a little tongue out.",
+    "role": "Scottish Terrier",
+    "short": "He's on my business cards, my QR codes and half my projects. Nobody asked him.",
 }
 
+# The story and the support section are no longer shown (James, 2026-11-08: the personal pages link to work instead
+# of narrating it). Kept here so either can come back with one line in build.py; nothing below is rendered.
 # The story (About page, #story). DRAFT: every line is for James to check; only facts he has stated are used.
 # HEALTH_DETAIL is James's own words about his health, as much or as little as he wants. Empty = the sentence is left out.
 HEALTH_DETAIL = "The health part is real: open-heart surgery, a Bentall procedure, a new mechanical heart valve, and a kidney transplant may be next."
@@ -64,19 +67,19 @@ SUPPORT = {
 }
 PREVIEW_SLOTS = False  # show empty draft slots and unconfigured providers in previews; set False before deploy
 
+# (label, text, optional link). Personal first; work gets one line and a link.
 NOW = [
-    ("Teaching", "Opening tutoring in math, SAT, statistics and data analysis, plus a first-job mentorship program."),
-    ("jRE", "Building the analytics layer: forecasting and valuation for Miami Springs and Virginia Gardens."),
-    ("Research", "Returning to galaxy-cluster masses, ten years after the poster."),
-    ("Lab", "Sketching a band game that turns any song into a playable chart."),
-    ("Work", "Open to Director and Manager of BI roles."),
+    ("Research", "Picking the galaxy-cluster work back up, ten years after the poster, to see if it holds.", "research.html"),
+    ("Building", "A band game that turns any song into a chart you can actually play.", "lab.html#musicalgames"),
+    ("Teaching", "Taking on math, statistics and data students again, in English or Spanish.", "teach.html"),
+    ("Work", "Looking for my next BI leadership role.", "professional.html"),
 ]
 
 PRO = {
-    "headline": "Business intelligence, data science, and the teams behind them.",
-    "summary": ("Business intelligence leader and data scientist with 6+ years turning ambiguous business questions into strategy, data infrastructure, "
-                "statistical models, and customer-facing analytics. Statistics training from Carnegie Mellon paired with hands-on software engineering. "
-                "Founded two analytics functions, mentors analysts, and works directly with executives and clients. Bilingual English and Spanish."),
+    "headline": "I build analytics teams and the systems they run on.",
+    "summary": ("I'm James Eby, jeby to most people in tech. Six years in business intelligence and data science: I founded two analytics functions, "
+                "led a company-wide Power BI rollout and a Snowflake migration, and mentored the analysts who run those systems now. "
+                "Statistics from Carnegie Mellon, enough software engineering to build what the numbers need, and English and Spanish with clients and executives."),
     "stats": [("6+", "years in BI and data science"), ("2", "analytics functions founded"), ("~1,000", "webinar attendees reached"), ("2", "languages, native")],
 }
 
@@ -176,7 +179,7 @@ TUTORING = [
      "rows": [("Trial lesson", "$60"), ("Hourly", "$95 online · $90 in group"), ("5 sessions", "$450"), ("10 sessions", "$850"),
               ("Exam crash group", "$120"), ("Semester pass", "$700")]},
     {"id": "data", "name": "Data analysis", "scope": "Excel, SQL, Power BI and basic Python, taught on real data",
-     "note": "Taught by someone who has run analytics teams, not from a textbook.",
+     "note": "Taught on real, messy data, the way the job actually looks.",
      "rows": [("Trial lesson", "$60"), ("Hourly", "$110"), ("5 sessions", "$500"), ("10 sessions", "$950"), ("8-week live cohort", "$599–749")]},
 ]
 MENTORSHIP = [("Strategy call", "$150", "60 minutes on where you are and what to build, plus a written plan"),
@@ -288,7 +291,7 @@ LAB = [
          "open": "The method and its reusable skills", "paid": "Setup and coaching for teams, through JA Insights",
          "code": None, "jai": "appforge"},
         {"id": "jebyus", "name": "jeby.us", "status": "Live", "accent": "#E3262F", "mark": "ȷ",
-         "line": "This site: plain HTML pages, no framework, built in the open.",
+         "line": "This site: plain HTML, no framework, no trackers.",
          "detail": "Static pages generated from one content file, with native page transitions and no tracking.",
          "stack": ["HTML", "CSS", "JavaScript", "Python"],
          "open": "Everything", "paid": None, "code": "https://github.com/jameseby21/jeby-us", "jai": None},

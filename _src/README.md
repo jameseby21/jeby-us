@@ -17,7 +17,7 @@ Commit the root after `--publish`; that commit is what goes live on jeby.us. `py
 
 | Path | What it is |
 | --- | --- |
-| `jeby/src/content.py` | Every word and setting on jeby.us: contact links, booking, the story, the Lab projects, prices, the QR prompt |
+| `jeby/src/content.py` | Every word and setting on jeby.us: contact links, booking, the Lab projects, prices, the QR prompt. Voice rule (James, 2026-11-08): personal pages call him James and link to work rather than describe it; "jeby" introduces him on professional pages only. The story and support text stay here but aren't rendered |
 | `jeby/build.py`, `jeby/src/site.css`, `jeby/src/site.js` | The jeby.us page generator, styles and behaviour |
 | `jeby/static/` | Images and files copied as they are: the Drew photo, the Drew QR, the poster PDF, project marks |
 | `jai/src/screening.js` | The screen that runs before any statistics (CONS-0045): one line per pattern (licensed identifiers such as TDLinx, D-U-N-S, MLS, credit-bureau and Nielsen ids; personal data; government ids; card numbers; credentials and tokens; minors), the class of each and the reason shown to the visitor. A flagged column is left out of the report, the table and the export unless it is in a class that allows the visitor to confirm they hold the rights; government ids, card numbers, credentials and minors have no override. It reads names and a sample of values to decide and keeps only the names; it makes no network call. The same list is the reference for the standards rule STD-0041 |
@@ -29,7 +29,7 @@ Commit the root after `--publish`; that commit is what goes live on jeby.us. `py
 | `check_docs.py`, `../docs/doc-ownership.yaml` | The doc-ownership map (which document section owns each file under `_src/`, `docs/` and `.github/`) and its dependency-free check: `python3 _src/check_docs.py` prints `<n> files, 0 unowned, 0 problems`. Add a row to the map in the same change as any new file |
 | `jai/tests/` | Report tests: `run.js` (Node, no DOM), `browser.js` (headless Edge or Chrome), synthetic fixtures made by `make_fixtures.py`. No real data |
 | `family/family.js` | How the two sites link: the shared "jeby family" strip (option C, the default), or one site (A) or sister sites (B) |
-| `research/src/` | The galaxy-cluster slideshow on jeby.us/research |
+| `research/src/` | The galaxy-cluster slideshow on jeby.us/research. Each slide's text is in `slides.js` (title, body, an "In the animation" line, the key result); keep it short enough to fit the 640 px text panel |
 | `ARCHITECTURE.md`, `architecture/` | Diagrams of the hosting, the build, both sites, the family links and the free report, with the tech stack and brand assets. `architecture/` holds each diagram's Mermaid source and SVG render |
 
 The Lab projects in `jeby/src/content.py` feed both sites: the free edition on jeby.us/lab and the paid edition on jainsights.com/products.
