@@ -9,11 +9,11 @@ const read = n => fs.readFileSync(path.join(FX, n), "utf8");
 const truth = n => JSON.parse(read(n));
 const load = (n, name = n) => ({ name, rows: R.parseDelimited(read(n)) });
 
-let passed = 0, failed = 0; const failures = [];
+let passed = 0, failed = 0; const failures = [], asyncTests = [];
 function test(name, fn) {
   const t0 = process.hrtime.bigint();
-  try { fn(); passed++; console.log(`  ok   ${name} (${Number(process.hrtime.bigint() - t0) / 1e6 | 0} ms)`); }
-  catch (e) { failed++; failures.push(name); console.log(`  FAIL ${name}\n       ${String(e.message).split("\n").join("\n       ")}`); }
+  const ok = () => { passed++; console.log(`  ok   ${name} (${Number(process.hrtime.bigint() - t0) / 1e6 | 0} ms)`); }, bad = e => { failed++; failures.push(name); console.log(`  FAIL ${name}\n       ${String(e.message).split("\n").join("\n       ")}`); };
+  try { const r = fn(); if (r && typeof r.then === "function") asyncTests.push(r.then(ok, bad)); else ok(); } catch (e) { bad(e); }
 }
 const outFlags = a => [...a.flags.entries()].filter(([, f]) => f.fam === "out");
 const outRows = a => new Set(outFlags(a).map(([k]) => +k.split(":")[0]));
@@ -78,11 +78,28 @@ test("venues fixture: latitude, longitude and postal codes are not tested as out
 // ---------- finding-to-rows
 console.log("findings to rows (CONS-0049)");
 const venues = load("venues.csv"), VT = truth("venues.truth.json"), aV = R.analyse(venues);
-test("venues: the spelling finding maps to the CVS rows", () => {
+test("venues (CONS-0040): one place written several ways is a duplicate place, counted with its rows, and the finding names the rule", () => {
+  // Changed on purpose: the CVS rows share one address, so they used to be a "spelling" finding and are now duplicates (James, 2026-11-08: multiple spellings at one place IS duplication).
+  const f = aV.findingsAll.find(x => x.id === "dupplace");
+  assert(f, "no duplicate-places finding: " + aV.findingsAll.map(x => x.id));
+  assert.deepStrictEqual([...f.rows].sort((x, y) => x - y), VT.cvs_all); assert(/^5 duplicate places$/.test(f.title), f.title);
+  assert(/same name/i.test(f.detail) && /same address/i.test(f.detail) && /postal/i.test(f.detail), "the finding should name its rule: " + f.detail);
+  assert.strictEqual(f.kind, "qa"); assert.strictEqual(f.cls, "duplicate"); assert.strictEqual(f.sev, "fix");
+  assert(aV.checks.some(c => /duplicate place/.test(c.title) && c.sev === "fix"), "Data health lists the duplicate places: " + aV.checks.map(c => c.title));
+  assert(!aV.checks.some(c => c.title === "No duplicate rows"), "the all-clear must not stay beside a duplicate finding");
+});
+test("venues (CONS-0040): the same name written two ways at different addresses stays a spelling finding, and the CVS pair is no longer in it", () => {
   const f = aV.findingsAll.find(x => x.id === "variant");
   assert(f, "no spelling finding: " + aV.findingsAll.map(x => x.id));
-  assert(f.rows.length >= 2 && f.rows.every(r => VT.cvs_all.includes(r)), f.rows.join());
-  assert(f.rows.includes(VT.cvs_spacing[0]) && f.rows.includes(VT.cvs_short[0]), "both spellings expected: " + f.rows);
+  assert(VT.bk.some(r => f.rows.includes(r)), "Burger King should be a spelling variant: " + f.rows);   // the finding flags the cells that differ from the commonest way of writing the name
+  VT.cvs_all.forEach(r => assert(!f.rows.includes(r), "CVS row " + r + " is a duplicate, not a spelling variant"));   // all six are one address: Cvs and CVS Pharmacy and CVS
+  assert(/different address/i.test(f.detail), "the finding should name its rule: " + f.detail);
+  const d = aV.findingsAll.find(x => x.id === "dupplace"); VT.bk.forEach(r => assert(!d.rows.includes(r), "Burger King is not a duplicate place"));
+});
+test("venues (CONS-0040): coordinates decide the place when a file has no address column", () => {
+  const rows = [["venue_name", "latitude", "longitude"], ["Cvs Pharmacy", "25.77301", "-80.11929"], ["CVS Pharmacy", "25.77301", "-80.11929"], ["Burger King", "25.7", "-80.2"], ["BURGER KING", "25.9", "-80.3"], ["Cafe Uno", "25.1", "-80.1"], ["Cafe Dos", "25.2", "-80.4"]];
+  const a = R.analyse({ name: "coords.csv", rows }), d = a.findingsAll.find(x => x.id === "dupplace"), v = a.findingsAll.find(x => x.id === "variant");
+  assert(d && d.rows.join() === "0,1" && /coordinates/.test(d.detail), d && d.detail); assert(v && v.rows.join() === "3", "BURGER KING (row 3) is written differently from Burger King, at other coordinates: " + (v && v.rows.join()));
 });
 test("venues: mixed id types are reported", () => {
   assert(aV.findingsAll.some(x => x.id === "mixedid" && /vip_id/.test(x.title)), "no vip_id finding: " + aV.findingsAll.map(x => x.id));
@@ -170,7 +187,9 @@ test("export: an untouched file exports byte for byte, including quotes, CRLF an
   const txt = 'id,name,note\r\n1,"Smith, A",plain\r\n2,"say ""hi""",\r\n3,x,"multi\nline"';
   const d = { name: "q.csv", rows: R.parseDelimited(txt) }; const s = R.makeStore(d, R.analyse(d));
   assert.strictEqual(Rec.exportCSV(s), txt);
-  for (const n of ["sales_planted.csv", "venues.csv", "sales_clean.csv"]) { const dd = load(n), ss = R.makeStore(dd, R.analyse(dd)); assert.strictEqual(Rec.exportCSV(ss), read(n), n); }
+  for (const n of ["sales_planted.csv", "venues.csv", "sales_clean.csv"]) { const dd = load(n), ss = R.makeStore(dd, R.analyse(dd));
+    // Changed on purpose (CONS-0045): the venues file's td_linxID column is screened out, so the export is the file without that last column; every other fixture is byte for byte.
+    const want = n === "venues.csv" ? read(n).split("\n").map(l => l.replace(/,[^,]*$/, "")).join("\n") : read(n); assert.strictEqual(Rec.exportCSV(ss), want, n); }
 });
 test("export round trip: edit, export, re-import, compare; change log has row, column, before, after, edited_at", () => {
   const dd = load("venues.csv"), a = R.analyse(dd), s = R.makeStore(dd, a), f = a.findingsAll.find(x => x.id === "variant"), ri = f.rows[0], ci = a.header.indexOf("venue_name");
@@ -178,7 +197,7 @@ test("export round trip: edit, export, re-import, compare; change log has row, c
   const out = Rec.exportCSV(s), again = R.parseDelimited(out);
   assert.strictEqual(again.length, dd.rows.length); assert.strictEqual(again[ri + 1][ci], "CVS Pharmacy");
   again.forEach((row, i) => row.forEach((v, j) => { if (!(i === ri + 1 && j === ci)) assert.strictEqual(v, dd.rows[i][j]); }));
-  assert.deepStrictEqual(again[0], dd.rows[0]);
+  assert.deepStrictEqual(again[0], dd.rows[0].slice(0, 11));   // td_linxID is screened out (CONS-0045)
   const log = R.parseDelimited(Rec.changeLogCSV(s)); assert.deepStrictEqual(log[0], ["row", "column", "before", "after", "edited_at"]);
   assert.deepStrictEqual(log[1], [String(ri + 2), "venue_name", was, "CVS Pharmacy", "2026-11-08T12:00:00.000Z"]);
   const a2 = R.analyse({ name: "v", rows: again }), v2 = a2.findingsAll.find(x => x.id === "variant");
@@ -191,7 +210,7 @@ test("cafe sample: at most ten, one reason each, price rows first, ordered by se
   const { a, s } = cafe(), w = R.pickNotable(a, s); assert(w.length <= 10 && w.length >= 5, w.length);
   w.forEach(x => assert(x.reason && x.reason.length > 10 && !/<b>/.test(x.reason), JSON.stringify(x)));
   const pf = a.findingsAll.find(f => f.id === "unit:unit_price"); assert(pf.rows.includes(w[0].ri), "first is not a price row: " + JSON.stringify(w[0]));
-  const rank = { fix: 2, look: 1, ctx: 0 }; for (let i = 1; i < w.length; i++) assert(rank[w[i - 1].sev] >= rank[w[i].sev], "severity order at " + i);
+  const rank = { fix: 2, look: 1, ctx: 0 }; for (let i = 1; i < w.length; i++) assert(rank[w[i - 1].pri] >= rank[w[i].pri], "priority order at " + i);
 });
 test("a record that is one of many with the same problem says how many (the twelve price rows read '1 of 12')", () => {
   const { a, s } = cafe(), w = R.pickNotable(a, s), pf = a.findingsAll.find(f => f.id === "unit:unit_price");
@@ -218,8 +237,16 @@ test("recalculates after an edit: fixing a record removes it from the list", () 
   const a2 = R.analyse({ name: d.name, rows: [d.rows[0], ...s.rows] }); assert(!R.pickNotable(a2, s).some(x => x.ri === w[0].ri && x.col === p));
 });
 
+// the round 4 modules run first: their many analyses must not count against the timing test in qa_tests.js, which waits on the event loop
+require("./screen_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
+require("./round4_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
+require("./slice_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });   // CONS-0051
+
 // ---------- CONS-0058, 0059, 0062, 0060, 0061, 0063 live in qa_tests.js (same helpers)
 require("./qa_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
 
+require("./shape_tests.js")({ test, assert, R, Rec, Dom, load, truth, plain, outFlags, outRows, read, FX, cafe });
+Promise.all(asyncTests).then(() => {
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) { console.log("failed: " + failures.join("; ")); process.exit(1); }
+});

@@ -5,6 +5,7 @@
    Pure logic, no page: it runs in the browser, in the worker and in Node (node _src/jai/tests/run.js). Nothing is uploaded or stored. */
 (function (root) {
   "use strict";
+  const Rules = typeof module !== "undefined" && module.exports ? require("./rules.js") : root.JAIRules;
 
   // =====================================================================================================
   // DOMAIN: edit here
@@ -12,7 +13,7 @@
     // First matching name wins; names are compared lower-case with spaces, dashes and underscores treated alike.
     // Roles that come from the name: identifier, coordinates, postal, city, state, unit, address. Money, measure, date, category and text come from the values.
     roles: [
-      ["identifier", /(^|[_\s-])(id|uuid|guid)$|^id([_\s-]|$)|^(row|rownum|record|observation)([_\s-]?(no|num|number|id))?$/],
+      ["identifier", /(^|[_\s-])(id|uuid|guid)$|^id([_\s-]|$)|^(row|rownum|record|observation|ref|reference)([_\s-]?(no|num|number|id))?$/],
       ["coordinates", /(^|[_\s-])(lat|latitude|lon|lng|long|longitude)($|[_\s-])/],
       ["unit", /^(address[_\s-]*)?(unit|apt|apartment|suite|ste)([_\s-]*(no|num|number))?$/],
       ["postal", /zip|postal|post[_\s-]?code/],
@@ -20,9 +21,12 @@
       ["state", /^state([_\s-]|$)|province/],
       ["address", /address|street|addr/],
     ],
+    countName: /\(#\)|(^|[\s_-])#($|[\s_-])|(^|[\s_-])(count|number of|num of|no of)($|[\s_-])/i,   // a name that says "how many", not "how much": Sales (#), order count
     moneyName: /price|amount|total|cost|revenue|sales?\b|value|income|profit|paid|fee|spend|rent|tax|consideration/,
-    notMeasure: ["identifier", "coordinates", "unit", "postal"],   // numbers that are labels, not quantities
+    notMeasure: ["identifier", "coordinates", "unit", "postal", "year", "code", "phone", "amount", "balance"],   // numbers that are labels, not quantities
     placeRoles: ["address", "unit", "city", "state", "postal"],
+    nameName: /(^|[_\s-])(name|venue|business|store|place|company|merchant)($|[_\s-])|name$/i,   // a column that names the thing a row is about: used to tell one place written two ways from two places (CONS-0040)
+    coordPrecision: 4,        // latitude and longitude are compared to this many decimals (about 11 metres) when a file has no address column
     // A repeated tiny value in a money column is a placeholder, not an amount (CONS-0058).
     nominal: { floor: 1000, minTypical: 20000, minRest: 20, typicalShare: 0.01 },
     baselineMin: 8,           // a group needs this many non-nominal values to be its own baseline
@@ -43,6 +47,7 @@
     checks: [
       { id: "nominal", label: "repeated tiny values in a money column", needs: ["money"], kind: "qa", cls: "repeated-value", rule: "A money value at or below $1,000 repeated many times in a column whose other values are far larger is a nominal amount, not a real one.", todo: "Confirm what these are; they are left out of every baseline." },
       { id: "dup", label: "duplicates", needs: [], kind: "qa", cls: "duplicate", rule: "Rows equal on every place field plus date and money are one record entered twice; identifiers never count as a match.", todo: "Delete the extra row or merge the two." },
+      { id: "dupplace", label: "one place written more than one way", needs: [], kind: "qa", cls: "duplicate", rule: "Rows with the same name (capitals, spacing and punctuation ignored) at the same address and postal code (or, with no address column, the same coordinates) are one place entered more than once; the same name at different places is a spelling variant instead.", todo: "Keep one row and delete the others, or merge them." },
       { id: "dupnear", label: "near-duplicates", needs: ["place"], kind: "qa", cls: "duplicate", rule: "Rows that match once the place is written the same way (case, punctuation, St and Street, unit formats) are probably one record.", todo: "Check the two rows and delete the extra." },
       { id: "ratio", label: "a money column over a measure column", needs: ["money", "measure"], kind: "qa", cls: "contextual-outlier", rule: "Money divided by a measure is compared with the median of the other non-nominal rows in the same group (at least 8 of them).", todo: "Check both numbers against the source." },
       { id: "dates", label: "impossible dates", needs: ["date"], kind: "qa", cls: "malformed", rule: "A date in the future or before 1900 cannot be right.", todo: "Correct the year from the source." },
@@ -61,30 +66,70 @@
   // Roles
   const keyName = n => String(n).toLowerCase().replace(/[_\s-]+/g, " ").trim();
   const isCountValues = v => { let ints = true; const pos = []; for (const x of v) { if (x !== x) continue; if (x !== Math.floor(x)) { ints = false; break; } if (x > 0) pos.push(x); } if (!ints || !pos.length) return false; pos.sort((a, b) => a - b); return pos[pos.length >> 1] <= 12; };
-  function assignRoles(cols, body, num) {
+  const unitOf = name => Rules.UNITS.find(u => u.re.test(String(name))) || null;
+  // A number that names something rather than measures it: a phone number, a year, a row number (CONS-0070). Judged on the values when the name says nothing.
+  function roleByValues(c, body, num) {
+    const nm = keyName(c.name), moneyOrUnit = DOMAIN.moneyName.test(nm) || unitOf(c.name);
+    const raw = body.map(r => String(r[c.i]).trim()).filter(Boolean); if (raw.length < 3) return null;
+    if (raw.filter(v => Rules.ROLES.phone.test(v) && v.replace(/\D/g, "").length >= 10).length >= raw.length * 0.9) return "phone";
+    if (c.type !== "number" || moneyOrUnit) return null;
+    const v = raw.map(num), Y = Rules.ROLES.year;
+    if (v.filter(x => Number.isInteger(x) && x >= Y.min && x <= Y.max).length >= raw.length * Y.share && c.distinct <= Y.maxDistinct) return "year";
+    const S = Rules.ROLES.sequence;
+    if (raw.length >= S.minRows && v.every(Number.isInteger) && c.distinct >= raw.length * S.distinct) {
+      let up = 0, down = 0; for (let i = 1; i < v.length; i++) { if (v[i] > v[i - 1]) up++; else if (v[i] < v[i - 1]) down++; }
+      if (Math.max(up, down) >= (v.length - 1) * S.ordered) return "identifier";
+    }
+    return null;
+  }
+  // overrides: { "<column name>": role } from the Columns table; "auto" or nothing leaves the detected role (CONS-0070)
+  function assignRoles(cols, body, num, overrides) {
     cols.forEach(c => {
       const nm = keyName(c.name), nmRaw = String(c.name).toLowerCase(); c.role = null; c.roleBy = null; c.moneyBy = null; c.count = false;
       for (const [role, re] of DOMAIN.roles) { if (re.test(nm) || re.test(nmRaw)) { c.role = role; c.roleBy = "name"; break; } }
+      if (!c.role && c.type === "number") { for (const [role, re] of Rules.ROLES.byName) { if (re.test(nm)) { c.role = role; c.roleBy = "name"; break; } } }
+      if (!c.role) { const r = roleByValues(c, body, num); if (r) { c.role = r; c.roleBy = "values"; } }
       if (!c.role && c.type === "id") { c.role = "identifier"; c.roleBy = "values"; }
-      if (c.role === "identifier" && c.type !== "id" && c.distinct < c.filled * 0.9) { c.role = null; c.roleBy = null; }   // a column called id that repeats is a key to something else, not this row's id
+      if (c.role === "identifier" && c.type !== "id" && c.type !== "number" && c.distinct < c.filled * 0.9) { c.role = null; c.roleBy = null; }   // a column called id that repeats is a key to something else, not this row's id
       if (c.type === "number" && !c.role) {
-        const byName = DOMAIN.moneyName.test(nm) && !/(^|\s)(per|psf)(\s|$)/.test(nm), raw = body.map(r => r[c.i]).filter(v => String(v).trim() !== "");
+        const byName = DOMAIN.moneyName.test(nm) && !/(^|\s)(per|psf)(\s|$)/.test(nm) && !DOMAIN.countName.test(nmRaw), raw = body.map(r => r[c.i]).filter(v => String(v).trim() !== "");
         const byFormat = raw.length >= 10 && raw.filter(v => /^\s*[-(]?\$/.test(v) || /^\s*-?[\d,]+\.\d\d\s*$/.test(v)).length >= raw.length * 0.9;
         if (byName || byFormat) { c.role = "money"; c.moneyBy = byName ? "name" : "format"; c.roleBy = c.moneyBy; }
         else { c.role = "measure"; c.count = isCountValues(body.map(r => num(r[c.i]))); }
       }
       if (!c.role) c.role = c.type === "date" ? "date" : c.type === "category" ? "category" : c.type === "empty" ? "empty" : "text";
+      c.detected = c.role;
+    });
+    const ov = overrides || {};
+    cols.forEach(c => {
+      const o = ov[c.name]; if (!o || o === "auto") return;
+      const allowed = Rules.ROLES.userRoles[c.type === "number" ? "number" : c.type === "date" ? "date" : "other"]; if (!allowed.includes(o)) return;
+      c.role = o; c.roleBy = "you"; c.moneyBy = o === "money" ? "you" : null; c.count = false;
+      if (o === "measure") c.count = isCountValues(body.map(r => num(r[c.i])));
+      if (o === "category" || o === "text") { c.type = o; c.bad = 0; c.mixed = 0; c.mixedId = 0; }
     });
     return cols;
   }
   const byRole = (cols, role) => cols.filter(c => c.role === role);
-  const roleLabel = c => c.role === "money" ? (c.moneyBy === "format" ? "money (by format)" : "money (by name)") : c.role === "identifier" ? "identifier (not matched)" : c.role === "measure" ? "measure" + (c.count ? " (count)" : "") : DOMAIN.placeRoles.includes(c.role) || c.role === "coordinates" ? "place: " + c.role : c.role;
-  // money over measure: the generic ratio pairs (CONS-0063). The money columns that make up a quantity x price = total line are left out.
-  function ratioPairs(cols, calc) {
+  const roleLabel = c => (c.role === "money" ? (c.moneyBy === "format" ? "money (by format)" : c.moneyBy === "you" ? "money" : "money (by name)") : c.role === "identifier" ? "identifier (not matched)" : c.role === "measure" ? "measure" + (c.count ? " (count)" : "") : ["year", "code", "phone"].includes(c.role) ? c.role + " (not a quantity)" : DOMAIN.placeRoles.includes(c.role) || c.role === "coordinates" ? "place: " + c.role : c.role) + (c.roleBy === "you" ? ", set by you" : "");
+  // Money over a measure, offered only when the measure carries a unit (CONS-0063, CONS-0070). The ones held back are returned with a reason, for the Not shown list.
+  // The money columns that make up a quantity x price = total line are left out.
+  const why = { year: "a year", code: "a code", phone: "a phone number", identifier: "an identifier", postal: "a postal code", coordinates: "a coordinate", unit: "a unit number" };
+  function ratioCandidates(cols, calc) {
     const moneys = cols.filter(c => c.role === "money" && c.type === "number" && !(calc && (c.i === calc.total || c.i === calc.price)));
-    const money = moneys.find(c => /price|amount|value|cost/i.test(c.name)) || moneys[0]; if (!money) return [];
-    return cols.filter(c => c.role === "measure" && c.type === "number" && !c.count).slice(0, 2).map(m => ({ a: money, b: m, label: `${keyName(money.name)} per ${keyName(m.name)}` }));
+    const money = moneys.find(c => /price|amount|value|cost/i.test(c.name)) || moneys[0]; if (!money) return { pairs: [], held: [] };
+    const noun = /price/i.test(money.name) ? "price" : keyName(money.name), pairs = [], held = [];
+    cols.filter(c => c.type === "number" && c !== money && c.role !== "money" && c.role !== "balance").forEach(c => {
+      const label = `${noun} per ${keyName(c.name)}`;
+      if (c.role !== "measure") { held.push({ col: c.name, label, reason: `${c.name} is ${why[c.role] || "not a quantity"}, not a quantity, so a price per ${keyName(c.name)} means nothing.` }); return; }
+      const u = unitOf(c.name);
+      if (!u) { held.push({ col: c.name, label, reason: `${c.name} has no unit in its name (area, quantity, hours, miles, weight), so a ratio to it would not say what it is per.` }); return; }
+      pairs.push({ a: money, b: c, unit: u.per, basis: `${keyName(money.name)} over ${keyName(c.name)}`, label: `${noun} per ${u.per}` });
+    });
+    const seen = new Map(); pairs.forEach(p => seen.set(p.label, (seen.get(p.label) || 0) + 1)); pairs.forEach(p => { if (seen.get(p.label) > 1) p.label += ` (${keyName(p.b.name)})`; });
+    return { pairs: pairs.slice(0, 2), held };
   }
+  const ratioPairs = (cols, calc) => ratioCandidates(cols, calc).pairs;
 
   // =====================================================================================================
   // Places: write the same place the same way
@@ -132,6 +177,25 @@
     rep.forEach(rows => { if (rows.length > 1) rows.slice(1).forEach(ri => nearPairs.push([rows[0], ri])); });
     return { mode: "place", ids, keyCols, fields: keyCols.map(c => c.name), exactPairs, nearPairs, dateC, moneyC, placeCols: place };
   }
+  // One place written several ways (CONS-0040): the same normalized name at the same address and postal code (or, with no address column, the same coordinates).
+  // The identifying columns (address lines, postal code, latitude and longitude) are found by role; place ids and other identifiers never decide it.
+  function placeDuplicates(ctx) {
+    const { cols, body } = ctx, addr = byRole(cols, "address"), unit = byRole(cols, "unit"), postal = byRole(cols, "postal"), coords = byRole(cols, "coordinates");
+    const nameC = cols.find(c => (c.type === "text" || c.type === "category") && !["address", "unit", "city", "state", "postal"].includes(c.role) && DOMAIN.nameName.test(c.name));
+    if (!nameC || !(addr.length || coords.length >= 2)) return null;
+    const by = addr.length ? "address and postal code" : "coordinates", idCols = [...addr, ...unit, ...postal];
+    const placeKey = r => addr.length ? idCols.map(c => (c.role === "address" ? normAddress(r[c.i]) : c.role === "unit" ? normUnit(r[c.i]) : normPostal(r[c.i]))).join("|") : coords.slice(0, 2).map(c => { const v = parseFloat(r[c.i]); return isNaN(v) ? "" : v.toFixed(DOMAIN.coordPrecision); }).join("|");
+    const at = new Map();   // place -> name -> rows
+    body.forEach((r, ri) => { const n = normText(r[nameC.i]), p = placeKey(r); if (!n || !p.replace(/\|/g, "")) return; const m = at.get(p) || at.set(p, new Map()).get(p); (m.get(n) || m.set(n, []).get(n)).push(ri); });
+    const groups = [], first = new Map();
+    at.forEach(m => {   // at one place the commonest name is the anchor; a name with the same words, or whose words all sit inside it (or contain it), is the same place written another way
+      const names = [...m.entries()].sort((a, b) => b[1].length - a[1].length || a[1][0] - b[1][0]), anchor = new Set(names[0][0].split(" "));
+      const same = names.filter(([n], i) => { if (!i) return true; const w = new Set(n.split(" ")); return [...w].every(x => anchor.has(x)) || [...anchor].every(x => w.has(x)); });
+      const rows = same.flatMap(x => x[1]).sort((a, b) => a - b); if (rows.length > 1) groups.push(rows);
+    });
+    groups.forEach(rows => rows.slice(1).forEach(ri => first.set(ri, rows[0])));   // every row after the first of its place is the extra copy
+    return { nameC, by, idCols: addr.length ? idCols : coords.slice(0, 2), groups, first };
+  }
   const listWords = a => a.length <= 1 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
 
   function repeatOccurrences(ctx, dups) {
@@ -162,8 +226,8 @@
   const median = a => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
   function domainItems(ctx, dups, repeats) {
-    const { body, cols, num, nominal } = ctx, items = [];
-    const first = r => byRole(cols, r)[0] || null, rowList = (cells, k = 3) => cells.slice(0, k).map(c => c.ri + 2).join(", ") + (cells.length > k ? ` and ${cells.length - k} more` : "");
+    const { body, cols, num, nominal } = ctx, items = [], RN = ctx.rowNo || (i => i + (ctx.rowBase || 2));   // RB: the file row of the first row of data
+    const first = r => byRole(cols, r)[0] || null, rowList = (cells, k = 3) => cells.slice(0, k).map(c => RN(c.ri)).join(", ") + (cells.length > k ? ` and ${cells.length - k} more` : "");
     const push = (id, sev, title, detail, score, cells, crumb) => { const chk = CHK[id] || {}; items.push({ id, kind: chk.kind || "qa", cls: chk.cls || null, sev, title, detail, rule: chk.rule || "", todo: chk.todo || "", score, crumb: crumb || title, cells }); };
 
     byRole(cols, "identifier").filter(c => c.type === "id" || c.roleBy === "name").forEach(c => {   // an identifier on two rows that are not copies of each other
@@ -180,41 +244,71 @@
       const cells = [], ch = repeats.filter(g => g.change), moneyC = dups.moneyC, addrC = first("address");
       repeats.forEach(g => g.rows.forEach((ri, k) => { if (k === 0) return; const pr = g.rows[k - 1], nomSet = moneyC && nominal.get(moneyC.i) ? nominal.get(moneyC.i).set : new Set();
         const ch2 = moneyC && num(body[ri][moneyC.i]) > 0 && num(body[pr][moneyC.i]) > 0 && !nomSet.has(ri) && !nomSet.has(pr) ? num(body[ri][moneyC.i]) / num(body[pr][moneyC.i]) - 1 : null;
-        cells.push({ ri, ci: addrC.i, sev: "ctx", why: `<b>Seen again on ${esc(body[ri][dups.dateC.i])}${ch2 != null ? `, ${esc(moneyC.name)} ${pctS(ch2)} against row ${pr + 2}` : ""}.</b> The same place appears on ${g.rows.length} different dates.`, eff: 0 });
-        if (k === 1) cells.push({ ri: pr, ci: addrC.i, sev: "ctx", why: `<b>Seen again later (row ${ri + 2}).</b> The same place appears on ${g.rows.length} different dates.`, eff: 0 }); }));
+        cells.push({ ri, ci: addrC.i, sev: "ctx", why: `<b>Seen again on ${esc(body[ri][dups.dateC.i])}${ch2 != null ? `, ${esc(moneyC.name)} ${pctS(ch2)} against row ${RN(pr)}` : ""}.</b> The same place appears on ${g.rows.length} different dates.`, eff: 0 });
+        if (k === 1) cells.push({ ri: pr, ci: addrC.i, sev: "ctx", why: `<b>Seen again later (row ${RN(ri)}).</b> The same place appears on ${g.rows.length} different dates.`, eff: 0 }); }));
       cells.sort((a, b) => a.ri - b.ri);
       const detail = ch.length ? `Between the first and last row, ${moneyC.name} changed by a median of ${pctS(median(ch.map(g => g.change.pct)))} (about ${pctS(median(ch.map(g => g.change.annual)))} a year) across ${nf(ch.length)} of them. Nominal rows are left out of the comparison.` : "";
       push("repeat", "ctx", `${nf(repeats.length)} place${repeats.length > 1 ? "s" : ""} appear${repeats.length > 1 ? "" : "s"} on more than one date`, `${detail} Rows ${rowList(cells)}.`, 50, cells, "The same place over time");
       items[items.length - 1].repeat = { n: repeats.length, pct: ch.length ? median(ch.map(g => g.change.pct)) : null, annual: ch.length ? median(ch.map(g => g.change.annual)) : null, nPriced: ch.length };
+      items[items.length - 1].why = { method: "same place on more than one date, change between the first and last non-nominal row", n: repeats.length, names: [addrC.name, dups.dateC.name, ...(moneyC ? [moneyC.name] : [])], roles: ["address", "date", ...(moneyC ? ["money"] : [])], valueKind: "change", aggregate: "median" };
     }
     const rp = ratioPairs(cols, ctx.calc)[0];
     if (rp) {
       const nomSet = nominal.get(rp.a.i) ? nominal.get(rp.a.i).set : new Set(), L = [];
       body.forEach((r, ri) => { const p = num(r[rp.a.i]), a = num(r[rp.b.i]); if (p > 0 && a > 0 && !nomSet.has(ri)) L.push({ ri, v: p / a }); });
-      if (L.length >= 40) {
+      if (L.length >= 1) {
         L.sort((a, b) => a.v - b.v || a.ri - b.ri); const lo = L.slice(0, 5), hi = L.slice(-5).reverse(), fmt = v => (v >= 100 ? mon(v) : "$" + v.toFixed(2)), cells = [];
         hi.forEach((x, k) => cells.push({ ri: x.ri, ci: rp.a.i, sev: "ctx", why: `<b>#${k + 1} highest ${rp.label}: ${fmt(x.v)}.</b> Among the five highest of ${nf(L.length)} non-nominal rows.`, eff: 0 }));
         lo.forEach((x, k) => cells.push({ ri: x.ri, ci: rp.a.i, sev: "ctx", why: `<b>#${k + 1} lowest ${rp.label}: ${fmt(x.v)}.</b> Among the five lowest of ${nf(L.length)} non-nominal rows.`, eff: 0 }));
-        push("extremes", "ctx", `The five highest and lowest ${rp.label}`, `Highest ${hi.map(x => fmt(x.v)).join(", ")}; lowest ${lo.map(x => fmt(x.v)).join(", ")}.`, 45, cells, `Highest and lowest ${rp.label}`);
+        push("extremes", "ctx", `The five highest and lowest ${rp.label}`, `Highest ${hi.map(x => fmt(x.v)).join(", ")}; lowest ${lo.map(x => fmt(x.v)).join(", ")}. Based on ${rp.basis}.`, 45, cells, `Highest and lowest ${rp.label}`);
+        items[items.length - 1].why = { method: "ratio", numeratorRole: rp.a.role, denominatorRole: rp.b.role, units: rp.unit, denominator: rp.b.name, n: L.length, names: [rp.a.name, rp.b.name], roles: [`${rp.a.role}:${rp.a.name}`, `${rp.b.role}:${rp.b.name}`], valueKind: "money", aggregate: "ratio" };
       }
     }
     const cityC = first("city");
     if (cityC) {
       const m = new Map(); body.forEach(r => { const c = String(r[cityC.i]).trim(); if (c) m.set(c, (m.get(c) || 0) + 1); }); const tot = [...m.values()].reduce((a, b) => a + b, 0), top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-      if (m.size > 4 && tot) items.push({ id: "concentration", kind: "insight", cls: null, sev: "look", title: `${Math.round(top.reduce((a, x) => a + x[1], 0) / tot * 100)}% of the rows are in three ${keyName(cityC.name)} values`, detail: `${top.map(x => `${x[0]} (${nf(x[1])})`).join(", ")} of ${nf(m.size)}.`, rule: CHK.concentration.rule, todo: CHK.concentration.todo, score: 42, crumb: "Concentration by place", cells: [] });
+      if (m.size >= 1 && tot) items.push({ id: "concentration", kind: "insight", cls: null, sev: "look", why: { method: "share of rows in the three busiest values", kind: "concentration", groups: m.size, n: tot, names: [cityC.name], roles: ["city"], valueKind: "count", aggregate: "count" }, title: `${Math.round(top.reduce((a, x) => a + x[1], 0) / tot * 100)}% of the rows are in three ${keyName(cityC.name)} values`, detail: `${top.map(x => `${x[0]} (${nf(x[1])})`).join(", ")} of ${nf(m.size)}.`, rule: CHK.concentration.rule, todo: CHK.concentration.todo, score: 42, crumb: "Concentration by place", cells: [] });
     }
     return items;
   }
 
+  // =====================================================================================================
+  // The insight gate (CONS-0074). A candidate is { id, kind, title, detail, why: { method, kind?, numeratorRole?, denominatorRole?, units?, n, groups?, names[], valueKind, aggregate } }.
+  // Each function returns null when the candidate passes and a sentence (the reason) when it does not. The checks and the minimums are data in rules.js (GATE).
+  const GATE_FN = {
+    "ratio-unit": (c, g) => { const w = c.why; if (w.method !== "ratio") return null;
+      return w.numeratorRole === "money" && w.denominatorRole === "measure" && w.units ? null : `A ratio is money over a measure that carries a unit; ${w.denominator || "the denominator"} is ${w.denominatorRole === "measure" ? "a measure with no unit" : "a " + w.denominatorRole + ", not a quantity"}.`; },
+    "min-rows": (c) => { const w = c.why, m = Rules.GATE.minimums.extremes; return w.method === "ratio" && c.id === "extremes" && w.n < m ? `Top and bottom needs at least ${m} non-nominal rows and the file has ${w.n}.` : null; },
+    "min-groups": (c) => { const w = c.why, M = Rules.GATE.minimums;
+      if (w.kind === "share" && w.groups < M.share) return `A share needs at least ${M.share} groups and ${w.names[0] || "the column"} has ${w.groups}.`;
+      if (w.kind === "concentration" && w.groups < M.concentration) return `A concentration needs at least ${M.concentration} groups and ${w.names[0] || "the column"} has ${w.groups}.`; return null; },
+    "min-periods": (c) => { const w = c.why, M = Rules.GATE.minimums, W = Rules.LEDGER.weekday;
+      if (w.kind === "months" && w.n < M.months) return `A by-month insight needs at least ${M.months} complete months and the file has ${w.n}.`;
+      if (w.kind === "weekday" && (w.weeks < W.minWeeks || w.n < W.minOutflowRows)) return `A weekday pattern needs at least ${W.minWeeks} weeks and ${W.minOutflowRows} outflow rows; the file has ${Math.floor(w.weeks)} weeks and ${w.n} rows.`; return null; },
+    "label-vocab": (c) => { const w = c.why, text = c.title + " " + (c.detail || ""); if (w.aggregate === "sum") return null;
+      const bad = (w.names || []).find(n => new RegExp("\\btotal\\s+" + String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(text)); return bad ? `“Total ${bad}” is for a sum; this is a ${w.aggregate}. It reads Rows.` : null; },
+    "count-not-money": (c) => { const w = c.why, text = c.title + " " + (c.detail || "");
+      if (w.valueKind === "count" && /\$\s?\d/.test(text)) return "A count is shown with a money sign."; if (w.valueKind === "money" && /\d/.test(text) && !/\$/.test(text)) return "A money value is shown without its money sign."; return null; },
+    "value-name": (c, g) => { const bad = (c.why.names || []).find(n => g.looksLikeValue && g.looksLikeValue(n)); return bad ? `The column name “${bad}” looks like a value, so it is not quoted.` : null; },
+  };
+  function gate(cands, g) {
+    const shown = [], held = [];
+    cands.forEach(c => { if (!c.why) { shown.push(c); return; }
+      const fail = Rules.GATE.checks.map(k => [k.id, GATE_FN[k.id](c, g || {})]).find(x => x[1]);
+      if (fail) held.push({ id: c.id, title: c.title, check: fail[0], reason: fail[1], why: c.why }); else shown.push(c); });
+    return { shown, held };
+  }
+
   // What the file could not be checked for: every check whose roles are missing
-  function notChecked(cols) {
+  function notChecked(cols, ledger) {
     const has = r => cols.some(c => c.role === r) || (r === "place" && cols.some(c => DOMAIN.placeRoles.includes(c.role)));
-    const miss = DOMAIN.checks.filter(c => c.needs.length && !c.needs.every(has));
+    const off = c => ledger && Rules.LEDGER.off.includes(c.id);   // a ledger is not asked for these, by design (CONS-0072)
+    const miss = DOMAIN.checks.filter(c => c.needs.length && !c.needs.every(has) && !off(c));
     const why = n => ({ money: "a money column", measure: "a measure column", date: "a date column", place: "a place column (address, city, state or postal code)", address: "an address column", city: "a city column", identifier: "an identifier column", coordinates: "latitude and longitude columns", topic: "a topic reference (lookup, CONS-0065)" }[n] || `a ${n} column`);
-    return { missing: miss.map(c => ({ id: c.id, label: c.label, because: c.needs.filter(n => !has(n)).map(why) })) };
+    return { missing: miss.map(c => ({ id: c.id, label: c.label, because: c.needs.filter(n => !has(n)).map(why) })), off: DOMAIN.checks.filter(off).map(c => ({ id: c.id, label: c.label })) };
   }
   const classOf = id => (CHK[id] ? CHK[id].cls : null);
 
-  const API = { DOMAIN, assignRoles, roleLabel, ratioPairs, normAddress, normUnit, normPostal, findNominal, duplicates, repeatOccurrences, domainItems, notChecked, listWords, classOf, CHK, byRole };
+  const API = { DOMAIN, GATE_FN, gate, assignRoles, roleLabel, ratioPairs, ratioCandidates, unitOf, normAddress, normUnit, normPostal, normText, findNominal, duplicates, placeDuplicates, repeatOccurrences, domainItems, notChecked, listWords, classOf, CHK, byRole };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.JAIDomain = API;
 })(typeof self !== "undefined" ? self : this);

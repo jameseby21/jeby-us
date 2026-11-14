@@ -29,17 +29,17 @@
   const css = `
   .fam-bar{position:relative;z-index:70;display:flex;align-items:center;gap:6px;height:34px;padding:0 max(16px,env(safe-area-inset-left,0px));font:500 12px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#060606;color:#bdb8b0;border-bottom:1px solid #1f1e1c;overflow-x:auto;scrollbar-width:none}
   .fam-bar::-webkit-scrollbar{display:none}
-  .fam-bar .lbl{font:600 10px/1 ui-monospace,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;color:#77726b;margin-right:8px;white-space:nowrap}
+  .fam-bar .lbl{font:600 12px/1 ui-monospace,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;color:#9a958c;margin-right:8px;white-space:nowrap}
   .fam-bar a{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:999px;color:#d9d4cc;text-decoration:none;white-space:nowrap;transition:background .15s,color .15s}
   .fam-bar a:hover{background:#1a1917;color:#fff}
   .fam-bar a[aria-current="true"]{background:#1d1c1a;color:#fff}
   .fam-bar a i{width:7px;height:7px;border-radius:50%;background:#e3262f;flex:none;transform:scale(.6);opacity:.5;transition:transform .25s,opacity .25s}
   .fam-bar a[aria-current="true"] i{transform:scale(1);opacity:1}
-  .fam-bar a small{color:#77726b;font-size:11px}
+  .fam-bar a small{color:#9a958c;font-size:12px}
   .fam-bar .sp{flex:1}
-  .fam-bar a.free{margin-left:auto;background:#e3262f;color:#fff;font-weight:500}
-  .fam-bar a.free:hover,.fam-bar a.free[aria-current="true"]{background:#ff4049;color:#fff}
-  .fam-bar a.free b{font:700 10px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;background:#fff;color:#e3262f;border-radius:999px;padding:3px 6px}
+  .fam-bar a.free{margin-left:auto;background:#d11f29;color:#fff;font-weight:500}
+  .fam-bar a.free:hover,.fam-bar a.free[aria-current="true"]{background:#b8141e;color:#fff}
+  .fam-bar a.free b{font:700 12px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;background:#fff;color:#e3262f;border-radius:999px;padding:3px 6px}
   .fam-host{position:relative;z-index:71;display:flex;align-items:center;gap:18px;height:46px;padding:0 max(16px,env(safe-area-inset-left,0px));background:#0c0b0a;color:#cdc8bf;font:500 14px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;border-bottom:1px solid #2a2825;overflow-x:auto;scrollbar-width:none}
   .fam-host::-webkit-scrollbar{display:none}
   .fam-host .wm{font:800 20px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:-.03em;color:#f3f0ea;text-decoration:none;position:relative}

@@ -9,6 +9,11 @@
   if (root) { RATE = +root.dataset.rate || RATE; MAXR = +root.dataset.maxRows || MAXR; MAXC = +root.dataset.maxCols || MAXC; }
   const Rec = typeof module !== "undefined" && module.exports ? require("./records.js") : self.JAIRecords;
   const Dom = typeof module !== "undefined" && module.exports ? require("./domain.js") : self.JAIDomain;
+  const Pack = typeof module !== "undefined" && module.exports ? require("./pack.js") : self.JAIPack;
+  const Rules = typeof module !== "undefined" && module.exports ? require("./rules.js") : self.JAIRules;
+  const Shape = typeof module !== "undefined" && module.exports ? require("./shape.js") : self.JAIShape;
+  const Screening = typeof module !== "undefined" && module.exports ? require("./screening.js") : self.JAIScreening;
+  const Sources = typeof module !== "undefined" && module.exports ? require("./sources.js") : self.JAISources;   // the page loads it; the worker does not need it
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 0) => (Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(1) + "K" : v.toLocaleString("en-US", { maximumFractionDigits: d }));
   const full = (v, d = 2) => v.toLocaleString("en-US", { maximumFractionDigits: d });
@@ -21,8 +26,8 @@
   // ---------- reading
   function parseDelimited(text) {
     let bom = false; if (text.charCodeAt(0) === 0xFEFF) { bom = true; text = text.slice(1); }
-    const first = text.slice(0, 5000).split(/\r?\n/)[0] || "";
-    const delim = [",", "\t", ";", "|"].map(d => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+    const head = text.slice(0, 20000).split(/\r?\n/).slice(0, 25).filter(l => l.trim() !== "");   // the delimiter with the most columns that the first lines agree on; a title row above the header does not decide
+    const delim = [",", "\t", ";", "|"].map(d => { const tally = new Map(); head.map(l => l.split(d).length).filter(n => n > 1).forEach(n => tally.set(n, (tally.get(n) || 0) + 1)); const top = [...tally.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]; return [d, top ? top[0] * top[1] / head.length : 0]; }).sort((a, b) => b[1] - a[1])[0][0];
     const eol = (text.match(/\r\n|\n|\r/) || ["\n"])[0], finalEol = /[\r\n]$/.test(text);
     const rows = [], masks = []; let row = [], mk = [], cell = "", q = false, wasQ = false;
     const endCell = () => { row.push(cell); mk.push(wasQ ? 1 : 0); cell = ""; wasQ = false; };
@@ -40,9 +45,10 @@
     return out;
   }
   let xlsxReady = null;
-  const loadXLSX = () => xlsxReady || (xlsxReady = new Promise((res, rej) => {
+  const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+  const loadXLSX = () => typeof importScripts === "function" ? (xlsxReady || (xlsxReady = new Promise((res, rej) => { try { if (!self.XLSX) importScripts(XLSX_URL); res(self.XLSX); } catch (e) { xlsxReady = null; rej(new Error("Excel reader didn't load")); } }))) : xlsxReady || (xlsxReady = new Promise((res, rej) => {
     if (window.XLSX) return res(window.XLSX);
-    const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    const s = document.createElement("script"); s.src = XLSX_URL;
     s.onload = () => res(window.XLSX); s.onerror = () => { xlsxReady = null; rej(new Error("Excel reader didn't load")); }; document.head.appendChild(s);
   }));
 
@@ -78,6 +84,8 @@
   const DATE_RE = /date|time|day|month|created|ordered|posted|period/i;
   const CAT_RE = /category|type|region|store|location|branch|product|item|channel|segment|status|department|city|state|team|source|payment|method/i;
   const NOT_MEASURE = /year|zip|postal|phone|lat|lon|lng/i;
+  // a number column that can be summed, averaged and judged for outliers: not a year, a code, an id or a place, unless the visitor said so in the Columns table
+  const isMeasureCol = c => c.type === "number" && (c.roleBy === "you" ? c.role === "measure" || c.role === "money" : !NOT_MEASURE.test(c.name) && !Dom.DOMAIN.notMeasure.includes(c.role) && c.role !== "balance");
 
   function profileCol(name, vals) {
     const n = vals.length, ne = [];
@@ -120,7 +128,7 @@
 
   function detectOutliers(body, cols, o = {}) {
     const N = body.length, items = new Map(), claimed = new Map(), calc = o.calc;
-    const numCols = cols.filter(c => c.type === "number" && !NOT_MEASURE.test(c.name) && !Dom.DOMAIN.notMeasure.includes(c.role));
+    const numCols = cols.filter(isMeasureCol);
     const nominal = o.nominal || new Map();
     const vals = new Map(); const V = c => vals.get(c.i) || (vals.set(c.i, Float64Array.from(body, (r, ri) => (nominal.has(c.i) && nominal.get(c.i).set.has(ri) ? NaN : num(r[c.i])))), vals.get(c.i));
     const nomWord = c => (nominal.has(c.i) ? "non-nominal " : "");
@@ -134,7 +142,7 @@
     const isCount = c => { const v = V(c); let ints = true, pos = []; for (let i = 0; i < N; i++) { if (v[i] !== v[i]) continue; if (v[i] !== Math.floor(v[i])) { ints = false; break; } if (v[i] > 0) pos.push(v[i]); } return ints && median(pos) <= 12; };
 
     // metrics: every numeric column, then ratios when the columns exist. Ratios go first so a short living area is named for what it is.
-    const metrics = Dom.ratioPairs(cols, calc).map(p => ({ label: p.label, a: p.a, b: p.b, money: true }));   // any money column over any measure column; named by the columns (CONS-0063)
+    const metrics = Dom.ratioPairs(cols, calc).map(p => ({ label: p.label, a: p.a, b: p.b, basis: p.basis, money: true }));   // any money column over any measure column; named by the columns (CONS-0063)
     // a total that is qty x price is judged through the qty and the price, so it is left out here
     numCols.filter(c => !(calc && c.i === calc.total)).forEach(c => metrics.push({ label: human(c.name), col: c, money: MONEY_RE.test(c.name), count: isCount(c) }));
     metrics.forEach(m => { const cs = m.col ? [m.col] : [m.a, m.b]; m.key = cs.map(c => c.i).join("/"); if (m.col) m.v = V(m.col); else { const a = V(m.a), b = V(m.b); m.v = Float64Array.from(a, (x, i) => (b[i] > 0 && x > 0 ? x / b[i] : NaN)); } });
@@ -173,7 +181,7 @@
       const rowM = o.measure && o.measure !== c ? V(o.measure)[ri] : NaN;
       const eff = o.measure === c ? Math.abs(v - rs.refv) : (rowM > 0 ? rowM * Math.min(50, Math.abs(1 - 1 / r)) : 0);
       const ok = addCell(id, how === "shift" ? "shift" : rs.k ? "unit" : m.a ? "ratio" : "out", { ri, ci: c.i, sev: fix ? "fix" : "look", why: rs.why, v, ref: rs.refv, r, k: rs.k, eff, label: m.label });
-      if (ok) { const it = items.get(id); if (m.a) it.via.add(m.label); it.metrics.add(metricName(m)); if (how === "shift") Object.assign(it, { group: extra.group, gcol: extra.gcol, medG: extra.medG, rest: extra.rest }); if (!it.col) it.col = c; if (!it.scope) it.scope = scope; }
+      if (ok) { const it = items.get(id); if (m.a) { it.via.add(m.label); (it.basis || (it.basis = {}))[m.label] = m.basis; } it.metrics.add(metricName(m)); if (how === "shift") Object.assign(it, { group: extra.group, gcol: extra.gcol, medG: extra.medG, rest: extra.rest }); if (!it.col) it.col = c; if (!it.scope) it.scope = scope; }
     }
 
     const medCache = new Map(); const cacheMed = (c, gi, g, l) => { const k = c.i + "|" + g.col.i + "|" + gi; if (!medCache.has(k)) medCache.set(k, l.length ? { med: median(l), sig: .02, n: l.length } : null); return medCache.get(k); };
@@ -227,24 +235,38 @@
   }
 
   // ---------- analysis
+  const spanUnit = days => (days > 1460 ? "year" : days > 150 ? "month" : days > 28 ? "week" : "day");
   function analyse(data, choice = {}) {
-    let rows = data.rows; if (rows.length < 2) throw new Error("That file doesn't have a header row and at least one row of data.");
-    const allCols = rows[0].length, allRows = rows.length - 1;
-    let header = rows[0].slice(0, MAXC).map((h, i) => String(h).trim() || `Column ${i + 1}`);
+    const rows = data.rows; if (rows.length < 2) throw new Error("That file needs at least two rows: a header and a row of data, or two rows of data.");
+    const frm = Shape.frame(rows, choice, { num, dt, profileCol }), piece = data.piece || choice.pieceCarry || null, RB = frm.bodyStart + 1 + (piece ? piece.offset : 0); const sm = choice.sliceMap || null, RN = i => (sm ? sm[i] : i) + RB;   // RB: the row of the file where the first row of data sits (1 when there is no header; 3 with a title row and a header; further down in a later piece)
+    const allRows = piece ? piece.total : rows.length - frm.bodyStart;
+    // screening (CONS-0045): before any value enters the report, columns that must not be processed are found and left out. choice.carry is the answer from the first pass of this file, so a recalculation of trimmed rows keeps it.
+    const scr = choice.carry || Screening.screen(frm.names, rows.slice(frm.bodyStart, frm.bodyStart + MAXR), { confirm: choice.confirm, carry: choice.pieceScreen });   // pieceScreen: what earlier pieces of this file flagged, which stays out of the others
+    const out = new Set(choice.carry ? [] : scr.excludedIdx), keepAll = frm.names.map((_, i) => i).filter(i => !out.has(i)), keep = keepAll.slice(0, MAXC), allCols = keepAll.length;   // a flagged column does not use up the column limit
+    let header = keep.map(i => frm.names[i]);
     const seenH = {}; header = header.map(h => (seenH[h] = (seenH[h] || 0) + 1) > 1 ? `${h} (${seenH[h]})` : h);
-    const body = rows.slice(1, MAXR + 1).map(r => header.map((_, i) => r[i] == null ? "" : String(r[i])));
-    const truncated = allRows > MAXR || allCols > MAXC;
-    const N = body.length, cols = header.map((h, i) => ({ ...profileCol(h, body.map(r => r[i])), i }));
-    Dom.assignRoles(cols, body, num);
-    const nominal = Dom.findNominal(body, cols, num, median);   // set aside before any baseline is drawn (CONS-0058)
+    const body = rows.slice(frm.bodyStart, frm.bodyStart + MAXR).map(r => keep.map(i => r[i] == null ? "" : String(r[i])));
+    const truncated = allCols > MAXC;   // the rows over the limit are not cut: they are read as pieces
+    const N = body.length;
+    header.forEach((h, i) => {   // epoch seconds (10 digits) or milliseconds (13 digits) in a column whose name says it is a date or a time
+      if (!/date|time|created|updated|stamp|(^|[_\s-])(at|ts|on)$|sold|posted/i.test(h)) return; const vals = body.map(r => r[i].trim()).filter(Boolean);
+      if (vals.length >= 5 && vals.every(v => /^\d{10}(\d{3})?$/.test(v)) && vals.every(v => v.length === vals[0].length)) body.forEach(r => { const v = r[i].trim(); if (v) r[i] = new Date(v.length === 13 ? +v : +v * 1000).toISOString().slice(0, 10); });
+    });
+    const cols = header.map((h, i) => ({ ...profileCol(h, body.map(r => r[i])), i }));
+    Dom.assignRoles(cols, body, num, choice.roles);
+    // a date, a signed money column and a description is a ledger, kind "transactions" (CONS-0072): signs are direction, so the sales rules (nominal, missing digit, price baseline, repeated amount) do not run
+    const ledgerCols = Shape.detectLedger(cols, body, { num, dt }), ledger = !!ledgerCols;
+    if (ledger) { const am = cols[ledgerCols.amount], d = cols[ledgerCols.desc]; am.role = "amount"; am.count = false; if (ledgerCols.balance != null) cols[ledgerCols.balance].role = "balance"; d.role = "description"; d.type = "text"; d.mixedId = 0; }
+    const nominal = ledger ? new Map() : Dom.findNominal(body, cols, num, median);   // set aside before any baseline is drawn (CONS-0058)
 
     const pick = (list, re, want) => (want && list.find(c => c.name === want)) || list.find(c => re.test(c.name)) || list[0] || null;
     const numCols = cols.filter(c => c.type === "number");
-    const measureCands = numCols.filter(c => !NOT_MEASURE.test(c.name) && !Dom.DOMAIN.notMeasure.includes(c.role));
+    const allOnes = c => c.filled > 0 && c.distinct === 1 && num(body.find(r => r[c.i].trim() !== "")[c.i]) === 1;
+    const measureCands = numCols.filter(c => isMeasureCol(c) && !allOnes(c));   // a column of all 1s only counts rows, so it is not a measure
     const sumAbs = c => body.reduce((a, r) => a + Math.abs(num(r[c.i]) || 0), 0);
-    const measure = (choice.measure && cols.find(c => c.name === choice.measure)) || measureCands.find(c => /total|amount|revenue|sales/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name) && !/qty|quantity|units/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name)) || [...measureCands].sort((a, b) => sumAbs(b) - sumAbs(a))[0] || null;
-    const dateCol = pick(cols.filter(c => c.type === "date"), DATE_RE, choice.date);
-    const catCands = cols.filter(c => c.type === "category" && c.distinct >= 2);
+    const measure = ledger ? null : ((choice.measure && cols.find(c => c.name === choice.measure)) || measureCands.find(c => /total|amount|revenue|sales/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name) && !/qty|quantity|units/i.test(c.name)) || measureCands.find(c => MEASURE_RE.test(c.name)) || [...measureCands].sort((a, b) => sumAbs(b) - sumAbs(a))[0] || null);
+    const dateCol = ledger && !choice.date ? cols[ledgerCols.date] : pick(cols.filter(c => c.type === "date"), DATE_RE, choice.date);
+    const catCands = cols.filter(c => c.type === "category" && (c.distinct >= 2 || (sm && (c.name === choice.cat || c.name === choice.cat2) && c.distinct >= 1)));   // in a slice the column it was cut by has one value, and the visitor still sees it as the one group
     const cat = choice.cat === "" ? null : pick(catCands, CAT_RE, choice.cat);
 
     // quantity x price = total, when the file has those three columns and the rule holds for nearly every row
@@ -256,70 +278,103 @@
     const checks = [], findings = [], flags = new Map(), fr = new Map();
     const link = (id, ri, ci, sev, why, fam, eff = 0) => { const k = ri + ":" + ci; if (flags.has(k)) return; flags.set(k, { sev, why, id, fam: fam || "", eff }); (fr.get(id) || fr.set(id, new Set()).get(id)).add(ri); };
     const add = (sev, title, detail, score, solo = true, id = null, crumb = null, noCheck = false) => { if (!noCheck) checks.push({ sev, title, detail }); if (sev !== "ok" && solo) findings.push({ id, sev, title, detail, score, crumb: crumb || title }); };
+    const LD_ = ledger ? Shape.ledgerData(ledgerCols, body, { num, dt }) : null, lItems = ledger ? Shape.ledgerItems(ledgerCols, LD_, header, RB) : null;
+    const measureName = ledger ? "Outflow" : measure ? measure.name : "Rows", tv = (r, ri) => (ledger ? Math.max(0, -LD_.flow[ri] || 0) : measure ? (num(r[measure.i]) || 0) : 1);   // what a bar of the timeline adds up: money out for a ledger
+    const notShown = [], gctx = { looksLikeValue: n => Shape.looksLikeValue(n, { num, dt }) };   // the insight gate (CONS-0074): a candidate that fails a check is listed here with the reason, never shown
+    const passes = c => { const g = Dom.gate([c], gctx); notShown.push(...g.held); return g.shown.length === 1; };
+    const measureMoney = ledger || (!!measure && measure.role === "money"), moneyText = v => (measureMoney ? "$" : "") + full(v, 0);
     const total = measure ? body.reduce((a, r) => a + (num(r[measure.i]) || 0), 0) : 0, mval = ri => measure ? num(body[ri][measure.i]) : NaN;
     const idCols = cols.filter(c => c.type === "id"), firstCol = idCols[0] ? idCols[0].i : 0;
 
     // duplicates (CONS-0059): rows equal on every place field plus date and money; identifiers are never a matching column
-    const dctx = { body, cols, num, dt, dateCol, measure, nominal, calc }, dups = Dom.duplicates(dctx), meta = new Map();
-    let dupRows = 0, dupValue = 0, nearDup = 0;
-    if (dups.mode === "place") {
+    const dctx = { body, cols, num, dt, dateCol, measure, nominal, calc, rowBase: RB, rowNo: RN }, dups = Dom.duplicates(dctx), meta = new Map();
+    let dupRows = 0, dupValue = 0, nearDup = 0, dupPlace = 0;
+    const pd = !ledger && dups.mode !== "place" ? Dom.placeDuplicates({ body, cols }) : null;   // one place written several ways: same name at the same address (CONS-0040)
+    if (ledger) { /* duplicates, balance, gaps and the rest come from ledgerItems below */ }
+    else if (dups.mode === "place") {
       const addrC = Dom.byRole(cols, "address")[0], ids = dups.ids, same = Dom.listWords(dups.fields), diff = ids.length ? `; different ${Dom.listWords(ids.map(c => c.name))}` : "";
       dups.exactPairs.forEach(([x, y]) => { dupRows++; if (measure) dupValue += num(body[y][measure.i]) || 0; const v = Math.abs(mval(y)) || 0;
-        link("dup", y, addrC.i, "fix", `<b>Duplicate of row ${x + 2}.</b> Same ${esc(same)}${esc(diff)}.`, "", v); link("dup", x, addrC.i, "fix", `<b>Has a duplicate in row ${y + 2}.</b> Same ${esc(same)}${esc(diff)}.`, "", 0); });
+        link("dup", y, addrC.i, "fix", `<b>Duplicate of row ${RN(x)}.</b> Same ${esc(same)}${esc(diff)}.`, "", v); link("dup", x, addrC.i, "fix", `<b>Has a duplicate in row ${RN(y)}.</b> Same ${esc(same)}${esc(diff)}.`, "", 0); });
       dups.nearPairs.forEach(([x, y]) => { nearDup++; const v = Math.abs(mval(y)) || 0;
-        link("dupnear", y, addrC.i, "fix", `<b>Probably a duplicate of row ${x + 2}.</b> The address matches once case, punctuation, St and Street and unit formats are written the same way; same ${esc(Dom.listWords(dups.fields.filter(f => f !== addrC.name)))}${esc(diff)}.`, "", v);
-        link("dupnear", x, addrC.i, "fix", `<b>Probably has a duplicate in row ${y + 2}.</b> The address matches after normalizing it.`, "", 0); });
-      const ex = p => `rows ${p[0] + 2} and ${p[1] + 2}`;
+        link("dupnear", y, addrC.i, "fix", `<b>Probably a duplicate of row ${RN(x)}.</b> The address matches once case, punctuation, St and Street and unit formats are written the same way; same ${esc(Dom.listWords(dups.fields.filter(f => f !== addrC.name)))}${esc(diff)}.`, "", v);
+        link("dupnear", x, addrC.i, "fix", `<b>Probably has a duplicate in row ${RN(y)}.</b> The address matches after normalizing it.`, "", 0); });
+      const ex = p => `rows ${RN(p[0])} and ${RN(p[1])}`;
       if (dupRows) add("fix", `${dupRows.toLocaleString("en-US")} duplicate row${dupRows > 1 ? "s" : ""}`, `Same ${same}${diff} (${ex(dups.exactPairs[0])}, for example).${measure && total ? ` Together they add ${full(dupValue)} to ${measure.name}, ${pct(dupValue, total).toFixed(1)}% of the total.` : ""}`, 93, true, "dup", "Duplicate rows");
       if (nearDup) add("fix", `${nearDup.toLocaleString("en-US")} likely duplicate${nearDup > 1 ? "s" : ""} after writing the address the same way`, `Same ${same} once case, punctuation, St and Street and unit formats are normalized${diff} (${ex(dups.nearPairs[0])}, for example).`, 91, true, "dupnear", "Likely duplicates");
       if (!dupRows && !nearDup) add("ok", "No duplicate rows", `No two rows share ${same}.`);
     } else {
       const seen = new Map(); let nearExample = null;
       body.forEach((r, ri) => { const k = r.join("\u0001"); if (seen.has(k)) { dupRows++; if (measure) dupValue += num(r[measure.i]) || 0; const first = seen.get(k), v = Math.abs(mval(ri)) || 0;
-          link("dup", ri, firstCol, "fix", `<b>Exact copy of row ${first + 2}.</b> Entered twice.`, "", v); link("dup", first, firstCol, "fix", `<b>Has an exact copy in row ${ri + 2}.</b> Entered twice.`, "", 0); } else seen.set(k, ri); });
+          link("dup", ri, firstCol, "fix", `<b>Exact copy of row ${RN(first)}.</b> Entered twice.`, "", v); link("dup", first, firstCol, "fix", `<b>Has an exact copy in row ${RN(ri)}.</b> Entered twice.`, "", 0); } else seen.set(k, ri); });
       if (idCols.length) {
         const m2 = new Map(), near = [];
         body.forEach((r, ri) => { const k = r.filter((_, i) => !idCols.some(c => c.i === i)).join("\u0001"); if (m2.has(k)) { near.push([m2.get(k), ri]); if (!nearExample) nearExample = [m2.get(k), ri]; } else m2.set(k, ri); });
         nearDup = Math.max(0, near.length - dupRows);
         if (near.length > N * .02 || nearDup === 0) { nearDup = 0; nearExample = null; }   // so many matches that they are chance, not double entry
-        else near.forEach(([a, b]) => { if (body[a].join("\u0001") !== body[b].join("\u0001")) link("dup", b, firstCol, "fix", `<b>Matches row ${a + 2} on every column except ${idCols.map(c => esc(c.name)).join(", ")}.</b> The same record under a new ID.`, "", Math.abs(mval(b)) || 0); });
+        else near.forEach(([a, b]) => { if (body[a].join("\u0001") !== body[b].join("\u0001")) link("dup", b, firstCol, "fix", `<b>Matches row ${RN(a)} on every column except ${idCols.map(c => esc(c.name)).join(", ")}.</b> The same record under a new ID.`, "", Math.abs(mval(b)) || 0); });
       }
-      const both = dupRows && nearDup, ex = nearExample ? ` (rows ${nearExample[0] + 2} and ${nearExample[1] + 2}, for example)` : "";
+      if (pd) { let dpEx = null; const nm = pd.nameC.name;
+        pd.groups.forEach(rows => { const f0 = rows[0]; rows.slice(1).forEach(ri => { if (body[ri].join("\u0001") === body[f0].join("\u0001")) return;   // an exact copy is counted above
+          dupPlace++; dpEx = dpEx || [f0, ri];
+          link("dupplace", ri, pd.nameC.i, "fix", `<b>Duplicate of row ${RN(f0)}.</b> The same ${esc(nm)} (capitals, spacing and punctuation ignored) at the same ${pd.by}.`, "", 0);
+          link("dupplace", f0, pd.nameC.i, "fix", `<b>Has a duplicate in row ${RN(ri)}.</b> The same ${esc(nm)} (capitals, spacing and punctuation ignored) at the same ${pd.by}.`, "", 0); }); });
+        if (dupPlace) { add("fix", `${dupPlace.toLocaleString("en-US")} duplicate place${dupPlace > 1 ? "s" : ""}`, `Same name (capitals, spacing and punctuation ignored, or one name written inside the other) at the same ${pd.by}, rows ${RN(dpEx[0])} and ${RN(dpEx[1])} for example. ${Dom.listWords(pd.idCols.map(c => c.name))} decide where a place is; identifier columns do not. The same name at different places is a spelling variant instead.`, 92, true, "dupplace", "Duplicate places");
+          meta.set("dupplace", { cls: "duplicate", rule: Dom.CHK.dupplace.rule, todo: Dom.CHK.dupplace.todo }); } }
+      const both = dupRows && nearDup, ex = nearExample ? ` (rows ${RN(nearExample[0])} and ${RN(nearExample[1])}, for example)` : "";
       if (dupRows) add("fix", `${dupRows} row${dupRows > 1 ? "s appear" : " appears"} twice`, `Identical in every column.${measure && total ? ` Together they add ${full(dupValue)} to ${measure.name}, ${pct(dupValue, total).toFixed(1)}% of the total.` : ""}`, 90, !both, "dup", "Rows entered twice");
       if (nearDup) add("fix", `${nearDup} likely double entr${nearDup > 1 ? "ies" : "y"}`, `Rows that match on every column except ${idCols.map(c => c.name).join(", ")}${ex}. Same record, two IDs.`, 95, !both, "dup", "Rows entered twice");
       if (both) findings.push({ id: "dup", sev: "fix", title: `${dupRows + nearDup} rows look entered twice`, detail: `${dupRows} are exact copies. ${nearDup} more match on every column except ${idCols.map(c => c.name).join(", ")}${ex}: the same record under a new ID.`, score: 95, crumb: "Rows entered twice" });
-      if (!dupRows && !nearDup) add("ok", "No duplicate rows", "Every row is unique.");
+      if (!dupRows && !nearDup && !dupPlace) add("ok", "No duplicate rows", "Every row is unique.");
     }
 
     // empties: whole columns with gaps, then the odd blank in a column that is otherwise full
     const emptyCells = cols.reduce((a, c) => a + c.empty, 0), totalCells = N * cols.length;
-    const gappy = cols.filter(c => c.type !== "empty" && !(c.type === "text" && c.avgLen > 12) && c.empty / N > .02).sort((a, b) => b.empty - a.empty);
+    const optionalCols = cols.filter(c => c.type !== "empty" && c.empty / N > Dom.DOMAIN.optionalShare), isOpt = c => c.empty / N > Dom.DOMAIN.optionalShare;
+    const gappy = cols.filter(c => c.type !== "empty" && !isOpt(c) && !(c.type === "text" && c.avgLen > 12) && c.empty / N > .02).sort((a, b) => b.empty - a.empty);
     const oddBlank = cols.filter(c => (c.type === "category" || c.type === "number" || c.type === "date") && c.empty > 0 && c.empty / N <= .02).sort((a, b) => b.empty - a.empty);
     const emptyCols = cols.filter(c => c.type === "empty");
+    if (optionalCols.length) add("look", `${optionalCols.length} optional column${optionalCols.length > 1 ? "s are" : " is"} mostly empty`, `${optionalCols.slice(0, 3).map(c => `${c.name} ${pct(c.empty, N).toFixed(0)}% empty`).join(" · ")}. Blank is expected here, so these are not counted as missing values.`, 20, true, null, "Optional columns");
+    if (findings.length && findings[findings.length - 1].title.endsWith("mostly empty")) findings[findings.length - 1].cls = "optional-field";
     gappy.concat(oddBlank).slice(0, 6).forEach(c => body.forEach((r, ri) => { if (r[c.i].trim() === "") link("gaps", ri, c.i, "look", `<b>${esc(c.name)} is blank.</b> ${c.empty.toLocaleString("en-US")} rows are missing it.`, "", 0); }));
     if (gappy.length) add(gappy[0].empty / N > .1 ? "fix" : "look", `${gappy.length === 1 ? gappy[0].name + " has" : gappy.length + " columns have"} gaps`, gappy.slice(0, 3).map(c => `${c.name} ${pct(c.empty, N).toFixed(1)}% empty`).join(" · ") + ".", 60 + Math.min(30, pct(gappy[0].empty, N)), true, "gaps", "Blank cells");
     else if (oddBlank.length) add("look", `${oddBlank[0].name} is blank in ${oddBlank[0].empty} row${oddBlank[0].empty > 1 ? "s" : ""}`, oddBlank.slice(0, 3).map(c => `${c.name} ${c.empty}`).join(" · ") + `. The rest of the column is filled, so these are probably missed entries.`, 52, true, "gaps", "Blank cells");
     else add("ok", "Few empty cells", `${pct(emptyCells, totalCells).toFixed(1)}% of all cells are blank.`);
     if (emptyCols.length) add("look", `${emptyCols.length} empty column${emptyCols.length > 1 ? "s" : ""}`, emptyCols.map(c => c.name).join(", ") + " never has a value.", 30);
 
-    // spelling variants: the same value with different capitals, spaces or punctuation, or two names at one address
-    const variants = []; let varRows = 0;
+    // spelling variants (CONS-0073): one name written more than one way. A description-like column is compared by the merchant or name behind it (rules.js, NORMALIZE), any other column by case and punctuation.
+    // Seen so is an FYI with a Merge button; it is a QA finding only when merging would change a group's rank in the top ten.
+    const variants = []; let varRows = 0; const placeRule = pd ? `Same name at different ${pd.by === "coordinates" ? "coordinates" : "addresses"} is a spelling variant; at the same ${pd.by} it is a duplicate place.` : "";
     const normKey = s => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const isEntityCol = c => (ledger && c.i === ledgerCols.desc) || Rules.NORMALIZE.columns.test(c.name);
     cols.filter(c => c.type === "category" || c.type === "text").forEach(c => {
-      const g = new Map(); body.forEach((r, ri) => { const raw = r[c.i]; if (!raw.trim()) return; const k = normKey(raw) || raw.trim().toLowerCase(); if (!g.has(k)) g.set(k, new Map()); const m = g.get(k); if (!m.has(raw)) m.set(raw, []); m.get(raw).push(ri); });
-      g.forEach(m => { if (m.size > 1) { const forms = [...m.entries()].sort((a, b) => b[1].length - a[1].length); const top = forms[0][0];
-        variants.push({ col: c.name, forms: forms.map(f => [f[0], f[1].length]), rows: forms.slice(1).reduce((x, f) => x + f[1].length, 0) });
-        forms.slice(1).forEach(([raw, rs]) => rs.forEach(ri => link("variant", ri, c.i, "look", `<b>“${esc(raw)}” is also written “${esc(top)}” (${forms[0][1].length} rows).</b> It is counted separately in every report.`))); } });
-    });
-    { const nameC = cols.find(c => (c.type === "text" || c.type === "category") && /name|venue|business|store|place/i.test(c.name)), addrC = cols.find(c => /address|street|addr/i.test(c.name) && c.type !== "number"), postC = cols.find(c => /zip|postal/i.test(c.name));
-      if (nameC && addrC) { const at = new Map(); body.forEach((r, ri) => { const a = normKey(r[addrC.i]) + "|" + (postC ? r[postC.i].trim() : ""), n = normKey(r[nameC.i]); if (!normKey(r[addrC.i]) || !n) return; if (!at.has(a)) at.set(a, new Map()); const m = at.get(a); if (!m.has(n)) m.set(n, []); m.get(n).push(ri); });
-        at.forEach(m => { if (m.size < 2) return; const names = [...m.entries()].sort((a, b) => b[1].length - a[1].length), top = names[0], tw = new Set(top[0].split(" "));
-          names.slice(1).forEach(([n, rs]) => { const w = new Set(n.split(" ")), sub = [...w].every(x => tw.has(x)) || [...tw].every(x => w.has(x)); if (!sub) return;
-            variants.push({ col: nameC.name, forms: [[top[0], top[1].length], [n, rs.length]], rows: rs.length });
-            rs.forEach(ri => link("variant", ri, nameC.i, "look", `<b>“${esc(body[ri][nameC.i])}” is probably the same place as “${esc(body[top[1][0]][nameC.i])}”.</b> Both are at ${esc(body[ri][addrC.i])}, so they are counted as two places.`)); }); }); } }
-    if (variants.length) { const v = variants.sort((a, b) => b.rows - a.rows)[0], vr = fr.get("variant") ? fr.get("variant").size : 0;
-      add("look", `${variants.length} value${variants.length > 1 ? "s are" : " is"} spelled more than one way`, `In ${v.col}: ${v.forms.slice(0, 3).map(f => `“${f[0]}”`).join(", ")} count as different ${v.col} values in every report. ${vr} rows affected.`, 80, true, "variant", "Spelling variants"); }
+      const entity = isEntityCol(c), nrm = entity ? Shape.makeNormalizer(body.map(r => r[c.i])) : null, g = new Map();
+      body.forEach((r, ri) => { const raw = r[c.i]; if (!raw.trim()) return; if (pd && c.i === pd.nameC.i && pd.first.has(ri)) return; /* the extra copy of a place is a duplicate, not a spelling */ const nv = entity ? nrm(raw) : null, k = entity ? nv.key : (normKey(raw) || raw.trim().toLowerCase());
+        const e = g.get(k) || g.set(k, { forms: new Map(), cleans: new Map(), alias: null }).get(k); if (!e.forms.has(raw)) e.forms.set(raw, []); e.forms.get(raw).push(ri); if (entity) { e.cleans.set(nv.clean, (e.cleans.get(nv.clean) || 0) + 1); e.alias = nv.alias; } });
+      const size = rows => (measure ? rows.reduce((t, ri) => t + Math.max(0, num(body[ri][measure.i]) || 0), 0) : rows.length), rawSize = new Map(), entSize = new Map();
+      g.forEach((e, k) => { let tot = 0; e.forms.forEach((rows, raw) => { const z = size(rows); rawSize.set(raw, z); tot += z; }); entSize.set(k, tot); });
+      const rawSorted = [...rawSize.values()], entSorted = [...entSize.values()], rankIn = (list, z) => 1 + list.filter(x => x > z).length;
+      g.forEach((e, k) => { if (e.forms.size < 2) return;
+        const forms = [...e.forms.entries()].sort((a, b) => b[1].length - a[1].length), canonical = entity ? Shape.canonicalName(e.cleans, e.alias) : forms[0][0];
+        const best = Math.max(...forms.map(f => rawSize.get(f[0]))), rRaw = rankIn(rawSorted, best), rMerged = rankIn(entSorted, entSize.get(k)), material = !(ledger && c.i === ledgerCols.desc) && rRaw !== rMerged && Math.min(rRaw, rMerged) <= 10;
+        const others = forms.filter(f => f[0] !== canonical);
+        variants.push({ col: c.name, ci: c.i, canonical, entity, material, rRaw, rMerged, forms: forms.map(f => [f[0], f[1].length]), rows: others.reduce((x, f) => x + f[1].length, 0), spans: forms.reduce((x, f) => x + f[1].length, 0), others: others.map(f => f[0]),
+          cells: others.flatMap(([raw, rs]) => rs.map(ri => [ri, raw])) }); }); });
+    // the same name at the same address is not a spelling variant: it is a duplicate place (CONS-0040, above)
+    const linkVariants = () => variants.forEach(v => { const sev = v.material ? "look" : "ctx";
+      (v.cells || []).forEach(([ri, raw]) => link("variant", ri, v.ci, sev, `<b>“${esc(raw)}” is also written “${esc(v.canonical)}”${v.entity ? "" : ` (${v.forms[0][1]} rows)`}.</b> ${v.material ? "It is counted separately in every report, and merging would change a rank in the top ten." : "Merge writes them the same way; nothing is wrong with the data."}`));
+      (v.place || []).forEach(([ri, why]) => link("variant", ri, v.ci, "look", why)); });
+    if (!ledger) linkVariants();   // a ledger's own findings (duplicates, balance) claim their cells first; the variants take what is left
+    if (variants.length) { const top = [...variants].sort((a, b) => b.rows - a.rows), v = top[0], vr = new Set(variants.flatMap(x => (x.cells || []).concat(x.place || []).map(c => c[0]))).size, material = variants.some(x => x.material), plural = variants.length > 1;
+      if (material) {
+        add("look", `${variants.length} value${plural ? "s are" : " is"} spelled more than one way`, `In ${v.col}: ${v.forms.slice(0, 3).map(f => `“${f[0]}”`).join(", ")} count as different ${v.col} values in every report. ${vr} row${vr === 1 ? "" : "s"} affected.${pd && v.ci === pd.nameC.i ? ` ${placeRule}` : ""}`, 80, true, "variant", "Spelling variants");
+        const mf = findings[findings.length - 1]; mf.merge = mergeOf(top.filter(x => x.ci === v.ci && x.canonical));
+      } else {
+        const ex = top.slice(0, 2).map(x => x.entity ? `${x.canonical} (${x.forms.length} ways, for example “${x.forms[0][0]}” and “${x.forms[1][0]}”)` : `“${x.forms[1][0]}” is also written “${x.forms[0][0]}”`).join("; ");
+        findings.push({ id: "variant", kind: "fyi", sev: "look", title: `${variants.length} name${plural ? "s are" : " is"} written more than one way`, detail: `In ${v.col}: ${ex}. ${top.some(x => x.entity) ? "They are grouped under one name in the insights; " : "Merging them changes no ranking; "}Merge writes them the same way in the table (Undo in the table puts a cell back).${pd && v.ci === pd.nameC.i ? ` ${placeRule}` : ""}`, score: 28, crumb: "Spelling variants", merge: mergeOf(top.filter(x => x.ci === v.ci && x.canonical)) });
+        checks.push({ sev: "ok", title: "Names are consistent enough", detail: "Names written more than one way are listed as an FYI: they change no ranking." });
+      } }
     else add("ok", "Consistent spelling", "No values that differ only by capitals or spaces.");
+    function mergeOf(list) { const map = []; list.forEach(x => x.others.forEach(raw => map.push([raw, x.canonical]))); return list.length ? { ci: list[0].ci, col: list[0].col, map, n: map.length } : null; }
 
     // mixed types
     const bad = cols.filter(c => c.bad).sort((a, b) => b.bad - a.bad);
@@ -337,11 +392,11 @@
     // quantity x price = total
     if (calc) { const bad2 = []; body.forEach((r, ri) => { const q = num(r[calc.qty]), p = num(r[calc.price]), t = num(r[calc.total]);
         if (![q, p, t].some(isNaN) && Math.abs(q * p - t) > .0051) { bad2.push(ri); link("sum", ri, calc.total, "fix", `<b>Qty × price is ${money(q * p)}, but the total says ${money(t)}.</b>`, "", Math.abs(t - q * p)); } });
-      if (bad2.length) add("fix", `${bad2.length} total${bad2.length > 1 ? "s don't" : " doesn't"} add up`, `${cols[calc.qty].name} × ${cols[calc.price].name} differs from ${cols[calc.total].name}${bad2.length ? ` (row${bad2.length > 1 ? "s" : ""} ${bad2.slice(0, 3).map(i => i + 2).join(", ")}${bad2.length > 3 ? " and more" : ""})` : ""}.`, 88, true, "sum", "Totals that don't add up"); }
+      if (bad2.length) add("fix", `${bad2.length} total${bad2.length > 1 ? "s don't" : " doesn't"} add up`, `${cols[calc.qty].name} × ${cols[calc.price].name} differs from ${cols[calc.total].name}${bad2.length ? ` (row${bad2.length > 1 ? "s" : ""} ${bad2.slice(0, 3).map(i => RN(i)).join(", ")}${bad2.length > 3 ? " and more" : ""})` : ""}.`, 88, true, "sum", "Totals that don't add up"); }
 
     // negatives
     let negNote = false;
-    numCols.filter(c => !NOT_MEASURE.test(c.name)).forEach(c => {
+    numCols.filter(c => isMeasureCol(c)).forEach(c => {
       const v = body.map(r => num(r[c.i])), ok = v.filter(x => !isNaN(x)), pos = ok.filter(x => x > 0).length / (ok.length || 1), negs = ok.filter(x => x < 0).length;
       if (pos >= .95 && negs && c.type !== "id") { v.forEach((x, ri) => { if (x < 0) link("neg", ri, c.i, "look", `<b>Negative ${esc(human(c.name))}.</b> A refund entered as a sale, or a typo.`, "", 0); });
         if (!negNote) { negNote = true; add("look", `${negs} negative ${c.name}${negs > 1 ? " values" : ""}`, `Almost every ${c.name} is positive. Refunds or returns are fine if they're meant to be here.`, 35, true, "neg", "Negative values"); } }
@@ -361,6 +416,19 @@
         add("fix", `${odd.length} date${odd.length > 1 ? "s" : ""} outside a sensible range`, `${fut ? fut + " in the future" : ""}${fut && anc ? ", " : ""}${anc ? anc + " before 1900" : ""}. For example row ${odd[0][1] + 2}: ${body[odd[0][1]][dateCol.i]}.`, 85, true, "date", "Dates far outside the file"); }
     }
 
+    // an exact value repeated far more than chance in a column of otherwise varied numbers (CONS-0064: repeated-value)
+    cols.filter(c => c.type === "number" && (c.role === "money" || c.role === "measure") && !c.count && c.distinct > c.filled * 0.4 && c.filled >= 40).forEach(c => {
+      const m = new Map(); body.forEach((r, ri) => { const v = r[c.i].trim(); if (v) (m.get(v) || m.set(v, []).get(v)).push(ri); });
+      const top = [...m.entries()].sort((x, y) => y[1].length - x[1].length)[0]; if (!top) return; const nomSet = nominal.has(c.i) ? nominal.get(c.i).set : null;
+      if (top[1].length >= Math.max(8, N * 0.03) && !(nomSet && top[1].every(ri => nomSet.has(ri)))) {
+        top[1].forEach(ri => link("rv:" + c.name, ri, c.i, "look", `<b>${esc(top[0])} appears ${top[1].length.toLocaleString("en-US")} times in ${esc(c.name)}.</b> Most values in this column are different, so one value this common is probably a default or a copy.`, "", 0));
+        add("look", `${top[1].length.toLocaleString("en-US")} rows share one ${human(c.name)} (${top[0]})`, `Most ${human(c.name)} values are different, so ${top[1].length.toLocaleString("en-US")} identical ones are probably a default value or a copied entry.`, 74, true, "rv:" + c.name, `Repeated ${human(c.name)}`);
+        meta.set("rv:" + c.name, { cls: "repeated-value", rule: "A value repeated in a column of otherwise varied numbers is a placeholder or a copy.", todo: "Check where these rows came from." });
+      }
+    });
+    if (dateCol) { const ok = dateInfo ? dateInfo.okDates : []; if (ok.length) { const newest = ok[ok.length - 1], months = (Date.now() - newest) / 2629800000;
+      if (months > Dom.DOMAIN.staleMonths && !ledger) { add("look", `The newest date is ${Math.round(months)} months old`, `The latest ${human(dateCol.name)} is ${dstr(newest)}. The file may be out of date.`, 55, true, "stale", "Possibly out of date"); meta.set("stale", { cls: "stale", rule: Dom.CHK.stale.rule, todo: Dom.CHK.stale.todo }); } } }
+
     // nominal transfers (CONS-0058): their own QA finding, never part of a baseline
     nominal.forEach(nm => {
       const n = nm.rows.length, fl = nm.floor >= 1000 ? "$" + Math.round(nm.floor).toLocaleString("en-US") : "$" + nm.floor.toFixed(2), vs = nm.values.slice(0, 4).map(([v, k]) => `${money(v)} (${k.toLocaleString("en-US")})`).join(", ");
@@ -369,12 +437,12 @@
     });
 
     // outliers (CONS-0048)
-    const items = detectOutliers(body, cols, { calc, measure, nominal });
+    const items = ledger ? new Map() : detectOutliers(body, cols, { calc, measure, nominal });
     const outItems = [...items.values()];
     outItems.forEach(it => {
-      const fix = it.cells.some(c => c.sev === "fix"), n = it.cells.length, ex = it.cells[0], rowsTxt = it.cells.slice(0, 3).map(c => c.ri + 2).join(", ") + (n > 3 ? ` and ${n - 3} more` : "");
+      const fix = it.cells.some(c => c.sev === "fix"), n = it.cells.length, ex = it.cells[0], rowsTxt = it.cells.slice(0, 3).map(c => RN(c.ri)).join(", ") + (n > 3 ? ` and ${n - 3} more` : "");
       it.cells.forEach(c => link(it.id, c.ri, c.ci, c.sev, c.why, "out", c.eff));
-      const via = it.via.size ? ` Found through ${[...it.via].join(" and ")}.` : "", name = human(it.col.name);
+      const via = it.via.size ? ` Found through ${[...it.via].map(v => (it.basis && it.basis[v] ? `${v} (${it.basis[v]})` : v)).join(" and ")}.` : "", name = human(it.col.name);
       let title, detail, score, crumb;
       if (it.kind === "shift") {
         const hi = it.medG > it.rest, mult = hi ? it.medG / it.rest : it.rest / it.medG, rs = it.cells.map(c => c.r), lo = Math.min(...rs.map(r => r >= 1 ? r : 1 / r)), up = Math.max(...rs.map(r => r >= 1 ? r : 1 / r));
@@ -386,69 +454,244 @@
         const kk = Math.round(Math.log10(ex.r)), big = ex.r >= 1;
         const ks = new Set(it.cells.map(c => c.k)), mult = ks.size === 1 ? (Math.abs(kk) === 1 ? "10x" : `${["", "", "two", "three"][Math.abs(kk)]} digits`) : "one to three digits";
         title = `${n} ${name} value${n > 1 ? "s" : ""} look ${mult} too ${big ? "large" : "small"}`;
-        detail = `For example row ${ex.ri + 2}: ${plain(ex.why)}${via} Rows ${rowsTxt}.`; score = 94; crumb = `${name} off by a factor of ten`;
+        detail = `For example row ${RN(ex.ri)}: ${plain(ex.why)}${via} Rows ${rowsTxt}.`; score = 94; crumb = `${name} off by a factor of ten`;
       } else if (it.kind === "ratio") {
-        title = `${n} record${n > 1 ? "s" : ""} with an unusual ${it.via.size ? [...it.via][0] : name}`; detail = `For example row ${ex.ri + 2}: ${plain(ex.why)} Rows ${rowsTxt}.`; score = fix ? 90 : 72; crumb = `Unusual ${[...it.via][0] || name}`;
+        title = `${n} record${n > 1 ? "s" : ""} with an unusual ${it.via.size ? [...it.via][0] : name}`; detail = `For example row ${RN(ex.ri)}: ${plain(ex.why)} Rows ${rowsTxt}.`; score = fix ? 90 : 72; crumb = `Unusual ${[...it.via][0] || name}`;
       } else {
-        const big = ex.r >= 1; title = `${n} unusually ${big ? "large" : "small"} ${name} value${n > 1 ? "s" : ""}`; detail = `For example row ${ex.ri + 2}: ${plain(ex.why)} Rows ${rowsTxt}.`; score = fix ? 86 : 72; crumb = `${name[0].toUpperCase() + name.slice(1)} far from the usual`;
+        const big = ex.r >= 1; title = `${n} unusually ${big ? "large" : "small"} ${name} value${n > 1 ? "s" : ""}`; detail = `For example row ${RN(ex.ri)}: ${plain(ex.why)} Rows ${rowsTxt}.`; score = fix ? 86 : 72; crumb = `${name[0].toUpperCase() + name.slice(1)} far from the usual`;
       }
       add(fix ? "fix" : "look", title, detail, score, true, it.id, crumb, true);
     });
     if (outItems.length) { const nrows = new Set(outItems.flatMap(it => it.cells.map(c => c.ri))).size; checks.push({ sev: outItems.some(it => it.cells.some(c => c.sev === "fix")) ? "fix" : "look", title: `${nrows} record${nrows > 1 ? "s" : ""} far from the usual`, detail: "" }); }
-    else checks.push({ sev: "ok", title: "No extreme values", detail: "Nothing far outside the normal range." });
+    else if (!ledger) checks.push({ sev: "ok", title: "No extreme values", detail: "Nothing far outside the normal range." });
 
     // role-driven checks and insights (CONS-0063): repeat occurrences of a place over time, identifier uniqueness, coordinates, top and bottom by ratio, concentration
     const repeats = Dom.repeatOccurrences(dctx, dups);
-    Dom.domainItems(dctx, dups, repeats).forEach(it => {
+    const dItems = [...Dom.domainItems(dctx, dups, repeats), ...(lItems ? lItems.items : [])], gated = Dom.gate(dItems.filter(it => it.kind === "insight"), gctx); notShown.push(...gated.held, ...(lItems ? lItems.held : []));
+    dItems.filter(it => it.kind !== "insight" || gated.shown.includes(it)).forEach(it => {
       it.cells.forEach(c => link(it.id, c.ri, c.ci, c.sev, c.why, "", c.eff));
       meta.set(it.id, { kind: it.kind, cls: it.cls, rule: it.rule, todo: it.todo, repeat: it.repeat });
       if (it.kind === "qa") add(it.sev, it.title, it.detail, it.score, true, it.id, it.crumb);
-      else findings.push({ id: it.id, kind: "insight", sev: it.sev, title: it.title, detail: it.detail, score: it.score, crumb: it.crumb });
+      else findings.push({ id: it.id, kind: it.kind, sev: it.sev, title: it.title, detail: it.detail, score: it.score, crumb: it.crumb, why: it.why });
     });
+    if (ledger) {
+      linkVariants();
+      if (!LD_.dupPairs.length) add("ok", "No duplicate rows", "No two rows share a date, an amount and a merchant.");
+      if (LD_.balanceBreaks && !LD_.balanceBreaks.length) add("ok", "The running balance holds", "Previous balance plus the amount equals the balance on every row.");
+      if (LD_.unreadable) add("look", `${LD_.unreadable} row${LD_.unreadable > 1 ? "s have" : " has"} no readable date or amount`, "They are left out of the totals.", 50, true, null, "Unreadable rows");
+    }
+    Dom.ratioCandidates(cols, calc).held.forEach(h => notShown.push({ id: "ratio:" + h.col, title: h.label[0].toUpperCase() + h.label.slice(1), check: "ratio-unit", reason: h.reason }));
+
+    // an optional rule pack (CONS-0068): none unless the visitor loads one; its findings are tagged with the pack and never change the generic ones
+    let packInfo = null;
+    if (choice.pack) {
+      Pack.validate(choice.pack); const its = Pack.run(choice.pack, { body, cols, num }); packInfo = { id: choice.pack.id, name: choice.pack.name, version: choice.pack.version, found: 0, skipped: [] };
+      its.forEach(it => {
+        if (it.skipped) { packInfo.skipped.push({ id: it.id, missing: it.missing }); return; }
+        packInfo.found++; it.cells.forEach(c => { const k = c.ri + ":" + c.ci; if (!flags.has(k)) flags.set(k, { sev: c.sev, why: c.why, id: it.id, fam: "", eff: 0 }); (fr.get(it.id) || fr.set(it.id, new Set()).get(it.id)).add(c.ri); });
+        checks.push({ sev: it.sev, title: it.title, detail: it.detail }); findings.push({ id: it.id, kind: it.kind, cls: it.cls, sev: it.sev, hard: it.hard, pack: it.pack, title: it.title, detail: it.detail, rule: it.rule, todo: it.todo, score: it.score, crumb: it.crumb });
+      });
+    }
 
     // trend (dates outside a sensible range are left out so they do not stretch the chart)
     let trend = null;
     if (dateCol && dateInfo && dateInfo.okDates.length) {
       const ds = dateInfo.okDates, lo = ds[0], hi = ds[ds.length - 1], span = (hi - lo) / 864e5;
-      const unit = span > 150 ? "month" : span > 28 ? "week" : "day";
-      const key = t => { const d = new Date(t); if (unit === "month") return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); if (unit === "week") return t - ((d.getUTCDay() + 6) % 7) * 864e5; return t; };
-      const okSet = new Set(dateInfo.odd.map(x => x[1])), agg = new Map(); body.forEach((r, ri) => { if (okSet.has(ri)) return; const t = dt(r[dateCol.i]); if (t == null) return; const k = key(t); agg.set(k, (agg.get(k) || 0) + (measure ? (num(r[measure.i]) || 0) : 1)); });
-      const keys = [...agg.keys()].sort((a, b) => a - b), step = unit === "month" ? null : (unit === "week" ? 7 : 1) * 864e5;
-      const series = []; if (keys.length) { let k = keys[0]; while (k <= keys[keys.length - 1]) { series.push({ t: k, v: agg.get(k) || 0 }); if (step) k += step; else { const d = new Date(k); k = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1); } } }
-      const lastEnd = unit === "month" ? Date.UTC(new Date(hi).getUTCFullYear(), new Date(hi).getUTCMonth() + 1, 0) : unit === "week" ? key(hi) + 6 * 864e5 : hi;
+      const unit = spanUnit(span);
+      const key = t => { const d = new Date(t); if (unit === "year") return Date.UTC(d.getUTCFullYear(), 0, 1); if (unit === "month") return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); if (unit === "week") return t - ((d.getUTCDay() + 6) % 7) * 864e5; return t; };
+      const okSet = new Set(dateInfo.odd.map(x => x[1])), agg = new Map(); body.forEach((r, ri) => { if (okSet.has(ri)) return; const t = dt(r[dateCol.i]); if (t == null) return; const k = key(t); agg.set(k, (agg.get(k) || 0) + tv(r, ri)); });
+      const keys = [...agg.keys()].sort((a, b) => a - b), step = unit === "month" || unit === "year" ? null : (unit === "week" ? 7 : 1) * 864e5;
+      const series = []; if (keys.length) { let k = keys[0]; while (k <= keys[keys.length - 1]) { series.push({ t: k, v: agg.get(k) || 0 }); if (step) k += step; else { const d = new Date(k); k = unit === "year" ? Date.UTC(d.getUTCFullYear() + 1, 0, 1) : Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0 + 1); } } }
+      const lastEnd = unit === "year" ? Date.UTC(new Date(hi).getUTCFullYear(), 11, 31) : unit === "month" ? Date.UTC(new Date(hi).getUTCFullYear(), new Date(hi).getUTCMonth() + 1, 0) : unit === "week" ? key(hi) + 6 * 864e5 : hi;
       const partialLast = series.length > 2 && hi < lastEnd - 2 * 864e5;
       const firstStart = series.length ? series[0].t : lo, partialFirst = series.length > 2 && lo > firstStart + 2 * 864e5;
       const core = series.filter((_, i) => !(partialFirst && i === 0) && !(partialLast && i === series.length - 1));
       const pm = median(core.map(p => p.v)); let spike = null;
       core.forEach(p => { const r = pm ? p.v / pm : 0; if (r >= 1.5 && (!spike || r > spike.r)) spike = { ...p, r }; });
-      const label = t => { const d = new Date(t); return unit === "month" ? `${MON[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}` : `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+      const label = t => { const d = new Date(t); return unit === "year" ? String(d.getUTCFullYear()) : unit === "month" ? `${MON[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}` : `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
       trend = { unit, series, label, spike, partialFirst, partialLast, lo, hi, median: pm };
-      if (spike) findings.push({ id: null, kind: "insight", sev: "look", title: `${unit === "month" ? new Date(spike.t).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "The " + unit + " of " + label(spike.t)} is ${spike.r.toFixed(1)}× a typical ${unit}`, detail: `${measure ? measure.name : "Rows"}: ${full(spike.v, 0)} against a typical ${full(pm, 0)}. Worth knowing why.`, score: 70 });
+      // a small category split (CONS-0061): a column with 8 values or fewer, else the top five values of the most informative category column, plus Other
+      const entropy = c => { const m = new Map(); let n = 0; body.forEach(r => { const v = r[c.i].trim(); if (v) { m.set(v, (m.get(v) || 0) + 1); n++; } }); let h = 0; m.forEach(k => { const q = k / n; h -= q * Math.log(q); }); return m.size > 1 ? h / Math.log(m.size) : 0; };
+      const sCands = catCands.filter(c => c.empty / N < 0.3 && c.distinct <= 60), low = sCands.filter(c => c.distinct <= 8);
+      const sCol = choice.split === "" ? null : (choice.split && cols.find(c => c.name === choice.split && c.type === "category")) || [...(low.length ? low : sCands)].sort((x, y) => (CAT_RE.test(y.name) - CAT_RE.test(x.name)) || entropy(y) - entropy(x))[0] || null;
+      if (sCol && series.length > 1) {
+        const tot = new Map(); body.forEach(r => { const v = r[sCol.i].trim() || "(blank)"; tot.set(v, (tot.get(v) || 0) + 1); });
+        const ranked = [...tot.entries()].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1)).map(e => e[0]), top5 = ranked.length > 8, names = top5 ? ranked.slice(0, 5).concat(["Other"]) : ranked, keep = new Set(top5 ? ranked.slice(0, 5) : ranked), ix = new Map(series.map((p, i) => [p.t, i]));
+        const vals = names.map(() => series.map(() => 0));
+        body.forEach((r, ri) => { if (okSet.has(ri)) return; const t = dt(r[dateCol.i]); if (t == null) return; const i = ix.get(key(t)); if (i == null) return; const v = r[sCol.i].trim() || "(blank)", g = keep.has(v) ? names.indexOf(v) : names.length - 1; vals[g][i] += tv(r, ri); });
+        trend.split = { col: sCol.name, ci: sCol.i, names, vals, top5 };
+      }
+      { const inner = series.slice(partialFirst ? 1 : 0, series.length - (partialLast ? 1 : 0)), empty = inner.filter(p => p.v === 0 && !agg.has(p.t));
+        if (series.length >= 6 && empty.length && !ledger) { findings.push({ id: "tlgaps", kind: "qa", cls: "missing", sev: "look", title: `${empty.length} empty ${unit}${empty.length > 1 ? "s" : ""} inside the timeline`, detail: `No rows in ${empty.slice(0, 4).map(p => label(p.t)).join(", ")}${empty.length > 4 ? " and more" : ""}, between months that have data. A gap in the export, or a quiet period?`, score: 57, crumb: "Gaps in the timeline", rule: "A period with no rows between periods that have rows is a gap in the data or a real pause.", todo: "Ask whether the export skipped those dates." }); } }
+      if (spike) { const c = { id: null, kind: "insight", sev: "look", title: `${unit === "month" ? new Date(spike.t).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "The " + unit + " of " + label(spike.t)} is ${spike.r.toFixed(1)}× a typical ${unit}`, detail: `${measureName}: ${moneyText(spike.v)} against a typical ${moneyText(pm)}. Worth knowing why.`, score: 70,
+          why: { method: "period total against the median period", n: core.length, names: [measureName, dateCol.name], roles: [measure ? measure.role : "rows", "date"], valueKind: measureMoney ? "money" : measure ? "measure" : "count", aggregate: measure || ledger ? "sum" : "count" } };
+        if (passes(c)) findings.push(c); }
     }
 
+    const flagRows = new Set(); flags.forEach((_, k) => flagRows.add(+k.split(":", 1)[0]));   // rows with at least one marked cell: the hover on a bar says how many of its rows are flagged (CONS-0051)
     // breakdown
     let breakdown = null;
-    if (cat) {
-      const g = new Map(); body.forEach(r => { const k = r[cat.i].trim() || "(blank)", e = g.get(k) || [0, 0]; e[0] += measure ? (num(r[measure.i]) || 0) : 1; e[1]++; g.set(k, e); });
-      let items2 = [...g.entries()].sort((a, b) => b[1][0] - a[1][0]); const top = items2.slice(0, 7).map(([k, e]) => [k, e[0], false, e[1]]), rest = items2.slice(7);
-      if (rest.length) top.push([`Other (${rest.length})`, rest.reduce((a, x) => a + x[1][0], 0), true, rest.reduce((a, x) => a + x[1][1], 0)]);
+    if (ledger) { const top = LD_.merchants.slice(0, 7).map(m => [m.name, m.out, false, m.n]), rest = LD_.merchants.slice(7);
+      if (rest.length) top.push([`Other (${rest.length})`, rest.reduce((a, m) => a + m.out, 0), true, rest.reduce((a, m) => a + m.n, 0)]);
+      breakdown = { col: "merchant", ci: ledgerCols.desc, items: top, total: LD_.outflow, noPick: true }; }
+    else if (cat) {
+      const g = new Map(); body.forEach((r, ri) => { const k = r[cat.i].trim() || "(blank)", e = g.get(k) || [0, 0, 0]; e[0] += measure ? (num(r[measure.i]) || 0) : 1; e[1]++; if (flagRows.has(ri)) e[2]++; g.set(k, e); });
+      let items2 = [...g.entries()].sort((a, b) => b[1][0] - a[1][0]); const top = items2.slice(0, 7).map(([k, e]) => [k, e[0], false, e[1], e[2]]), rest = items2.slice(7);
+      if (rest.length) top.push([`Other (${rest.length})`, rest.reduce((a, x) => a + x[1][0], 0), true, rest.reduce((a, x) => a + x[1][1], 0), rest.reduce((a, x) => a + x[1][2], 0)]);
       breakdown = { col: cat.name, ci: cat.i, items: top, total: items2.reduce((a, x) => a + x[1][0], 0) };
-      if (items2.length > 1 && items2[0][1][0] / breakdown.total >= .5) findings.push({ id: null, kind: "insight", sev: "look", title: `${items2[0][0]} is ${pct(items2[0][1][0], breakdown.total).toFixed(0)}% of ${measure ? measure.name : "rows"}`, detail: `One ${cat.name} carries most of the total. Good to know before you plan around averages.`, score: 40 });
+      if (items2.length > 1 && items2[0][1][0] / breakdown.total >= .5) { const c = { id: null, kind: "insight", sev: "look", title: `${items2[0][0]} is ${pct(items2[0][1][0], breakdown.total).toFixed(0)}% of ${measure ? "total " + measure.name : "rows"}`, detail: `One ${cat.name} carries most of the total. Good to know before you plan around averages.`, score: 40,
+          why: { method: "share of the largest group", kind: "share", groups: items2.length, n: N, names: [cat.name, ...(measure ? [measure.name] : [])], roles: ["category", measure ? measure.role : "rows"], valueKind: measure ? (measureMoney ? "money" : "measure") : "count", aggregate: measure ? "sum" : "count" } };
+        if (passes(c)) findings.push(c); }
     }
 
-    findings.forEach(f => { Object.assign(f, meta.get(f.id) || {}); if (!f.kind) f.kind = "qa"; });
+    // grouping (CONS-0041): by one column or nested under a second, top N with an Other bucket, share of the total, the count, the mean, count distinct, a second measure
+    const distinctCands = cols.filter(c => ["category", "text", "id", "date"].includes(c.type) && c.filled > 0 && c.distinct >= 2), m2Cands = numCols.filter(c => isMeasureCol(c) && !allOnes(c));
+    let grouping = null;
+    if (!ledger && cat) {
+      const topN = Math.max(1, Math.min(50, Math.round(+choice.topN) || 7)), cat2 = choice.cat2 && choice.cat2 !== cat.name ? catCands.find(c => c.name === choice.cat2) || null : null;
+      const dcol = choice.distinct ? distinctCands.find(c => c.name === choice.distinct) || null : null, m2 = choice.measure2 && !(measure && choice.measure2 === measure.name) ? m2Cands.find(c => c.name === choice.measure2) || null : null;
+      const agg = dcol ? "distinct" : measure ? "sum" : "rows", blank = v => v.trim() || "(blank)";
+      const mk = () => ({ n: 0, sum: 0, v2: 0, fl: 0, set: dcol ? new Set() : null, kids: cat2 ? new Map() : null });
+      const add1 = (e, r, ri) => { e.n++; if (flagRows.has(ri)) e.fl++; if (measure) e.sum += num(r[measure.i]) || 0; if (m2) e.v2 += num(r[m2.i]) || 0; if (dcol) { const x = r[dcol.i].trim(); if (x) e.set.add(x); } };
+      const all = new Map(), whole = mk();
+      body.forEach((r, ri) => { const k = blank(r[cat.i]), e = all.get(k) || all.set(k, mk()).get(k); add1(e, r, ri); add1(whole, r, ri); if (cat2) { const k2 = blank(r[cat2.i]), c = e.kids.get(k2) || e.kids.set(k2, mk()).get(k2); add1(c, r, ri); } });
+      const val = e => (agg === "distinct" ? e.set.size : agg === "sum" ? e.sum : e.n), total = val(whole);
+      const order = m => [...m.entries()].sort((x, y) => val(y[1]) - val(x[1]) || y[1].n - x[1].n || (x[0] < y[0] ? -1 : 1));
+      const merge = list => { const o = mk(); list.forEach(([, e]) => { o.n += e.n; o.fl += e.fl; o.sum += e.sum; o.v2 += e.v2; if (dcol) e.set.forEach(x => o.set.add(x)); }); return o; };
+      const row = (k, e, other, parent) => ({ k, v: val(e), n: e.n, flagged: e.fl, share: total ? val(e) / total : 0, mean: agg === "sum" && e.n ? e.sum / e.n : null, v2: m2 ? e.v2 : null, other: !!other, within: parent ? (val(parent) ? val(e) / val(parent) : 0) : null });
+      const ranked = order(all), top = ranked.slice(0, topN), rest = ranked.slice(topN), rows = top.map(([k, e]) => ({ ...row(k, e, false), kids: cat2 ? (() => { const kr = order(e.kids), kt = kr.slice(0, 3), kx = kr.slice(3); return [...kt.map(([k2, c]) => row(k2, c, false, e)), ...(kx.length ? [row(`Other (${kx.length})`, merge(kx), true, e)] : [])]; })() : [] }));
+      if (rest.length) rows.push({ ...row(`Other (${rest.length})`, merge(rest), true), kids: [] });
+      grouping = { cat: cat.name, ci: cat.i, cat2: cat2 ? cat2.name : null, ci2: cat2 ? cat2.i : null, topN, agg, measureName: agg === "distinct" ? `Distinct ${dcol.name}` : agg === "sum" ? measure.name : "Rows", measure2Name: m2 ? m2.name : null, total, nTotal: N, rows, distinctOf: dcol ? dcol.name : null };
+    }
+
+    findings.forEach(f => { Object.assign(f, meta.get(f.id) || {}); if (!f.kind) f.kind = "qa"; if (f.kind === "qa" && !f.cls) f.cls = classOfFinding(f); });
+    const byFid = new Map(findings.filter(f => f.id).map(f => [f.id, f])), CL = Dom.DOMAIN.classes;
+    findings.forEach(f => { if (f.kind === "qa" && f.cls && CL[f.cls] && f.sev !== "ok" && !f.pack) { f.hard = CL[f.cls].hard; f.pri = f.sev; f.sev = f.hard ? "fix" : "look"; const ck = checks.find(c => c.title === f.title); if (ck) ck.sev = f.sev; } });
+    flags.forEach(fl => { const fd = byFid.get(fl.id); if (fd && fd.kind === "qa" && fd.cls && CL[fd.cls] && !fd.pack) { fl.pri = fl.pri || fl.sev; fl.sev = CL[fd.cls].hard ? "fix" : "look"; } });
+    const classCounts = Object.keys(CL).map(k => { const fs = findings.filter(f => f.kind === "qa" && f.cls === k); const rows = new Set(fs.flatMap(f => (fr.get(f.id) ? [...fr.get(f.id)] : []))); return { cls: k, label: CL[k].label, hard: CL[k].hard, n: k === "optional-field" ? optionalCols.length : rows.size }; }).filter(c => c.n > 0);
     findings.sort((a, b) => b.score - a.score);
     findings.forEach(f => { if (f.id) { f.rows = [...(fr.get(f.id) || [])].sort((a, b) => a - b); f.n = f.rows.length; } });
     const findingsAll = findings.filter(f => f.id && f.n > 0);
     const rank = { fix: 0, look: 1, ok: 2 }; checks.sort((a, b) => rank[a.sev] - rank[b.sev]);
     const needsCleanup = checks.some(c => c.sev === "fix");
-    return { name: data.name, sheet: data.sheet, N, truncated, allRows, allCols, cols, header, measure, dateCol, cat, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+    const qaSample = N >= 10 ? qaSampleOf({ N, header, cat, flags, findingsList: findings }, body, choice.seed) : null;
+    const res = { name: data.name, sheet: data.sheet, N, keep, piece, screen: { flagged: scr.flagged.map(({ i, name, cls, label, never, why, by, rule, excluded, confirmed }) => ({ i, name, cls, label, never, why, by, rule, excluded, confirmed })), excluded: scr.excluded, confirmed: scr.confirmed, excludedIdx: scr.excludedIdx }, hdr: { isHeader: frm.isHeader, detected: frm.detected, forced: frm.forced, conf: frm.conf, why: frm.why, note: frm.note, titleRows: frm.titleRows, bodyStart: frm.bodyStart, replaced: frm.replaced }, rowBase: RB, sliceMap: sm, notShown, measureMoney, measureName, kind: ledger ? "transactions" : "records",
+      ledger: ledger ? { cols: { date: header[ledgerCols.date], amount: header[ledgerCols.amount], description: header[ledgerCols.desc], type: ledgerCols.type != null ? header[ledgerCols.type] : null, balance: ledgerCols.balance != null ? header[ledgerCols.balance] : null }, signedBy: ledgerCols.dirByType ? "type" : "sign", order: ledgerCols.order,
+        outflow: LD_.outflow, inflow: LD_.inflow, net: LD_.net, nOut: LD_.nOut, nIn: LD_.nIn, first: LD_.first, last: LD_.last, months: LD_.months, merchantCount: LD_.merchants.length,
+        merchants: LD_.merchants.slice(0, Rules.LEDGER.topMerchants).map(m => ({ name: m.name, out: m.out, n: m.n, variants: m.variants.slice(0, 6) })), recurring: LD_.recurring.map(({ rows, ...r }) => ({ ...r, nRows: rows.length })),
+        largest: LD_.largest, weekday: LD_.weekday, dupPairs: LD_.dupPairs.length, refundPairs: LD_.refundPairs.length, balanceBreaks: LD_.balanceBreaks ? LD_.balanceBreaks.length : null, gaps: LD_.gaps, unreadable: LD_.unreadable } : null,
+      truncated, allRows, allCols, cols, header, measure, dateCol, cat, grouping, distinctCands, m2Cands, total, checks, findings: findings.slice(0, 5), findingsList: findings, findingsAll, pack: packInfo, classCounts, qaSample, notChecked: Dom.notChecked(cols, ledger), flags, calc, trend, breakdown, needsCleanup, numCols, catCands, dateCands: cols.filter(c => c.type === "date"), rev: (analyse.rev = (analyse.rev || 0) + 1) };
+    res.kpi = kpiOf(res); res.worth = pickWorth(res, body, choice); return res;
+  }
+
+  // the tiles at the top of the sheet. Rows is always a count of rows; Total <column> is a sum of that column and carries a money sign only when the column is money (CONS-0074)
+  function kpiOf(a) {
+    const yr = t => new Date(t).getUTCFullYear(), md = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; }, my = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${yr(t)}`; };
+    const range = !a.trend ? "No date column" : yr(a.trend.lo) === yr(a.trend.hi) ? `${md(a.trend.lo)} – ${md(a.trend.hi)}, ${yr(a.trend.hi)}` : `${my(a.trend.lo)} – ${my(a.trend.hi)}`;
+    if (a.ledger) return [["Rows", a.N.toLocaleString("en-US")], ["Dates", range], ["Money out", Shape.usd0(a.ledger.outflow)], ["Money in", Shape.usd0(a.ledger.inflow)]];
+    return [["Rows", a.N.toLocaleString("en-US")], ["Columns", a.cols.length], ["Dates", range], a.measure ? ["Total " + a.measure.name, (a.measureMoney ? "$" : "") + full(a.total, 0)] : ["Measure", "None found"]];
+  }
+
+  // ---------- classes and review verbs
+  const classOfFinding = (f, cols) => {
+    const id = f.id || "";
+    if (id === "dup" || id === "dupnear" || id === "dupplace") return "duplicate";
+    if (id === "nominal") return "repeated-value";
+    if (/^(unit|out|ratio|shift):/.test(id) || id === "neg") return "contextual-outlier";
+    if (id === "date" || id === "badnum" || id === "mixedid" || id === "coords") return "malformed";
+    if (id === "sum" || id === "variant" || id === "idunique") return "source-conflict";
+    if (id === "stale") return "stale";
+    if (id === "gaps") { const worst = f.optional; return worst ? "optional-field" : "missing"; }
+    return null;
+  };
+  // accept = the record is right as it is, reject = it is wrong and should not be used, defer = cannot tell without the source
+  const SUGGEST = {
+    duplicate: "Reject the extra copy and accept the other; compare the two rows first.",
+    "repeated-value": "Defer: confirm what these amounts are; accept if real, reject if placeholders.",
+    "contextual-outlier": "Defer until checked against the source; reject if it is a typo, accept if it is real.",
+    malformed: "Reject until it is corrected from the source.",
+    "source-conflict": "Defer: find out which record is right, then accept it and reject the other.",
+    missing: "Defer: fill it in from the source, or accept the blank if it is allowed.",
+    stale: "Defer: ask for a newer export.",
+    "optional-field": "Accept: this column is mostly empty on purpose.",
+    random: "Accept if it matches the source; reject or defer if it does not.",
+  };
+
+  // ---------- the QA sample (CONS-0060): min(500, 10 percent of the rows); every flagged row first, then a stratified random fill
+  const mulberry = seed => { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; };
+  const hashStr = str => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  function qaSampleOf(a, body, seedIn) {
+    const N = a.N, size = Math.min(500, Math.ceil(N * 0.1)), seed = seedIn != null ? seedIn >>> 0 : hashStr(a.header.join("|") + "|" + N) % 1000000;
+    const fin = new Map(a.findingsList.map(f => [f.id, f])), byRow = new Map();
+    a.flags.forEach((f, k) => { const fd = fin.get(f.id); if (!fd || fd.kind !== "qa") return; const ri = +k.split(":")[0]; const r = byRow.get(ri) || byRow.set(ri, []).get(ri); r.push({ f, fd, ci: +k.split(":")[1] }); });
+    const SEV = { fix: 0, look: 1, ctx: 2 }, flagged = [];
+    byRow.forEach((cells, ri) => { cells.sort((x, y) => (x.fd.id === "gaps") - (y.fd.id === "gaps") || SEV[x.f.pri || x.f.sev] - SEV[y.f.pri || y.f.sev] || (x.fd.n || 0) - (y.fd.n || 0) || y.f.eff - x.f.eff || x.ci - y.ci); flagged.push({ ri, top: cells[0], cells }); });
+    flagged.sort((x, y) => (x.top.fd.id === "gaps") - (y.top.fd.id === "gaps") || SEV[x.top.f.pri || x.top.f.sev] - SEV[y.top.f.pri || y.top.f.sev] || (x.top.fd.n || 0) - (y.top.fd.n || 0) || y.top.f.eff - x.top.f.eff || x.ri - y.ri);
+    const take = flagged.slice(0, size), taken = new Set(take.map(x => x.ri)), rest = []; for (let i = 0; i < N; i++) if (!byRow.has(i)) rest.push(i);
+    const need = Math.max(0, size - take.length), rnd = mulberry(seed), groups = new Map(), gi = a.cat ? a.cat.i : -1;
+    rest.forEach(ri => { const k = gi >= 0 ? (body[ri][gi].trim() || "(blank)") : ""; (groups.get(k) || groups.set(k, []).get(k)).push(ri); });
+    const keys = [...groups.keys()].sort(), quota = new Map(); let given = 0; const rem = [];
+    keys.forEach(k => { const exact = need * groups.get(k).length / (rest.length || 1), q = Math.floor(exact); quota.set(k, q); given += q; rem.push([exact - q, k]); });
+    rem.sort((x, y) => y[0] - x[0] || (x[1] < y[1] ? -1 : 1)); for (let i = 0; given < need && i < rem.length; i++, given++) quota.set(rem[i][1], quota.get(rem[i][1]) + 1);
+    const randomRows = []; keys.forEach(k => { const g = groups.get(k).slice(); for (let i = g.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [g[i], g[j]] = [g[j], g[i]]; } randomRows.push(...g.slice(0, Math.min(quota.get(k), g.length))); });
+    const rows = take.map(x => x.ri).concat(randomRows.sort((x, y) => x - y)), info = new Map();
+    take.forEach(x => { const cls = classOfFinding(x.top.fd), verb = SUGGEST[cls] || SUGGEST["contextual-outlier"]; info.set(x.ri, { basis: "flagged", cls, issue: plain(x.top.f.why), suggestion: verb }); });
+    randomRows.forEach(ri => info.set(ri, { basis: "random check", cls: null, issue: "Random check: no rule flagged this row.", suggestion: SUGGEST.random }));
+    const cover = a.findingsList.filter(f => f.kind === "qa" && f.rows && f.rows.length && f.id !== "gaps").map(f => ({ id: f.id, title: f.title, n: f.rows.length, inSample: f.rows.filter(r => taken.has(r)).length })).sort((x, y) => y.n - x.n).slice(0, 6);
+    return { size, seed, rows, flagged: take.length, random: randomRows.length, flaggedTotal: flagged.length, info, coverage: cover, strata: a.cat ? a.cat.name : null };
+  }
+  function qaSampleHTML(q) {
+    const cov = q.coverage.map(c => `${esc(c.title.replace(/^[\d,]+ /, ""))} ${Math.round(100 * c.inSample / c.n)}%`).join(" · ");
+    return `<section class="qa-sample"><h3>QA sample <span class="hint print-hide">Rows to read against the source, with a suggestion for each.</span></h3>
+      <p><b>${fmtCount(q.size)} rows</b> (the smaller of 500 and 10 percent): ${fmtCount(q.flagged)} flagged, ${fmtCount(q.random)} chosen at random${q.strata ? ` across ${esc(q.strata)}` : ""}${q.flaggedTotal > q.flagged ? ` (${fmtCount(q.flaggedTotal)} rows are flagged; the most serious and the rarest findings come first)` : ""}. Seed ${q.seed}.${cov ? ` Coverage of each finding: ${cov}.` : ""}</p>
+      <p class="print-hide"><button class="btn small" type="button" data-qs="show">Show the sample</button> <button class="btn small" type="button" data-qs="resample">Resample the random part</button> <button class="btn small" type="button" data-qs="csv">Download QA sample.csv</button></p></section>`;
+  }
+
+  // ---------- worth a look (CONS-0047): five items, a seeded random sample by default or the most prominent when a measure is chosen, and for each a news search that is built from a name, a street, a city or a category only
+  // Rows that QA marks Fix are never sampled (a row the report thinks is almost certainly wrong is not a story). The query never holds an owner, a person, a phone, an email, an id or an amount: only those columns are ever read.
+  const NOT_PUBLIC = /owner|person|first|last|full|customer|client|contact|employee|patient|student|guardian|buyer|seller|tenant|agent|user|member|e-?mail|phone|mobile|fax|ssn|account|card|salary|wage/i;
+  const NEWS_NOTE = "This file has no name, street, city or category column, so there is nothing to search for.";
+  function newsCols(a) {
+    const cs = a.cols, pub = c => !NOT_PUBLIC.test(c.name), notPlace = ["address", "unit", "city", "state", "postal", "coordinates"];
+    const idName = /(^|[_\s-])(id|uuid|guid|code|key|number|num|no)$/i, name = cs.find(c => pub(c) && !idName.test(c.name.trim()) && c.type !== "number" && c.type !== "date" && !notPlace.includes(c.role) && Dom.DOMAIN.nameName.test(c.name)) || null;   // a name is often unique on every row, so it may be typed as an id
+    const street = cs.find(c => c.role === "address" && pub(c) && c.type !== "number" && !/(line|addr\w*)[_\s-]*(2|two)$/i.test(c.name.trim())) || null;
+    const city = cs.find(c => pub(c) && (c.role === "city" || (/^(city|town|location|neighbou?rhood|county|branch|store)$/i.test(c.name.trim()) && (c.type === "category" || c.type === "text")))) || null;
+    const category = cs.find(c => pub(c) && c.type === "category" && c !== city && c !== name && /category|type|industry|segment|department|product|item|class|kind/i.test(c.name)) || null;
+    return { name, street, city, category, usable: !!(name || street || category) };
+  }
+  const stripNumber = v => v.replace(/^\s*\d+[A-Za-z]?(?:-\d+)?\s+/, "");
+  function newsFor(nc, r) {
+    const get = c => (c && r[c.i] != null ? String(r[c.i]).trim() : ""), parts = {};
+    const name = get(nc.name), street = stripNumber(get(nc.street)), city = get(nc.city), category = get(nc.category);
+    if (name) parts.name = name; if (street) parts.street = street; if (city) parts.city = city; if (!name && !street && category) parts.category = category;
+    if (!parts.name && !parts.street && !parts.category) return null;
+    const query = [parts.name && `"${parts.name}"`, parts.street && `"${parts.street}"`, parts.category && `"${parts.category}"`, parts.city].filter(Boolean).join(" ");
+    return { parts, query, title: [parts.name, parts.street, parts.category, parts.city].filter(Boolean).join(" · ") };
+  }
+  function pickWorth(a, body, choice) {
+    const nc = newsCols(a), N = body.length, seed = choice.worthSeed != null ? (choice.worthSeed >>> 0) % 10000 : hashStr(a.header.join("|") + "|" + N + "|worth") % 10000;
+    const want = choice.worthBy || (choice.measure ? "largest" : "random"), by = want === "largest" && a.measure ? "largest" : "random";
+    const base = { by, seed, total: N, measureName: a.measure ? a.measure.name : null, canLargest: !!a.measure, cols: { name: nc.name && nc.name.name, street: nc.street && nc.street.name, city: nc.city && nc.city.name, category: nc.category && nc.category.name }, items: [], why: "" };
+    if (!nc.usable) return { ...base, why: nc.city ? "This file has a city but no name, street or category column; a city alone is too broad to search for." : NEWS_NOTE };
+    const fix = new Set(), why = new Map(); a.flags.forEach((f, k) => { const [ri, ci] = k.split(":").map(Number); if (f.sev === "fix") fix.add(ri); else if (!why.has(ri) || ci < why.get(ri).ci) why.set(ri, { ci, f }); });
+    let order = [];
+    for (let ri = 0; ri < N; ri++) if (!fix.has(ri)) order.push(ri);
+    if (by === "largest") { const mi = a.measure.i, v = ri => num(body[ri][mi]); order = order.filter(ri => v(ri) > 0).sort((x, y) => v(y) - v(x) || x - y); }
+    else { const rnd = mulberry(seed); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } }
+    const med = by === "largest" ? median(body.map(r => num(r[a.measure.i])).filter(x => x > 0)) : NaN, money = a.measure ? MONEY_RE.test(a.measure.name) : false, seen = new Set(), items = [];
+    for (const ri of order) {
+      if (items.length >= 5) break; const n = newsFor(nc, body[ri]); if (!n || seen.has(n.query)) continue; seen.add(n.query);
+      const w = why.get(ri), v = by === "largest" ? num(body[ri][a.measure.i]) : NaN;
+      const reason = w ? plain(w.f.why) : by === "largest" ? `Largest ${a.measure.name}: ${fv(money, v)}${med > 0 ? (isFar(v / med) ? `, far above the median ${fv(money, med)}` : `, ${xs(v / med)} the median ${fv(money, med)}`) : ""}.` : "Random pick: no rule flagged this row.";
+      items.push({ ri, title: n.title, reason, sev: w ? (w.f.pri || w.f.sev) : "", query: n.query, parts: n.parts });
+    }
+    return { ...base, items };
   }
 
   // ---------- the two sections (CONS-0062): every finding is an insight or a QA finding, and appears in exactly one section
   function sections(a, notable) {
-    const list = a.findingsList || a.findings || [], ins = list.filter(f => f.kind === "insight"), qa = list.filter(f => f.kind !== "insight");
-    return { insights: { findings: ins, notable: (notable || []).filter(w => w.kind === "insight") }, qa: { findings: qa, notable: (notable || []).filter(w => w.kind !== "insight"), checks: a.checks } };
+    const list = a.findingsList || a.findings || [], ins = list.filter(f => f.kind === "insight"), fyi = list.filter(f => f.kind === "fyi"), qa = list.filter(f => f.kind !== "insight" && f.kind !== "fyi");
+    return { insights: { findings: ins, notable: (notable || []).filter(w => w.kind === "insight") }, qa: { findings: qa, notable: (notable || []).filter(w => w.kind === "qa"), checks: a.checks }, fyi: { findings: fyi } };
   }
 
   // ---------- records worth a look (CONS-0050): up to ten, most serious first, one reason each
@@ -458,18 +701,18 @@
     a.flags.forEach((f, k) => { const [ri, ci] = k.split(":").map(Number); const r = byRow.get(ri) || byRow.set(ri, []).get(ri); r.push({ ci, f }); findEff.set(f.id, (findEff.get(f.id) || 0) + f.eff); });
     const cand = [];
     byRow.forEach((cells, ri) => {
-      cells.sort((x, y) => SEVRANK[y.f.sev] - SEVRANK[x.f.sev] || y.f.eff - x.f.eff || x.ci - y.ci);
+      cells.sort((x, y) => SEVRANK[y.f.pri || y.f.sev] - SEVRANK[x.f.pri || x.f.sev] || y.f.eff - x.f.eff || x.ci - y.ci);
       const top = cells[0], eff = cells.reduce((s, c) => s + c.f.eff, 0);
-      cand.push({ ri, ci: top.ci, sev: top.f.sev, id: top.f.id, fe: findEff.get(top.f.id) || 0, eff, n: cells.length, why: top.f.why });
+      cand.push({ ri, ci: top.ci, sev: top.f.sev, pri: top.f.pri || top.f.sev, id: top.f.id, fe: findEff.get(top.f.id) || 0, eff, n: cells.length, why: top.f.why });
     });
-    cand.sort((x, y) => SEVRANK[y.sev] - SEVRANK[x.sev] || y.fe - x.fe || y.eff - x.eff || y.n - x.n || x.ri - y.ri);
+    cand.sort((x, y) => SEVRANK[y.pri] - SEVRANK[x.pri] || y.fe - x.fe || y.eff - x.eff || y.n - x.n || x.ri - y.ri);
     const out = [], used = new Map(), picked = new Set();
     const where = ri => a.cat ? ` · ${rows[ri][a.cat.i].trim() || "(blank)"}` : "";
     const kindOf = id => { const f = a.findingsList && a.findingsList.find(x => x.id === id); return f ? f.kind : (id === "rank" || id === "largest" || id === "recent") ? "insight" : "qa"; };
-    const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, kind: kindOf(c.id), id: c.id || null, title: `Row ${(c.ri + 2).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason: reason + (oneOf(c.id) > 1 ? ` One of ${oneOf(c.id).toLocaleString("en-US")} rows with this problem.` : "") });
+    const entry = (c, reason, sev) => ({ ri: c.ri, col: c.ci, sev, pri: c.pri || sev, kind: kindOf(c.id), id: c.id || null, title: `Row ${((a.sliceMap ? a.sliceMap[c.ri] : c.ri) + a.rowBase).toLocaleString("en-US")} · ${a.header[c.ci]}${where(c.ri)}`, reason: reason + (oneOf(c.id) > 1 ? ` One of ${oneOf(c.id).toLocaleString("en-US")} rows with this problem.` : "") });
     const oneOf = id => { const f = a.findingsAll.find(x => x.id === id); return f ? f.n : 0; };   // a list of ten cannot hold every row of a big finding, so each entry says how many there are
     const qaCap = 7, nIn = k => out.filter(w => w.kind === k).length;
-    for (const c of cand) { if (out.length >= 10) break; if (kindOf(c.id) === "qa" && nIn("qa") >= qaCap) continue; if (kindOf(c.id) === "insight" && nIn("insight") >= 10 - qaCap) continue; if (c.id === "gaps") continue; /* a blank cell is a column-wide matter, not a record to read */ if ((used.get(c.id) || 0) >= PER_FINDING) continue; used.set(c.id, (used.get(c.id) || 0) + 1); picked.add(c.ri); out.push(entry(c, plain(c.why), c.sev)); }
+    for (const c of cand) { if (out.length >= 10) break; if (kindOf(c.id) === "qa" && nIn("qa") >= qaCap) continue; if (kindOf(c.id) === "insight" && nIn("insight") >= 10 - qaCap) continue; if (kindOf(c.id) === "fyi") continue; if (c.id === "gaps") continue; /* a blank cell is a column-wide matter, not a record to read */ if ((used.get(c.id) || 0) >= PER_FINDING) continue; used.set(c.id, (used.get(c.id) || 0) + 1); picked.add(c.ri); out.push(entry(c, plain(c.why), c.sev)); }
     if (out.length < 10 && a.measure && a.cat) {   // a record that would change the order of the groups if it were removed
       const mi = a.measure.i, ci = a.cat.i, sums = new Map(); rows.forEach(r => { const k = r[ci].trim() || "(blank)"; sums.set(k, (sums.get(k) || 0) + (num(r[mi]) || 0)); });
       const order = m => [...m.entries()].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1)).map(e => e[0]);
@@ -492,9 +735,10 @@
 
   // ---------- the table's store, and the made-up sample
   function makeStore(data, a) {
-    const raw = data.rows, nc = a.header.length;
-    return Rec.createStore({ header: raw[0].slice(0, nc).map(String), names: a.header, rows: raw.slice(1, MAXR + 1).map(r => a.header.map((_, i) => r[i] == null ? "" : String(r[i]))),
-      mask: raw.mask ? raw.mask.slice(1, MAXR + 1).map(m => a.header.map((_, i) => m[i] || 0)) : null, headerMask: raw.mask ? a.header.map((_, i) => raw.mask[0][i] || 0) : null,
+    const raw = data.rows, keep = a.keep || a.header.map((_, i) => i), nc = keep.length, bs = a.hdr.bodyStart, hasHdr = a.hdr.isHeader, ident = keep.every((k, i) => k === i);   // keep: the file's columns the report reads (the flagged ones are left out, CONS-0045)
+    const pick = r => (ident ? r.slice(0, nc) : keep.map(i => (r[i] == null ? "" : r[i]))), lead = raw.slice(0, bs).map((r, i) => (hasHdr && i === bs - 1 ? pick(r) : r).map(String));   // title rows and the header, kept as read so the export is the file as it came
+    return Rec.createStore({ header: hasHdr ? lead[bs - 1] : a.header, lead, leadMask: raw.mask ? raw.mask.slice(0, bs).map((m, i) => (hasHdr && i === bs - 1 ? pick(m) : m)) : null, rowBase: a.rowBase, names: a.header, rows: raw.slice(bs, bs + MAXR).map(r => keep.map(i => r[i] == null ? "" : String(r[i]))),
+      mask: raw.mask ? raw.mask.slice(bs, bs + MAXR).map(m => keep.map(i => m[i] || 0)) : null,
       fmt: raw.fmt || { delim: ",", eol: "\n", finalEol: true }, isNum: a.cols.map(c => c.type === "number"), num, calc: a.calc, name: data.name });
   }
   // A made-up café's sales: seeded, with the usual problems planted (the twelve $115.00 sandwiches are the headline).
@@ -519,22 +763,100 @@
     return [["order_id", "date", "location", "item", "qty", "unit_price", "total", "payment"], ...rs.map(r => [r.order, r.date, r.loc, r.item, String(r.qty), r.price.toFixed(2), r.total.toFixed(2), r.pay])];
   }
 
-  const API = { parseDelimited, num, dt, profileCol, analyse, detectOutliers, pickNotable, sections, makeStore, cafeSample, setLimits };
+  // ---------- the engine seen from outside: messages in, plain data out. A Web Worker runs this; so does the page itself if a worker cannot start.
+  const cleanA = a => ({ ...a, trend: a.trend ? { ...a.trend, label: undefined } : a.trend });
+  const labelFor = unit => t => { const d = new Date(t); return unit === "year" ? String(d.getUTCFullYear()) : unit === "month" ? `${MON[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}` : `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+  const hydrate = r => { if (r.a.trend) r.a.trend.label = labelFor(r.a.trend.unit); return r; };
+  // A file over the limit is read as pieces of the limit's size (CONS-0053). Only the header rows and the wanted piece are kept, so one piece is in memory at a time.
+  const PIECE_NOTE = "The paid edition reports across all pieces at once.", pieceLabel = p => `piece ${p.k} of ${p.n}`;
+  function slicePiece(data, want, choice) {
+    const rows = data.rows, frm = Shape.frame(rows, choice || {}, { num, dt, profileCol }), total = rows.length - frm.bodyStart; if (total <= MAXR) return data;
+    const n = Math.ceil(total / MAXR), k = Math.min(n, Math.max(1, Math.round(+want) || 1)), off = (k - 1) * MAXR, a = frm.bodyStart + off, b = a + MAXR, out = rows.slice(0, frm.bodyStart).concat(rows.slice(a, b));
+    if (rows.mask) out.mask = rows.mask.slice(0, frm.bodyStart).concat(rows.mask.slice(a, b)); if (rows.fmt) out.fmt = rows.fmt;
+    return { ...data, rows: out, piece: { k, n, offset: off, total, size: MAXR } };
+  }
+  async function handle(m) {
+    if (m.maxRows) setLimits(m.maxRows, m.maxCols || MAXC);
+    if (m.op === "warm") { try { await loadXLSX(); } catch (e) {} return { warm: true }; }
+    let data;
+    if (m.op === "read") data = await readFile(m.file); else data = { name: m.name, sheet: m.sheet, rows: m.rows };
+    if (m.slice) { const r = analyseSlice(data, m.slice.map, m.slice.lead, m.choice || {}); return { a: cleanA(r.a), notable: r.notable }; }   // the visitor's slice (CONS-0051)
+    data = slicePiece(data, m.piece, m.choice);
+    const a = analyse(data, m.choice || {}), notable = pickNotable(a, makeStore(data, a));
+    const out = { a: cleanA(a), notable };
+    if (m.op === "read" || data.piece) { out.name = data.name; out.sheet = data.sheet; out.rows = Array.from(data.rows, r => r); out.mask = data.rows.mask || null; out.fmt = data.rows.fmt || null; }
+    return out;
+  }
+  function serve(scope) {
+    scope.onmessage = async e => { const m = e.data; try { scope.postMessage({ id: m.id, ok: true, r: await handle(m) }); } catch (err) { scope.postMessage({ id: m.id, ok: false, error: err && err.message || "That file couldn't be read." }); } };
+    scope.postMessage({ ready: true });
+  }
+
+
+  // ---------- slices (CONS-0051): the report worked out again for some of the rows. The rows are chosen by index in the table's store; the analysis runs on those rows alone,
+  // then every row index it holds is turned back into the row's place in the whole file, so a click in a slice reaches the same row in the table.
+  function remapSlice(a, notable, map) {
+    const mp = i => map[i], seen = new Set();
+    [a.findings, a.findingsList, a.findingsAll].forEach(list => (list || []).forEach(f => { if (seen.has(f) || !f.rows) return; seen.add(f); f.rows = f.rows.map(mp); }));
+    a.flags = new Map([...a.flags].map(([k, v]) => { const j = k.indexOf(":"); return [map[+k.slice(0, j)] + k.slice(j), v]; }));
+    if (a.qaSample) { a.qaSample.rows = a.qaSample.rows.map(mp); a.qaSample.info = new Map([...a.qaSample.info].map(([k, v]) => [map[k], v])); }
+    if (a.worth) a.worth.items.forEach(x => { x.ri = mp(x.ri); });
+    notable.forEach(w => { w.ri = mp(w.ri); });
+    delete a.sliceMap; a.sliced = map.length; return { a, notable };
+  }
+  // data.rows: the header and title rows (lead of them) then the data rows; map: ascending indexes of the data rows to keep
+  function analyseSlice(data, map, lead, choice = {}) {
+    const rows = data.rows, sub = rows.slice(0, lead); map.forEach(i => sub.push(rows[lead + i]));
+    const d = { ...data, rows: sub }, a = analyse(d, { ...choice, sliceMap: map }), notable = pickNotable(a, makeStore(d, a));
+    return remapSlice(a, notable, map);
+  }
+  // Compare: for each row of the whole file's grouping table, what the slice holds of it (same measure, same Other bucket)
+  function compareGroups(base, storeRows, idxs) {
+    const g = base.grouping; if (!g) return null;
+    const mi = base.measure ? base.measure.i : -1, dc = g.distinctOf ? base.cols.find(c => c.name === g.distinctOf) : null, listed = new Set(g.rows.filter(r => !r.other).map(r => r.k)), acc = new Map();
+    idxs.forEach(ri => { const r = storeRows[ri], k = (r[g.ci] || "").trim() || "(blank)", key = listed.has(k) ? k : "\u0000other", e = acc.get(key) || acc.set(key, { n: 0, sum: 0, set: new Set() }).get(key);
+      e.n++; if (mi >= 0) e.sum += num(r[mi]) || 0; if (dc) { const x = (r[dc.i] || "").trim(); if (x) e.set.add(x); } });
+    return g.rows.map(r => { const e = acc.get(r.other ? "\u0000other" : r.k); return { k: r.k, n: e ? e.n : 0, v: !e ? 0 : g.agg === "distinct" ? e.set.size : g.agg === "sum" ? e.sum : e.n }; });
+  }
+
+  // ---------- the view in the URL hash (CONS-0051). Only names the visitor chose (columns, findings) and values they clicked or typed in the search box are written; never a row, never a file.
+  // A filter that is a list of rows (the QA sample, the worth-a-look rows) is not written: it names rows, and a link must not.
+  const PICK_KEYS = { measure: "m", date: "dt", cat: "by", cat2: "by2", topN: "top", measure2: "m2", split: "sp", distinct: "ds" }, MAXV = 120;
+  const shareable = id => !!id && !/^(rows|find):/.test(id);
+  function encodeView(v = {}, sample = false) {
+    const parts = sample ? ["sample"] : [], put = (k, x) => { if (x != null && x !== "") parts.push(k + "=" + encodeURIComponent(String(x).slice(0, MAXV))); };
+    if (shareable(v.f)) put("f", v.f);
+    if (v.g && v.g.col != null && v.g.val != null) { put("g", v.g.col); put("gv", v.g.val); if (v.g.col2 != null && v.g.val2 != null) { put("g2", v.g.col2); put("gv2", v.g.val2); } }
+    put("q", v.q); if (v.s && v.s.col != null) { put("s", v.s.col); put("sd", v.s.dir < 0 ? -1 : 1); } if (v.cmp) put("cmp", 1);
+    const c = v.choice || {}; Object.keys(PICK_KEYS).forEach(k => { if (c[k] != null && c[k] !== "") put(PICK_KEYS[k], c[k]); });
+    return parts.join("&");
+  }
+  function decodeView(hash) {
+    const out = { sample: false, view: {} }, dec = x => { try { return decodeURIComponent(x); } catch (e) { return null; } }, kv = {};
+    String(hash || "").replace(/^#/, "").split("&").forEach(p => { if (!p) return; const i = p.indexOf("="), k = i < 0 ? p : p.slice(0, i), x = i < 0 ? "" : dec(p.slice(i + 1)); if (k === "sample" && i < 0) out.sample = true; else if (i >= 0 && x != null) kv[k] = x.slice(0, MAXV); });
+    const v = out.view;
+    if (kv.f && shareable(kv.f)) v.f = kv.f;
+    if (kv.g != null && kv.gv != null && kv.g !== "") { v.g = { col: kv.g, val: kv.gv }; if (kv.g2 && kv.gv2 != null) { v.g.col2 = kv.g2; v.g.val2 = kv.gv2; } }
+    if (kv.q) v.q = kv.q; if (kv.s) v.s = { col: kv.s, dir: +kv.sd < 0 ? -1 : 1 }; if (kv.cmp === "1") v.cmp = true;
+    Object.keys(PICK_KEYS).forEach(k => { const x = kv[PICK_KEYS[k]]; if (x == null || x === "") return; if (k === "topN") { const n = Math.round(+x); if (n >= 1 && n <= 50) (v.choice || (v.choice = {})).topN = n; } else (v.choice || (v.choice = {}))[k] = x; });
+    return out;
+  }
+
+  const API = { analyseSlice, remapSlice, compareGroups, encodeView, decodeView, PIECE_NOTE, pieceLabel, handle, serve, hydrate, cleanA, labelFor, parseDelimited, num, dt, profileCol, analyse, detectOutliers, pickNotable, sections, qaSampleOf, classOfFinding, makeStore, cafeSample, setLimits };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else if (typeof self !== "undefined") self.JAIReport = API;
   if (!root) return;
 
-  // warm the Excel reader up front so the offline check holds for .xlsx too
-  ("requestIdleCallback" in window ? requestIdleCallback : setTimeout)(() => loadXLSX().catch(() => {}));
 
   // ---------- drawing
   const niceMax = m => { if (m <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(m))), f = m / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
+  let CHART_W = 680, BARS_W = 420;   // the pixel width each chart will be shown at, so its words are drawn at their real size (JEBYUS-0058)
   function lineSVG(tr, measureName) {
-    const W = 680, H = 210, L = 56, R = 18, T = 26, B = 26, s = tr.series; if (s.length < 2) return "";
+    const W = CHART_W, H = 210, L = 56, R = 18, T = 26, B = 26, s = tr.series; if (s.length < 2) return "";
     const max = niceMax(Math.max(...s.map(p => p.v)) * 1.05), min = Math.min(0, ...s.map(p => p.v));
     const X = i => L + i * (W - L - R) / (s.length - 1), Y = v => T + (H - T - B) * (1 - (v - min) / (max - min));
     let g = ""; for (let i = 0; i <= 4; i++) { const v = min + (max - min) * i / 4; g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${L - 8}" y="${Y(v) + 3.5}" text-anchor="end" class="tk">${fmt(v)}</text>`; }
-    const every = Math.ceil(s.length / 12);
-    s.forEach((p, i) => { if (i % every === 0 || i === s.length - 1) g += `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" class="tk">${tr.label(p.t)}</text>`; });
+    const every = Math.ceil(s.length / Math.max(2, Math.floor((W - L - R) / 60)));
+    s.forEach((p, i) => { if (i % every === 0 || (i === s.length - 1 && i % every >= Math.ceil(every * .75))) g += `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" class="tk">${tr.label(p.t)}</text>`; });
     const d = s.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join("");
     let marks = ""; s.forEach((p, i) => { const part = (tr.partialFirst && i === 0) || (tr.partialLast && i === s.length - 1);
       marks += `<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" class="${part ? "pt part" : "pt"}"/>`; });
@@ -545,13 +867,27 @@
     const hits = s.map((p, i) => { const w = (W - L - R) / Math.max(1, s.length - 1); return `<rect x="${X(i) - w / 2}" y="${T}" width="${w}" height="${H - T - B}" fill="transparent" data-x="${X(i)}" data-tip="${tipSafe(tr.label(p.t))}${(tr.partialFirst && i === 0) || (tr.partialLast && i === s.length - 1) ? " (partial)" : ""}: <b>${esc(full(p.v, 0))}</b>"/>`; }).join("");
     return `<svg viewBox="0 0 ${W} ${H}" class="chart line" role="img" aria-label="${esc(measureName)} by ${tr.unit}">${g}<line class="xh" x1="0" x2="0" y1="${T}" y2="${H - B}"/><path d="${d}" class="ln"/>${marks}${note}${hits}</svg>`;
   }
+  const SPLITC = ["#2f3b4b", "#b3121a", "#2f5e9e", "#8a6d3b", "#4f7a5c", "#9a998f", "#6b5b95", "#c2792b"];
+  function stackSVG(tr, measureName) {
+    const W = CHART_W, L = 56, R = 18, T = 14, sp = tr.split, n = tr.series.length; if (n < 2) return "";
+    const perRow = Math.max(1, Math.floor((W - L) / 150)), legendRows = Math.ceil(sp.names.length / perRow), B = 34 + legendRows * 16, H = 170 + B;
+    const totals = tr.series.map((_, i) => sp.vals.reduce((a, row) => a + row[i], 0)), max = niceMax(Math.max(...totals) * 1.05) || 1, bw = (W - L - R) / n, Y = v => T + (H - T - B) * (1 - v / max);
+    let g = ""; for (let i = 0; i <= 4; i++) { const v = max * i / 4; g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${L - 8}" y="${Y(v) + 3.5}" text-anchor="end" class="tk">${fmt(v)}</text>`; }
+    const every = Math.ceil(n / Math.max(2, Math.floor((W - L - R) / 60))); let bars = "";
+    tr.series.forEach((p, i) => { let acc = 0; const x = L + i * bw + bw * 0.12, w = bw * 0.76, part = (tr.partialFirst && i === 0) || (tr.partialLast && i === n - 1);
+      if (i % every === 0 || (i === n - 1 && i % every >= Math.ceil(every * .75))) g += `<text x="${x + w / 2}" y="${H - B + 14}" text-anchor="middle" class="tk">${tr.label(p.t)}</text>`;
+      const tip = `${tipSafe(tr.label(p.t))}${part ? " (partial)" : ""}: <b>${esc(full(totals[i], 0))}</b>` + sp.names.map((nm, k) => (sp.vals[k][i] ? `<br>${tipSafe(nm)} ${esc(full(sp.vals[k][i], 0))}` : "")).join("");
+      bars += `<g data-tip="${tip}"><rect x="${L + i * bw}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"/>` + sp.names.map((nm, k) => { const v = sp.vals[k][i]; if (!v) return ""; const y1 = Y(acc + v), y0 = Y(acc); acc += v; return `<rect x="${x}" y="${y1}" width="${w}" height="${Math.max(0.5, y0 - y1)}" fill="${nm === "Other" ? SPLITC[5] : SPLITC[k % SPLITC.length]}" opacity="${part ? 0.55 : 1}"/>`; }).join("") + `</g>`; });
+    const legend = sp.names.map((nm, k) => `<g transform="translate(${L + (k % perRow) * 150} ${H - B + 34 + Math.floor(k / perRow) * 16})"><rect width="10" height="10" y="-9" fill="${nm === "Other" ? SPLITC[5] : SPLITC[k % SPLITC.length]}"/><text x="14" y="0" class="tk">${esc(nm.slice(0, 18))}</text></g>`).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" class="chart stack" role="img" aria-label="${esc(measureName)} by ${tr.unit}, split by ${esc(sp.col)}">${g}${bars}${legend}</svg>`;
+  }
   function barsSVG(bd) {
-    const rowH = 30, W = 420, L = 150, R = 64, H = bd.items.length * rowH + 4, max = Math.max(...bd.items.map(x => x[1]), 1);
+    const rowH = 30, W = BARS_W, L = Math.min(150, Math.round(W * .36)), R = 64, H = bd.items.length * rowH + 4, max = Math.max(...bd.items.map(x => x[1]), 1);
     return `<svg viewBox="0 0 ${W} ${H}" class="chart bars" role="img" aria-label="Totals by ${esc(bd.col)}">` + bd.items.map(([k, v, other, n], i) => {
       const y = i * rowH + 6, w = Math.max(2, (W - L - R) * Math.max(0, v) / max), h = 18, r = Math.min(4, w / 2);
       const norm = k.trim().toLowerCase().replace(/\s+/g, " "), variant = !other && bd.items.some(([k2, v2], j) => j !== i && k2.trim().toLowerCase().replace(/\s+/g, " ") === norm && (v2 > v || (v2 === v && j < i)));
-      const lab = (variant ? k.replace(/ {2,}/g, m => "·".repeat(m.length)) : k).slice(0, variant ? 12 : 18) + (k.length > (variant ? 12 : 18) ? "…" : "");
-      return `<g data-tip="${tipSafe(k)}: <b>${esc(full(v, 0))}</b> · ${pct(v, bd.total).toFixed(1)}% · ${n.toLocaleString("en-US")} rows · average <b>${esc(full(v / (n || 1), 2))}</b>${other ? "" : "<br>Click to show these rows"}"${other ? "" : ` data-g="${esc(k)}" class="pick"`}><rect x="0" y="${y - 6}" width="${W}" height="${rowH}" fill="transparent"/>
+      const pickable = !other && !bd.noPick, mc = Math.max(8, Math.floor((L - 12) / 7)) - (variant ? 7 : 0), lab = (variant ? k.replace(/ {2,}/g, m => "·".repeat(m.length)) : k).slice(0, mc) + (k.length > mc ? "…" : "");
+      return `<g data-tip="${tipSafe(k)}: <b>${esc(full(v, 0))}</b> · ${pct(v, bd.total).toFixed(1)}% · ${n.toLocaleString("en-US")} rows · average <b>${esc(full(v / (n || 1), 2))}</b>${pickable ? "<br>Click to show these rows" : ""}"${pickable ? ` data-g="${esc(k)}" class="pick"` : ""}><rect x="0" y="${y - 6}" width="${W}" height="${rowH}" fill="transparent"/>
         <text x="${L - 10}" y="${y + 13}" text-anchor="end" class="bl">${esc(lab)}${variant ? `<tspan class="var"> variant</tspan>` : ""}</text>
         <path class="${other ? "bar other" : "bar"}" d="M${L} ${y}h${w - r}a${r} ${r} 0 0 1 ${r} ${r}v${h - 2 * r}a${r} ${r} 0 0 1 -${r} ${r}h-${w - r}z"/>
         <text x="${L + w + 6}" y="${y + 13}" class="bv">${esc(fmt(v))}</text></g>`; }).join("") + "</svg>";
@@ -563,103 +899,343 @@
   function controlsHTML(a) {
     const opt = (list, cur, none) => (none ? `<option value=""${cur ? "" : " selected"}>${none}</option>` : "") + list.map(c => `<option${cur && c.name === cur.name ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     return `<div class="report-controls print-hide" role="group" aria-label="Report settings">
-  <label>Measure <select data-ch="measure">${opt(a.numCols, a.measure, a.numCols.length ? "" : "Row count")}</select></label>
+  <label>First row <select data-ch="header" title="Is the first row of the file column names, or data?"><option value="header"${a.hdr.isHeader ? " selected" : ""}>is a header</option><option value="data"${a.hdr.isHeader ? "" : " selected"}>is data</option></select></label>
+  ${a.kind === "transactions" ? "" : `<label>Measure <select data-ch="measure">${opt(a.numCols, a.grouping && a.grouping.agg === "distinct" ? null : a.measure, a.numCols.length ? "" : "Row count")}${a.distinctCands.length ? `<optgroup label="Count distinct of">${a.distinctCands.map(c => `<option value="distinct:${esc(c.name)}"${a.grouping && a.grouping.distinctOf === c.name ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>` : ""}</select></label>`}
   <label>Date <select data-ch="date">${opt(a.dateCands, a.dateCol, a.dateCands.length ? "" : "None")}</select></label>
   <label>Group by <select data-ch="cat">${opt(a.catCands, a.cat, "None")}</select></label>
+  ${a.grouping ? `<label>Then by <select data-ch="cat2">${opt(a.catCands.filter(c => c.name !== a.cat.name), a.grouping.cat2 ? { name: a.grouping.cat2 } : null, "None")}</select></label>
+  <label>Top <select data-ch="topN">${[3, 5, 7, 10, 15, 20].map(n => `<option${n === a.grouping.topN ? " selected" : ""}>${n}</option>`).join("")}</select></label>
+  ${a.m2Cands.filter(c => !a.measure || c.name !== a.measure.name).length ? `<label>Second measure <select data-ch="measure2">${opt(a.m2Cands.filter(c => !a.measure || c.name !== a.measure.name), a.grouping.measure2Name ? { name: a.grouping.measure2Name } : null, "None")}</select></label>` : ""}` : ""}
+  ${a.trend ? `<label>Split timeline by <select data-ch="split">${opt(a.catCands.filter(c => c.distinct <= 60), a.trend.split ? { name: a.trend.split.col } : null, "None")}</select></label>` : ""}
   <span class="sp"></span><button class="btn small" type="button" data-print>Print or save as PDF</button><button class="btn small" type="button" data-reset>Start over</button>
 </div>`;
   }
-  function sheetHTML(a, notable, ed) {
+  // The grouping table (CONS-0041): bars with the share of the total, the rows and the mean; a second column nests the biggest kinds under each group; Other holds the rest of the top N
+  const pctText = x => (x * 100).toFixed(x < 0.1 && x > 0 ? 1 : 0) + "%";
+  function groupHTML(a, cx = {}) {
+    const cmp = cx.cmp && cx.base && cx.base.grouping ? cx.cmp : null, g = cmp ? cx.base.grouping : a.grouping, mx = Math.max(...g.rows.map(r => Math.max(0, r.v)), 1), mean = g.agg === "sum";
+    // the hover (Chaz T6): the row count, the share, the average and how many of the group's rows are marked; the same words are the row's name for a screen reader
+    const tipLines = (r, cm) => { const L = [[`${r.k}`, 1], [`${fmtCount(r.n)} row${r.n === 1 ? "" : "s"} · ${pctText(r.share)} of the ${g.agg === "sum" ? "total" : g.agg === "distinct" ? "distinct " + g.distinctOf : "rows"}`]];
+      if (g.agg === "sum") L.push([`${g.measureName} ${full(r.v, 0)} · average ${r.mean == null ? "n/a" : full(r.mean, 2)}`]); else if (g.agg === "distinct") L.push([`${fmtCount(r.v)} distinct ${g.distinctOf}`]);
+      if (g.measure2Name && r.v2 != null) L.push([`${g.measure2Name} ${fmt(r.v2)}`]);
+      L.push([`${fmtCount(r.flagged || 0)} of ${fmtCount(r.n)} rows flagged`]); if (cm) L.push([`In the slice: ${fmtCount(cm.n)} row${cm.n === 1 ? "" : "s"}`]);
+      if (!r.other) L.push([`Click or press Enter to filter the records to ${r.k}`]); return L; };
+    const tipAttr = (r, cm) => { const L = tipLines(r, cm); return `data-tip="${L.map(([t, b]) => (b ? `<b>${tipSafe(t)}</b>` : tipSafe(t))).join("<br>")}" aria-label="${esc(L.map(x => x[0]).join(". "))}"`; };
+    const cell = (r, kid, cm) => {
+      const shown = g.agg === "sum" ? fmt(r.v) : fmtCount(r.v), w = Math.max(r.v > 0 ? 2 : 0, 100 * Math.max(0, r.v) / mx);
+      const bar = cmp ? `<span class="grp-track" aria-hidden="true"><i class="whole" style="width:${w.toFixed(1)}%"></i><i class="part" style="width:${Math.min(w, Math.max(cm.v > 0 ? 1.5 : 0, 100 * Math.max(0, cm.v) / mx)).toFixed(1)}%"></i></span>` : `<i style="width:${w.toFixed(1)}%"></i>`;
+      return `<td class="grp-bar"><span class="grp-barbox${cmp ? " cmp" : ""}">${bar}<b>${esc(shown)}</b></span></td><td class="grp-share">${pctText(r.share)}</td>${g.cat2 ? `<td class="grp-within">${kid ? pctText(r.within) : ""}</td>` : ""}<td class="grp-n">${fmtCount(r.n)}</td>${cmp ? `<td class="grp-slice">${fmtCount(cm.n)}</td>` : ""}${mean ? `<td class="grp-mean">${r.mean == null ? "" : esc(full(r.mean, 2))}</td>` : ""}${g.measure2Name ? `<td class="grp-m2">${r.v2 == null ? "" : esc(fmt(r.v2))}</td>` : ""}`; };
+    const pick = (r, extra = "") => (r.other ? "" : ` data-g="${esc(r.k)}"${extra} tabindex="0"`);
+    const body = g.rows.map((r, i) => `<tr class="grp-parent${r.other ? " other" : ""}"${pick(r)} ${tipAttr(r, cmp && cmp[i])}><td class="grp-name">${esc(r.k)}</td>${cell(r, false, cmp && cmp[i])}</tr>`
+      + (cmp ? "" : r.kids.map(k => `<tr class="grp-child"${k.other ? "" : ` data-g="${esc(r.k)}" data-g2="${esc(k.k)}" tabindex="0"`} ${tipAttr(k, null)}><td class="grp-name">${esc(k.k)}</td>${cell(k, true)}</tr>`).join(""))).join("");
+    const head = `<tr><th>${esc(g.cat)}${g.cat2 ? ` <span class="then">then ${esc(g.cat2)}</span>` : ""}</th><th>${esc(g.measureName)}</th><th>Share of total</th>${g.cat2 ? "<th>Of group</th>" : ""}<th>Rows</th>${cmp ? "<th>In slice</th>" : ""}${mean ? "<th>Mean</th>" : ""}${g.measure2Name ? `<th>${esc(g.measure2Name)}</th>` : ""}</tr>`;
+    const tools = `<div class="grp-tools print-hide"><button class="btn small cmp-toggle" type="button" data-compare aria-pressed="${!!cx.compare}">Compare</button>${cx.compare && !cx.sliced ? `<span class="cmp-note" role="status">Filter or search the records to compare a slice with the whole file.</span>` : cmp ? `<span class="cmp-note cmp-key"><i class="k whole" aria-hidden="true"></i>whole file <i class="k part" aria-hidden="true"></i>${esc(cx.label)} (${fmtCount(cx.n)} of ${fmtCount(cx.total)} rows)</span>` : `<span class="cmp-hint">Hover a bar for its numbers; click it to filter the records.</span>`}</div>`;
+    return `<h3>${esc(g.measureName)} by ${esc(g.cat)}${g.cat2 ? `, then ${esc(g.cat2)}` : ""} <span class="hint">top ${g.topN}${g.rows.some(r => r.other) ? " and Other" : ""}${cx.sliced && !cmp ? ` · slice: ${esc(cx.label)}` : ""}</span></h3>${tools}<div class="grp-wrap"><table class="grp${cmp ? " cmp" : ""}"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+      ${g.agg === "distinct" ? `<p class="trend-note">Distinct counts do not add up across groups: a value found in two groups is counted in both. Share is of the ${fmtCount(g.total)} distinct values in the whole file.</p>` : ""}`;
+  }
+  // Worth a look with a Search news button per item (CONS-0047): the last block of Insights. A search opens only when its button is pressed, in a new tab, with the words shown on hover.
+  const searched = new Map();   // query -> the time it was opened, for the "Searched" state
+  function worthNewsHTML(a) {
+    const w = a.worth; if (!w) return "";
+    const by = w.canLargest ? `<span class="pickby print-hide" role="group" aria-label="Picked by"><span class="pb-l">Picked by</span><button type="button" class="seg" data-by="random" aria-pressed="${w.by === "random"}">Random</button><button type="button" class="seg" data-by="largest" aria-pressed="${w.by === "largest"}">Largest ${esc(w.measureName)}</button></span>` : "";
+    const seed = w.by === "random" && w.items.length ? `<span class="seedtag print-hide">seed ${w.seed}</span> <button class="rec-link print-hide" type="button" data-reseed>Pick five others</button>` : "";
+    const li = x => { const done = searched.get(x.query), shown = "https://news.google.com/search?q=" + encodeURIComponent(x.query);
+      return `<li data-ri="${x.ri}"><button class="wrow" type="button" data-row="${x.ri}"><i class="sev ${x.sev || "none"}" aria-hidden="true">${x.sev === "fix" ? "×" : x.sev === "look" ? "!" : ""}</i><span><b>${esc(x.title)}</b><span class="wreason">${esc(x.reason)}</span></span></button>
+        <span class="wnews print-hide"><button class="btn small news${done ? " done" : ""}" type="button" data-news="${x.ri}" aria-describedby="nt${x.ri}">${done ? "Searched" : "Search news"} <span aria-hidden="true">↗</span></button>
+        <span class="news-tip" id="nt${x.ri}" role="tooltip">This opens Google News in a new tab and searches for:<code>${esc(x.query)}</code>Built from ${esc(Dom.listWords(Object.keys(x.parts).map(k => k === "name" ? "name" : k)))}. Never used: owner, phone, email or any amount.<small>Nothing is sent until you click, and then only these words.</small></span>
+        <small class="news-q">Searches: ${esc(x.query)}</small>${done ? `<small class="news-done">Opened Google News in a new tab at ${esc(done)}. <button class="rec-link" type="button" data-news="${x.ri}">Search again</button></small>` : ""}</span></li>`; };
+    return `<section class="sh-worth ins news" data-block="worth"><h3>Worth a look <span class="hint print-hide">${w.items.length ? `${w.items.length === 5 ? "Five" : w.items.length} picked from ${fmtCount(w.total)} rows. Click a name to find it in the table.` : ""}</span></h3>
+      ${w.items.length ? `<div class="worth-ctl">${by}${seed}</div><ol class="worth news">${w.items.map(li).join("")}</ol>
+      <p class="news-info print-hide"><b aria-hidden="true">i</b> Searches only start when you press a button. They open in a new tab with the words shown on hover; nothing else from your file leaves this device.</p>` : `<p class="calm">${esc(w.why || "Nothing to show.")}</p>`}</section>`;
+  }
+  const notShownHTML = a => a.notShown && a.notShown.length ? `<details class="not-shown print-hide"><summary>Not shown (${a.notShown.length})</summary><p class="hint">Held back by the insight gate, so the report shows fewer insights rather than wrong ones.</p><ul>${a.notShown.map(h => `<li><b>${esc(h.title)}</b> ${esc(h.reason)}</li>`).join("")}</ul></details>` : "";
+  // How to supplement your data (CONS-0042): the last section of every report, chosen by the detected shape from sources.js; screen only, so the one-page print is unchanged
+  function suppHTML(a) {
+    if (!Sources) return "";
+    const groups = Sources.pick(a); if (!groups.length) return "";
+    const chip = (cls, t) => `<span class="chip ${cls}">${t}</span>`;
+    return `<section class="sh-supp print-hide" aria-label="${esc(Sources.SOURCES.title)}"><h2>${esc(Sources.SOURCES.title)}</h2><p class="supp-lead">${esc(Sources.SOURCES.lead)}</p>
+      ${groups.map(g => `<section class="supp-group" data-group="${esc(g.id)}"><h3>${esc(g.title)} <span class="hint">${esc(g.why)}</span></h3><ul class="supp-list">${g.items.map(s => `<li><span class="supp-name"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a></span> ${chip(s.cost, Sources.COST[s.cost])} ${chip(s.access, Sources.ACCESS[s.access])}<span class="supp-adds">${esc(s.adds)}</span></li>`).join("")}</ul></section>`).join("")}</section>`;
+  }
+  // Screening (CONS-0045): what was left out before any statistics, with the reason and, where allowed, the choice; and the one line that prints in the footer
+  // Pieces (CONS-0053): a file over the limit is read one piece at a time; the counter and the two buttons are on screen, "piece k of N" and one plain sentence print
+  const pieceRange = p => `rows ${(p.offset + 1).toLocaleString("en-US")} to ${Math.min(p.total, p.offset + p.size).toLocaleString("en-US")} of ${p.total.toLocaleString("en-US")}`;
+  const pieceBar = a => { const p = a.piece; if (!p) return "";
+    return `<section class="sh-pieces print-hide" aria-label="Pieces"><div><p class="pc-count"><b>${esc(pieceLabel(p)[0].toUpperCase() + pieceLabel(p).slice(1))}</b> · ${esc(pieceRange(p))}</p>
+      <p class="pc-note">Your file has more than ${p.size.toLocaleString("en-US")} rows, so the free report reads it ${p.size.toLocaleString("en-US")} at a time. Each piece is reported on its own, and everything stays in this browser. ${esc(PIECE_NOTE)}</p></div>
+      <div class="pc-btns"><button class="btn small" type="button" data-piece="prev"${p.k <= 1 ? " disabled" : ""}>Previous piece</button><button class="btn small red" type="button" data-piece="next"${p.k >= p.n ? " disabled" : ""}>Next piece</button></div></section>`; };
+  const pieceNote = a => a.piece ? `<p class="piece-note">This report covers ${esc(pieceLabel(a.piece))} (${esc(pieceRange(a.piece))}). ${esc(PIECE_NOTE)}</p>` : "";
+  const screenPanel = a => { const f = a.screen && a.screen.flagged || []; if (!f.length) return "";
+    return `<section class="sh-screen print-hide" aria-label="Screening"><h2>Checked before any statistics <span class="sec-n">${f.length}</span></h2>
+      <p class="scr-lead">${f.length === 1 ? "One column was" : f.length + " columns were"} screened out or held for your say-so before anything was counted. Nothing from a left-out column is in the report, the table or the export, and nothing leaves this browser either way.</p>
+      <ul class="scr-list">${f.map(c => `<li class="${c.never ? "never" : "may"}" data-col="${esc(c.name)}"><span class="scr-name">${esc(c.name)}</span><span class="chip ${c.never ? "never" : "may"}">${esc(c.label)}</span><span class="scr-why">${esc(c.why)}</span>
+        <span class="scr-choice">${c.confirmed ? `<b>Included</b> on your confirmation that you hold the rights.` : c.never ? `<b>Left out.</b> Never processed: there is no override.` : `<b>Left out</b> by default. <button class="btn small" type="button" data-confirm="${esc(c.name)}">I hold the rights: include it</button>`}</span></li>`).join("")}</ul></section>`; };
+  const screenNote = a => { const sc = a.screen || { flagged: [], excluded: [], confirmed: [] }, parts = [];
+    if (sc.excluded.length) parts.push(`Left out before any statistics: ${sc.excluded.map(c => `${esc(c.name)} (${esc(c.label.toLowerCase())})`).join(", ")}.`);
+    if (sc.confirmed.length) parts.push(`Kept on the visitor's confirmation that they hold the rights, recorded ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}: ${sc.confirmed.map(c => `${esc(c.name)} (${esc(c.label.toLowerCase())})`).join(", ")}.`);
+    if (!parts.length) parts.push("Screened for licensed identifiers, personal data, minors and credentials: nothing found.");
+    return `<p class="screen-note">${parts.join(" ")}</p>`; };
+  function sheetHTML(a, notable, ed, cx = {}) {
     const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    const yr = t => new Date(t).getUTCFullYear(), md = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; }, my = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${yr(t)}`; };
-    const range = !a.trend ? "No date column" : yr(a.trend.lo) === yr(a.trend.hi) ? `${md(a.trend.lo)} – ${md(a.trend.hi)}, ${yr(a.trend.hi)}` : `${my(a.trend.lo)} – ${my(a.trend.hi)}`;
-    const kpi = [["Rows", a.N.toLocaleString("en-US")], ["Columns", a.cols.length], ["Dates", range], [a.measure ? "Total " + a.measure.name : "Measure", a.measure ? full(a.total, 0) : "None found"]];
-    const prof = a.cols.slice(0, 12).map(c => `<tr><td>${esc(c.name)}</td><td>${c.type}${Dom.roleLabel(c) && Dom.roleLabel(c) !== c.type ? ` · ${esc(Dom.roleLabel(c))}` : ""}</td><td>${pct(c.filled, a.N).toFixed(0)}%</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="3" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
+    const kpi = a.kpi;
+    const roleOpts = c => { const set = Rules.ROLES.userRoles[c.type === "number" ? "number" : c.type === "date" ? "date" : "other"], cur = c.roleBy === "you" ? c.role : "auto"; return `<option value="auto"${cur === "auto" ? " selected" : ""}>${esc(Dom.roleLabel({ ...c, role: c.detected, roleBy: c.roleBy === "you" ? "values" : c.roleBy }))} (detected)</option>` + set.filter(r => r !== c.detected).map(r => `<option value="${r}"${cur === r ? " selected" : ""}>${r}</option>`).join(""); };
+    const prof = a.cols.slice(0, 12).map(c => `<tr><td><button class="col-btn" type="button" data-colflag="${esc(c.name)}" title="Show the rows with a marked cell in ${esc(c.name)}">${esc(c.name)}</button></td><td>${c.type}<span class="role-print"> · ${esc(Dom.roleLabel(c))}</span><select class="role-pick print-hide" data-role="${esc(c.name)}" aria-label="Role of ${esc(c.name)}">${roleOpts(c)}</select></td><td>${pct(c.filled, a.N).toFixed(0)}%</td></tr>`).join("") + (a.cols.length > 12 ? `<tr><td colspan="3" class="more">+${a.cols.length - 12} more columns</td></tr>` : "");
     const next = a.needsCleanup ? ["Data health check", 8, "a person reads the data and writes down what to fix first"] : ["Focused analysis", 20, "one question answered properly, with the uncertainty stated"];
-    const trendSvg = a.trend && a.trend.series.length > 1 ? lineSVG(a.trend, a.measure ? a.measure.name : "Rows") : "";
+    const trendSvg = a.trend && a.trend.series.length > 1 ? (a.trend.split ? stackSVG(a.trend, a.measureName) : lineSVG(a.trend, a.measureName)) : "";
+    const rep = (a.findingsList || []).find(f => f.id === "repeat" && f.repeat), repNote = rep && trendSvg ? `<p class="trend-note">Repeat occurrences: ${fmtCount(rep.repeat.n)} places appear on more than one date${rep.repeat.pct != null ? `; the median change between their first and last row is ${rep.repeat.pct >= 0 ? "+" : ""}${Math.round(rep.repeat.pct * 100)}%` : ""}.</p>` : "";
     const tableRows = (a.trend ? a.trend.series.map(p => `<tr><td>${a.trend.label(p.t)}</td><td>${full(p.v, 0)}</td></tr>`).join("") : "");
     const sec = sections(a, notable);
-    const li = f => `<li><b>${esc(f.title)}</b><span>${esc(f.detail)}</span>${f.rule ? `<small class="rule print-hide">Rule: ${esc(f.rule)} To do: ${esc(f.todo)}</small>` : ""}${f.id && f.n ? `<button class="rec-link print-hide" type="button" data-find="${esc(f.id)}">Show ${fmtCount(f.n)} ${f.n === 1 ? "row" : "rows"}</button>` : ""}</li>`;
+    const tag = f => f.cls && Dom.DOMAIN.classes[f.cls] ? `<em class="cls ${f.hard ? "hard" : "adv"}" title="${esc(Dom.DOMAIN.classes[f.cls].means)}">${f.hard ? "Invalid" : "Check"} · ${esc(Dom.DOMAIN.classes[f.cls].label)}</em> ` : "";
+    const li = f => `<li><b>${tag(f)}${esc(f.title)}</b><span>${esc(f.detail)}</span>${f.rule ? `<small class="rule print-hide">Rule: ${esc(f.rule)} To do: ${esc(f.todo)}</small>` : ""}${f.id && f.n ? `<button class="rec-link print-hide" type="button" data-find="${esc(f.id)}">Show ${fmtCount(f.n)} ${f.n === 1 ? "row" : "rows"}</button>` : ""}${f.merge && f.merge.n ? `<button class="rec-link print-hide" type="button" data-merge="${esc(f.id)}" title="Write each of these names the way shown, in the table. Undo in the table puts a cell back.">Merge ${fmtCount(f.merge.n)} ${f.merge.n === 1 ? "spelling" : "spellings"}</button>` : ""}</li>`;
     const listHTML = (fs, none) => fs.length ? `<ol class="finds">${fs.slice(0, 6).map(li).join("")}</ol>` : `<p class="calm">${none}</p>`;
     const worthHTML = (list, title, cls) => list.length ? `<section class="sh-worth ${cls}"><h3>${title} <span class="hint print-hide">Click one to find it in the table.</span></h3><ol class="worth">${list.map(w => `<li><button class="wrow" type="button" data-row="${w.ri}"><i class="sev ${w.sev}" aria-hidden="true">${w.sev === "fix" ? "×" : w.sev === "look" ? "!" : "·"}</i><span><b>${esc(w.title)}</b><span class="wreason">${esc(w.reason)}</span></span></button></li>`).join("")}</ol></section>` : "";
     const qaRows = new Set(sec.qa.findings.flatMap(f => f.rows || [])), insRows = new Set(sec.insights.findings.flatMap(f => f.rows || []));
-    const nc = a.notChecked && a.notChecked.missing.length ? `<p class="not-checked"><b>Not checked:</b> ${a.notChecked.missing.map(m => `${esc(m.label)} (needs ${esc(m.because.join(" and "))})`).join("; ")}.</p>` : "";
+    const nc = (a.notChecked && a.notChecked.missing.length ? `<p class="not-checked"><b>Not checked:</b> ${a.notChecked.missing.map(m => `${esc(m.label)} (needs ${esc(m.because.join(" and "))})`).join("; ")}.</p>` : "")
+      + (a.notChecked && a.notChecked.off && a.notChecked.off.length ? `<p class="not-checked"><b>Not run on a ledger, by design:</b> ${a.notChecked.off.map(m => esc(m.label)).join("; ")}. A negative amount is money out, not a mistake.</p>` : "");
+    const fyiHTML = sec.fyi.findings.length ? `<section class="sh-fyi"><h3>FYI <span class="hint print-hide">True and useful, not a defect.</span></h3><ol class="finds">${sec.fyi.findings.map(li).join("")}</ol></section>` : "";
     const classRow = a.classCounts && a.classCounts.length ? `<p class="class-counts"><b>By class:</b> ${a.classCounts.map(c => `<span class="cls ${c.hard ? "hard" : "adv"}">${esc(c.label)} ${c.n}</span>`).join(" ")}</p>` : "";
     const qaSample = a.qaSample && typeof qaSampleHTML === "function" ? qaSampleHTML(a.qaSample) : "";
     return `<article class="sheet" aria-label="One-page report">
   <header class="sh-head"><div><span class="wm"><b>JA</b>Insights</span><span class="label">One-page report</span></div>
-    <div class="sh-meta"><b>${esc(a.name)}${a.sheet ? " · " + esc(a.sheet) : ""}</b><span>${today} · made in your browser, nothing uploaded${a.truncated ? ` · free limit: ${Math.min(a.allRows, MAXR).toLocaleString("en-US")} rows × ${Math.min(a.allCols, MAXC)} columns` : ""}${a.pack ? ` · rule pack: ${esc(a.pack.name)}` : ""}</span></div></header>
+    <div class="sh-meta"><b>${esc(a.name)}${a.sheet ? " · " + esc(a.sheet) : ""}</b><span>${today} · ${a.kind === "transactions" ? "kind: transactions (a ledger) · " : ""}made in your browser, nothing uploaded${a.piece ? ` · ${pieceLabel(a.piece)}` : ""}${a.truncated ? ` · free limit: ${MAXC} columns` : ""}${a.pack ? ` · rule pack: ${esc(a.pack.name)}` : ""}${cx.sliced ? ` · slice: ${esc(cx.label)} (${fmtCount(cx.n)} of ${fmtCount(cx.total)} rows)` : ""}</span></div></header>
   <div class="sh-kpis">${kpi.map(([l, v]) => `<div><span class="label">${esc(l)}</span><b${String(v).length > 14 ? ' class="long"' : ""}>${esc(v)}</b></div>`).join("")}</div>
+  ${pieceBar(a)}
+  ${screenPanel(a)}
   <section class="sh-sec sh-insights" aria-label="Insights"><h2>Insights <span class="sec-n">${sec.insights.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="insight">Show ${fmtCount(insRows.size)} insight rows</button></h2>
     <div class="sh-two">
       <section><h3>What the data says</h3>${listHTML(sec.insights.findings, "Nothing stands out yet. Add a date, a place or a category column and this space fills.")}</section>
-      <section>${a.breakdown ? `<h3>${esc(a.measure ? a.measure.name : "Rows")} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
+      <section>${a.grouping ? groupHTML(a, cx) : a.breakdown ? `<h3>${esc(a.measureName)} by ${esc(a.breakdown.col)}</h3><div class="chart-wrap">${barsSVG(a.breakdown)}<div class="tip" hidden></div></div>` : `<h3>Breakdown</h3><p class="calm">No column with a short list of repeating values to group by.</p>`}</section>
     </div>
-    ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measure ? a.measure.name : "Rows")} by ${a.trend.unit}</h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div></section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
-    ${worthHTML(sec.insights.notable, "Worth a look", "ins")}
+    ${trendSvg ? `<section class="sh-trend"><h3>${esc(a.measureName)} by ${a.trend.unit}${a.trend.split ? `, split by ${esc(a.trend.split.col)}${a.trend.split.top5 ? " (top five and Other)" : ""}` : ""} <span class="hint">date column: ${esc(a.dateCol.name)}</span></h3><div class="chart-wrap">${trendSvg}<div class="tip" hidden></div></div>${repNote}</section>` : `<section class="sh-trend"><h3>Timeline</h3><p class="calm">No date column found. Add one and this space shows the timeline.</p></section>`}
+    ${notShownHTML(a)}
+    ${worthNewsHTML(a)}
   </section>
   <section class="sh-sec sh-qa" aria-label="QA"><h2>QA <span class="sec-n">${sec.qa.findings.length}</span><button class="rec-link print-hide" type="button" data-sec="qa">Show ${fmtCount(qaRows.size)} QA rows</button></h2>
     <div class="sh-two">
       <section><h3>What to check</h3>${listHTML(sec.qa.findings, "Nothing jumped out. That's rarer than you'd think.")}</section>
-      <section class="sh-health"><h3>Data health</h3><ul class="checks">${a.checks.slice(0, 8).map(c => `<li class="${c.sev}"><i aria-hidden="true">${ICON[c.sev]}</i><span><b>${esc(c.title)}</b><em class="sr">${SEVL[c.sev]}. </em></span></li>`).join("")}</ul></section>
+      <section class="sh-health"><h3>Data health</h3><ul class="checks">${a.checks.slice(0, 8).map(c => { const fd = (a.findingsAll || []).find(f => f.title === c.title && f.n > 0); return `<li class="${c.sev}"><i aria-hidden="true">${ICON[c.sev]}</i><span><b>${fd ? `<button class="hl-btn" type="button" data-find="${esc(fd.id)}" title="Show ${fmtCount(fd.n)} ${fd.n === 1 ? "row" : "rows"} in the table and work the report out for them">${esc(c.title)}</button>` : esc(c.title)}</b><em class="sr">${SEVL[c.sev]}. </em></span></li>`; }).join("")}</ul></section>
     </div>
     ${worthHTML(sec.qa.notable, "Check these", "qa")}
+    ${fyiHTML}
     ${qaSample}
     <div class="sh-two">
       <section class="sh-cols"><h3>Columns</h3>${classRow}<table class="prof"><thead><tr><th>Column</th><th>Type · role</th><th>Filled</th></tr></thead><tbody>${prof}</tbody></table></section>
       <section>${nc}</section>
     </div>
+    <p class="hdr-note${a.hdr.isHeader && a.hdr.conf !== "low" && !a.hdr.forced && !a.hdr.titleRows.length && !a.hdr.replaced.length ? " print-hide" : ""}"><b>Header:</b> ${esc(a.hdr.note)}${a.hdr.titleRows.length ? ` Skipped: “${esc(a.hdr.titleRows[0])}”${a.hdr.titleRows.length > 1 ? ` and ${a.hdr.titleRows.length - 1} more` : ""}.` : ""} <span class="print-hide">Wrong? Change “First row” at the top.</span></p>
   </section>
-  ${ed && ed.n ? `<p class="print-only edit-note">${ed.n} edit${ed.n > 1 ? "s were" : " was"} made in this browser session${ed.cells !== ed.n ? ` (${ed.cells} cells changed, counting totals worked out again)` : ""}; the findings above are recalculated from the corrected values.</p>` : ""}
+  ${suppHTML(a)}
+  ${ed && ed.n && ed.cells ? `<p class="print-only edit-note">${ed.cells} cell${ed.cells === 1 ? "" : "s"} corrected in this browser session${ed.cells !== ed.n ? ` (${ed.n} edit${ed.n === 1 ? "" : "s"}, counting totals worked out again)` : ""}; the findings above are recalculated from the corrected values.</p>` : ""}
+  ${pieceNote(a)}
+  ${screenNote(a)}
   <footer class="sh-foot"><div><span class="label">What I'd do next</span><p><b>${next[0]}</b>, ${next[1]} h × $${RATE} = $${(next[1] * RATE).toLocaleString("en-US")}: ${next[2]}. This page is an automatic first pass; that's the human one.</p></div>
     <span class="stamp">Checked</span></footer>
 </article>
-${tableRows ? `<details class="tableview print-hide"><summary>Chart data as a table</summary><table class="prof"><thead><tr><th>${a.trend.unit}</th><th>${esc(a.measure ? a.measure.name : "Rows")}</th></tr></thead><tbody>${tableRows}</tbody></table></details>` : ""}
-${a.truncated ? `<p class="calm limit print-hide">The free report reads the first ${MAXR.toLocaleString("en-US")} rows and ${MAXC} columns. This file has ${a.allRows.toLocaleString("en-US")} rows and ${a.allCols} columns. The Data health check reads all of it.</p>` : ""}`;
+${tableRows ? `<details class="tableview print-hide"><summary>Chart data as a table</summary><table class="prof"><thead><tr><th>${a.trend.unit}</th><th>${esc(a.measureName)}</th></tr></thead><tbody>${tableRows}</tbody></table></details>` : ""}
+${a.truncated ? `<p class="calm limit print-hide">The free report reads ${MAXC} columns at a time. This file has ${a.allCols} columns once the screened ones are left out. The Data health check reads all of it.</p>` : ""}`;
   }
 
   // ---------- wiring
   let current = null, choice = {}, store = null, table = null, last = null;
+  // the slice and the view (CONS-0051): base is the whole file's analysis (the table's), last is what the sheet shows (the slice's when one is active)
+  let base = null, baseR = null, lastNotable = null, curSlice = null, compare = false, pendingView = null, applying = false, loadedSample = false, filterKey = "", sliceTimer = 0, tipEl = null;
+  let activePack = null;
+  const packName = () => { const el = $("#pack-name"); if (el) el.textContent = activePack ? `${activePack.name} (${activePack.version || "no version"})` : "none"; };
+  const usePack = p => { activePack = Pack.validate(p); packName(); if (current) { choice.pack = activePack; show2(); } status(`Rule pack loaded: ${activePack.name}. Its findings are marked with the pack; the generic ones are unchanged.`); };
+  { const q = new URLSearchParams(location.search).get("pack");   // ?pack=real-estate loads packs/real-estate.json from this site
+    if (q && /^[a-z0-9-]+$/.test(q)) fetch(`assets/packs/${q}.json`).then(r => { if (!r.ok) throw new Error("not found"); return r.json(); }).then(usePack).catch(() => status("That rule pack could not be loaded, so the report runs without one.")); }
+  { const pk = $("#report-pack"); if (pk) pk.addEventListener("change", async () => { try { usePack(JSON.parse(await pk.files[0].text())); } catch (e) { status(e.message || "That file is not a rule pack."); } pk.value = ""; }); }
   const out = $("#report-out"), status = msg => { $("#report-status").textContent = msg; };
-  function paint(a, first) {
-    last = a; const ed = store ? { n: store.edits.length, cells: store.edited.size } : null, notable = pickNotable(a, store);
-    $("#rep-sheet").innerHTML = sheetHTML(a, notable, ed); if (!first) $(".sheet", out).style.animation = "none";
+  function paint(a, first, nb, bA, skipTable) {
+    last = a; lastNotable = nb || null; const sliced = !!bA && bA !== a && !!curSlice, ed = store ? { n: store.edits.length, cells: store.edited.size } : null, notable = nb || pickNotable(a, store);
+    { const pad = innerWidth <= 760 ? 18 : 38, inner = Math.min(920, $("#rep-sheet").clientWidth || out.clientWidth || 700) - 2 * pad - 2;   // the sheet's own padding and border; charts are drawn at the width they will be shown
+      CHART_W = Math.round(Math.max(280, Math.min(680, inner))); BARS_W = Math.round(Math.max(280, Math.min(420, innerWidth <= 760 ? inner : (inner - 30) / 2.15))); }
+    const cx = { sliced, compare, base: bA || a, n: curSlice ? curSlice.length : 0, total: (bA || a).N, label: sliceLabel() };
+    if (sliced && compare && a.grouping && bA.grouping) cx.cmp = compareGroups(bA, store.rows, curSlice);
+    $("#rep-sheet").innerHTML = sheetHTML(a, notable, ed, cx); if (!first) $(".sheet", out).style.animation = "none";
     $$(".chart-wrap", out).forEach(wrap => {
       const tip = $(".tip", wrap), svg = $("svg", wrap), xh = $(".xh", wrap);
       const show = (el, ev) => { tip.innerHTML = el.dataset.tip; tip.hidden = false; const r = wrap.getBoundingClientRect(); tip.style.left = Math.min(r.width - 10, Math.max(10, ev.clientX - r.left)) + "px"; tip.style.top = (ev.clientY - r.top) + "px";
         if (xh && el.dataset.x) { xh.setAttribute("x1", el.dataset.x); xh.setAttribute("x2", el.dataset.x); xh.style.opacity = 1; } };
       $$("[data-tip]", svg).forEach(el => { el.addEventListener("pointermove", e => show(el, e)); el.addEventListener("pointerleave", () => { tip.hidden = true; if (xh) xh.style.opacity = 0; }); });
     });
+    if (window.JAI) JAI.fitSvgText($("#rep-sheet"));   // chart words stay 12 px or more however narrow the sheet is (JEBYUS-0058)
     const st = $(".stamp", out); if (st) requestAnimationFrame(() => st.classList.add("hit"));
-    if (table) table.update(a);
+    if (table && !skipTable) table.update(bA || a);
   }
-  function show(a) {
-    $("#rep-controls").innerHTML = controlsHTML(a); $("#rep-records").innerHTML = ""; table = null;
-    store = makeStore(current, a);
+  // The engine: a Web Worker when one can start (https, same origin), else this thread. Either way the work is the same handle() above.
+  const engine = (() => {
+    let worker = null, mode = "main", id = 0; const pending = new Map();
+    const ready = new Promise(res => {
+      try { worker = new Worker("assets/report-worker.js"); } catch (e) { return res(false); }
+      const t = setTimeout(() => { if (mode !== "worker") { try { worker.terminate(); } catch (e) {} worker = null; res(false); } }, 3000);
+      worker.onmessage = e => { const d = e.data; if (d.ready) { clearTimeout(t); mode = "worker"; return res(true); } const p = pending.get(d.id); if (p) { pending.delete(d.id); d.ok ? p.res(d.r) : p.rej(new Error(d.error)); } };
+      worker.onerror = () => { clearTimeout(t); if (mode !== "worker") { worker = null; res(false); } };
+    });
+    return { get mode() { return mode; }, ready,
+      async call(m) { m.maxRows = MAXR; m.maxCols = MAXC; const ok = await ready; if (!ok) return handle(m); return new Promise((res, rej) => { m.id = ++id; pending.set(m.id, { res, rej }); worker.postMessage(m); }); } };
+  })();
+  ("requestIdleCallback" in window ? requestIdleCallback : setTimeout)(() => engine.ready.then(() => engine.call({ op: "warm" })).catch(() => {}));   // warm the Excel reader so the offline check holds for .xlsx too
+  let seq = 0, inflight = 0;
+  function show(a, notable) {
+    $("#rep-controls").innerHTML = controlsHTML(a); $("#rep-records").innerHTML = ""; table = null; base = a; baseR = { a, notable }; curSlice = null; filterKey = ""; clearTimeout(sliceTimer);
+    store = makeStore(current, a); choice.carry = a.screen; choice.pieceCarry = a.piece;   // a recalculation of the trimmed rows keeps this answer
+    if (a.piece) { const by = new Map((choice.pieceScreen || []).map(f => [f.name, f])); (a.screen.flagged || []).forEach(f => by.set(f.name, { name: f.name, cls: f.cls, label: f.label, never: f.never, why: f.why, rule: f.rule })); choice.pieceScreen = [...by.values()]; } else delete choice.pieceScreen;   // what a piece flags stays out of the next pieces
     out.hidden = false; $("#report-intake").hidden = true;
-    paint(a, true);
-    table = Rec.mountTable($("#rep-records"), { store, analysis: a, fileName: a.name, truncated: a.truncated, onChange: reanalyse, say: status });
+    paint(a, true, notable);
+    table = Rec.mountTable($("#rep-records"), { store, analysis: a, fileName: a.name, truncated: a.truncated, piece: a.piece, onChange: reanalyse, say: status, onFilter });
+    sliceBar();
+    if (pendingView) { const v = pendingView; pendingView = null; applyView(v); } else syncHash(true);   // a new table starts unfiltered, so the address says so
     out.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
-  // an edit changes the rows, so every finding, the chart and the worth-a-look list are worked out again from them
-  function reanalyse() {
-    const t0 = performance.now(), a = analyse({ name: current.name, sheet: current.sheet, rows: [current.rows[0], ...store.rows] }, choice);
-    paint(a, false); status(`${store.edits.length} edit${store.edits.length === 1 ? "" : "s"}. Findings recalculated in ${Math.round(performance.now() - t0)} ms, on this device.`);
+  // the findings, chart and worth-a-look list are worked out again from the current rows (after an edit, a setting change or a resample), off the main thread
+  // a slice keeps the pickers the whole file settled on (a column that has one value in the slice is still the Group by), so the panels stay comparable
+  const pinned = a => { const p = { ...choice }; if (p.measure == null && !p.distinct && a.measure) p.measure = a.measure.name; if (p.date == null && a.dateCol) p.date = a.dateCol.name; if (p.cat == null) p.cat = a.cat ? a.cat.name : ""; if (p.split == null) p.split = a.trend && a.trend.split ? a.trend.split.col : ""; return p; };
+  async function recompute(note, rebuild, sliceOnly) {
+    const my = ++seq, t0 = performance.now(); inflight++;
+    try { const viaFile = rebuild && current.file && last.piece, rows = rebuild ? current.rows : [...store.lead, ...store.rows];   // flipping the header changes which rows are data, so the table is built again from the file as read
+      const idx = rebuild || !table || base.kind === "transactions" ? null : table.sliceRows();   // the rows the table shows when something filters them: the report is worked out for those too (a ledger keeps its whole-file panels)
+      let r = sliceOnly && baseR && !rebuild ? baseR : null;   // a filter changed, nothing else: the whole file's numbers are still right
+      if (idx && idx.length) status(`Working out the report for ${idx.length.toLocaleString("en-US")} of ${store.rows.length.toLocaleString("en-US")} rows…`);
+      if (!r) { r = hydrate(viaFile ? await engine.call({ op: "read", file: current.file, choice: { ...choice, carry: undefined, pieceCarry: undefined }, piece: last.piece.k }) : await engine.call({ op: "analyse", name: current.name, sheet: current.sheet, rows, choice })); if (my !== seq || !current) return; }
+      if (viaFile) { current = { name: r.name, sheet: r.sheet, rows: r.rows, file: current.file }; if (r.mask) current.rows.mask = r.mask; if (r.fmt) current.rows.fmt = r.fmt; }
+      if (rebuild) { const edits = store ? store.edits.length : 0; show(r.a, r.notable); status(note(Math.round(performance.now() - t0)) + (edits ? ` Your ${edits} edit${edits > 1 ? "s were" : " was"} cleared: the table starts again from the file.` : "")); return; }
+      let sr = null;
+      if (idx && idx.length) { try { sr = hydrate(await engine.call({ op: "analyse", name: current.name, sheet: current.sheet, rows, choice: pinned(r.a), slice: { lead: store.lead.length, map: idx } })); } catch (e) { sr = null; } if (my !== seq || !current) return; }
+      baseR = r; base = r.a; curSlice = sr ? idx : null;
+      $("#rep-controls").innerHTML = controlsHTML(r.a); paint(sr ? sr.a : r.a, false, sr ? sr.notable : r.notable, r.a); sliceBar();
+      status(sr ? `Report worked out for ${idx.length.toLocaleString("en-US")} of ${store.rows.length.toLocaleString("en-US")} rows in ${Math.round(performance.now() - t0)} ms, on this device. Clear the filter to see the whole file again.` : idx && idx.length ? "That slice is too small to report on, so the panels show the whole file." : note(Math.round(performance.now() - t0))); } catch (e) { status(e.message || "That could not be worked out."); } finally { inflight--; }
+  }
+  async function goPiece(k) {
+    if (!current || !current.file || !last || !last.piece || k < 1 || k > last.piece.n) return;
+    const edits = store ? store.edits.length : 0, t0 = performance.now(); status(`Reading piece ${k} of ${last.piece.n}…`);
+    try { const c = { ...choice }; delete c.carry; delete c.pieceCarry; const r = hydrate(await engine.call({ op: "read", file: current.file, choice: c, piece: k }));
+      delete choice.carry; delete choice.pieceCarry; begin(r, t0, { file: current.file });
+      status(`Read ${pieceLabel(r.a.piece)} (${pieceRange(r.a.piece)}) in ${Math.round(performance.now() - t0)} ms, on this device.${edits ? ` Your ${edits} edit${edits > 1 ? "s" : ""} to the earlier piece ${edits > 1 ? "were" : "was"} cleared; export them before moving on next time.` : ""}`); }
+    catch (e) { status(e.message || "That piece could not be read."); }
+  }
+  function reanalyse() { recompute(ms => `${store.edits.length} edit${store.edits.length === 1 ? "" : "s"}. Findings recalculated in ${ms} ms, on this device.`); }
+  function show2(rebuild) { syncHash(); recompute(ms => `Updated in ${ms} ms, on this device.`, rebuild); }
+  // ---------- the slice and the view (CONS-0051)
+  // What the table is filtered to is the slice. The breadcrumb names it, the panels are worked out for its rows, and the URL hash carries the view (names and clicked values, never rows).
+  const filterWords = f => [f.crumb, f.group && `${f.group.col}: ${f.group.val}${f.group.col2 ? ` · ${f.group.col2}: ${f.group.val2}` : ""}`, f.q && `Search: “${f.q}”`].filter(Boolean);
+  const sliceLabel = () => (table ? filterWords(table.getFilter()).join(" › ") : "");
+  function sliceBar() {
+    const el = $("#rep-slice"); if (!el) return; const f = table ? table.getFilter() : null;
+    if (!f || !f.filtered) { el.hidden = false; el.innerHTML = `<p class="slice-help">Click a finding, a bar, a column name or a health line to work the report out for just those rows. Compare sets a slice beside the whole file. The page address keeps your view, never your data.</p>`; return; }
+    const ledger = base && base.kind === "transactions", note = ledger ? "The panels keep showing the whole file for a ledger; the table is filtered." : !f.shown ? "No record matches, so the panels show the whole file." : "";
+    el.hidden = false;
+    el.innerHTML = `<nav class="slicebar" aria-label="The slice this report is worked out for"><span class="sb-l">Report for</span><button class="rec-link" type="button" data-slice-clear>All records</button><span aria-hidden="true">›</span><span class="here" aria-current="true">${esc(filterWords(f).join(" › "))}</span><span class="sb-n" aria-live="polite">${f.shown.toLocaleString("en-US")} of ${f.total.toLocaleString("en-US")} rows</span><button class="slice-x" type="button" data-slice-clear>Clear ✕</button></nav>${note ? `<p class="sb-note">${esc(note)}</p>` : ""}`;
+  }
+  function onFilter(f, how) {   // the table changed what it shows
+    const key = JSON.stringify([f.id, f.group, f.q]), same = key === filterKey; filterKey = key;
+    syncHash(how === "typing");
+    if (same) return;   // a sort changes the order of the rows, not the slice
+    sliceBar(); clearTimeout(sliceTimer);
+    sliceTimer = setTimeout(() => recompute(ms => `Back to all ${store.rows.length.toLocaleString("en-US")} rows. Report worked out again in ${ms} ms, on this device.`, false, true), how === "typing" ? 250 : 0);
+  }
+  function viewNow() {
+    const f = table ? table.getFilter() : {}, c = choice || {};
+    return { f: f.id || undefined, g: f.group || undefined, q: f.q || undefined, s: f.sort || undefined, cmp: compare || undefined,
+      choice: { measure: c.distinct ? undefined : c.measure, distinct: c.distinct, date: c.date, cat: c.cat, cat2: c.cat2, topN: c.topN, measure2: c.measure2, split: c.split } };
+  }
+  const hashNow = () => encodeView(viewNow(), loadedSample);
+  function syncHash(replace) {   // one history entry per change the visitor makes, so Back and Forward step through the views; typing in the search box only rewrites the entry
+    if (applying || !current) return; const h = hashNow(); if (h === location.hash.replace(/^#/, "")) return;
+    try { history[replace ? "replaceState" : "pushState"](null, "", location.pathname + location.search + (h ? "#" + h : "")); } catch (e) { /* a sandbox that refuses history: the view just is not linkable */ }
+  }
+  // put a view back: from a link, or from Back and Forward. A name that is not in this file is skipped.
+  function applyView(v) {
+    if (!current || !table) { pendingView = v; return; }
+    applying = true; let changed = false;
+    try {
+      const want = v.choice || {}, keys = ["measure", "distinct", "date", "cat", "cat2", "topN", "measure2", "split"], before = JSON.stringify(keys.map(k => choice[k] == null ? null : choice[k]));
+      keys.forEach(k => { delete choice[k]; }); keys.forEach(k => { if (want[k] != null) choice[k] = want[k]; });
+      changed = before !== JSON.stringify(keys.map(k => choice[k] == null ? null : choice[k])); compare = !!v.cmp;
+      table.setFilter({ id: v.f, group: v.g, q: v.q, sort: v.s }, true); filterKey = JSON.stringify([table.getFilter().id, table.getFilter().group, table.getFilter().q]); sliceBar();
+    } finally { applying = false; }
+    clearTimeout(sliceTimer); recompute(ms => `Updated in ${ms} ms, on this device.`, false, !changed);
+  }
+  window.addEventListener("hashchange", () => {
+    if (applying) return; const d = decodeView(location.hash);
+    if (!current) { pendingView = d.view; if (d.sample && !loadedSample) $("#report-sample").click(); return; }
+    if (encodeView(d.view, loadedSample) === hashNow()) return; applyView(d.view);
+  });
+  // the hover for a group's bar, on pointer and on keyboard focus
+  function groupTip() {
+    tipEl = document.createElement("div"); tipEl.className = "gtip print-hide"; tipEl.setAttribute("role", "tooltip"); tipEl.hidden = true; document.body.appendChild(tipEl);
+    const show = (row, x, y) => { tipEl.innerHTML = row.dataset.tip; tipEl.hidden = false; const w = tipEl.offsetWidth, h = tipEl.offsetHeight; tipEl.style.left = Math.max(8, Math.min(innerWidth - w - 8, x)) + "px"; tipEl.style.top = (y + h + 16 > innerHeight ? Math.max(8, y - h - 12) : y + 16) + "px"; };
+    const rowOf = e => e.target.closest && e.target.closest("table.grp tr[data-tip]");
+    out.addEventListener("pointermove", e => { const r = rowOf(e); if (r) show(r, e.clientX, e.clientY); else tipEl.hidden = true; });
+    out.addEventListener("pointerleave", () => { tipEl.hidden = true; });
+    const showFocused = () => { const a = document.activeElement, r = a && out.contains(a) && rowOf({ target: a }); if (r && r.matches(":focus-visible, :focus")) { const b = r.getBoundingClientRect(); show(r, b.left + Math.min(b.width * .5, 240), b.bottom - b.height * .5); } };
+    out.addEventListener("focusin", showFocused);
+    out.addEventListener("focusout", () => { tipEl.hidden = true; });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") tipEl.hidden = true; });
+    // Tab scrolls a far bar into view, and the scroll event arrives a frame after the focus: it used to hide the numbers the focus had just shown (CONS-0078). A bar that still has focus keeps its numbers, repositioned.
+    window.addEventListener("scroll", () => { tipEl.hidden = true; showFocused(); }, { passive: true });
+  }
+  groupTip();
+  const startChoice = () => ({ ...(activePack ? { pack: activePack } : {}), ...((pendingView && pendingView.choice) || {}) });   // a link's pickers are used for the first analysis, so the file is read once
+  function repaint() { if (last) paint(last, false, lastNotable, base && base !== last ? base : undefined, true); }
+  function begin(r, t0, given = {}) {
+    current = { name: r.name || given.name, sheet: r.sheet || given.sheet, rows: r.rows || given.rows, file: given.file || null };   // the File handle, not its rows: the next piece is read from it, and only one piece is held here if (r.mask) current.rows.mask = r.mask; if (r.fmt) current.rows.fmt = r.fmt;
+    show(r.a, r.notable); status(`Read ${r.a.N.toLocaleString("en-US")} rows in ${Math.round(performance.now() - t0)} ms, on this device${engine.mode === "worker" ? " (in a background worker, so the page stayed responsive)" : ""}.`);
   }
   async function run(data) {
-    try { const t0 = performance.now(); current = data; choice = {}; const a = analyse(data); show(a); status(`Read ${a.N.toLocaleString("en-US")} rows in ${Math.round(performance.now() - t0)} ms, on this device.`); }
+    try { const t0 = performance.now(); choice = startChoice(); status("Reading…"); begin(hydrate(await engine.call({ op: "analyse", name: data.name, sheet: data.sheet, rows: data.rows, choice })), t0, data); }
     catch (e) { status(e.message || "That file couldn't be read."); }
   }
-  out.innerHTML = `<div id="rep-controls"></div><div id="rep-sheet"></div><section class="records print-hide" id="rep-records" aria-label="All records"></section>`;
-  out.addEventListener("change", e => { const s = e.target.closest("[data-ch]"); if (!s || !current) return; choice[s.dataset.ch] = s.value; show2(); });
-  function show2() { const a = analyse({ name: current.name, sheet: current.sheet, rows: [current.rows[0], ...store.rows] }, choice); $("#rep-controls").innerHTML = controlsHTML(a); paint(a, false); }
+  async function runFile(f) {
+    loadedSample = false;
+    try { const t0 = performance.now(); choice = startChoice(); status("Reading…"); begin(hydrate(await engine.call({ op: "read", file: f, choice })), t0, { file: f }); }
+    catch (e) { status(e.message || "That file couldn't be read."); }
+  }
+  out.innerHTML = `<div id="rep-controls"></div><div id="rep-slice" class="print-hide" hidden></div><div id="rep-sheet"></div><section class="records print-hide" id="rep-records" aria-label="All records"></section>`;
+  out.addEventListener("change", e => { const rp = e.target.closest("[data-role]"); if (rp && current) { choice.roles = { ...(choice.roles || {}), [rp.dataset.role]: rp.value }; show2(); return; }   // a role changed in the Columns table: everything is worked out again
+    const s = e.target.closest("[data-ch]"); if (!s || !current) return;
+    if (s.dataset.ch === "measure") { if (s.value.startsWith("distinct:")) { choice.distinct = s.value.slice(9); delete choice.measure; } else { delete choice.distinct; choice.measure = s.value; } show2(); return; }
+    if (s.dataset.ch === "topN") { choice.topN = +s.value; show2(); return; }
+    choice[s.dataset.ch] = s.value;
+    if (s.dataset.ch === "header") { delete choice.measure; delete choice.date; delete choice.cat; delete choice.split; delete choice.roles; delete choice.carry; delete choice.worthBy; delete choice.worthSeed; delete choice.cat2; delete choice.distinct; delete choice.measure2; show2(true); } else show2(); });
+  // keyboard: Tab reaches each group's row, Enter or Space does what a click does
+  out.addEventListener("keydown", e => { const r = e.target.matches && e.target.matches("table.grp tr[data-g]") ? e.target : null; if (r && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); r.click(); } });
   out.addEventListener("click", e => {
     if (e.target.closest("[data-print]")) window.print();
-    if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
-    const f = e.target.closest("[data-find]"); if (f && table) table.showFinding(f.dataset.find);
-    const sc = e.target.closest("[data-sec]"); if (sc && table) table.showSection(sc.dataset.sec);
+    if (e.target.closest("[data-reset]")) { current = null; store = null; table = null; base = baseR = curSlice = null; compare = false; loadedSample = false; filterKey = ""; clearTimeout(sliceTimer); $("#rep-slice").innerHTML = ""; $("#rep-slice").hidden = true; try { history.pushState(null, "", location.pathname + location.search); } catch (err) {} out.hidden = true; $("#rep-sheet").innerHTML = ""; $("#rep-records").innerHTML = ""; $("#report-intake").hidden = false; $("#report-file").value = ""; status(""); }
+    const cf = e.target.closest("[data-confirm]");
+    if (cf && current) { const name = cf.dataset.confirm; choice.confirm = [...new Set([...(choice.confirm || []), name])]; delete choice.carry; recompute(ms => `${name} is included on your confirmation that you hold the rights; the report footer records it. Worked out in ${ms} ms, on this device.`, true); return; }
+    const mg = e.target.closest("[data-merge]");
+    if (mg && table && last && store) { const fd = (last.findingsList || []).find(x => x.id === mg.dataset.merge && x.merge); if (fd) { const n = Rec.mergeCells(store, fd.merge.ci, fd.merge.map); recompute(ms => `Merged ${n.toLocaleString("en-US")} cell${n === 1 ? "" : "s"} in ${fd.merge.col}. Findings recalculated in ${ms} ms; Undo in the table puts a cell back, one at a time.`); } return; }
+    const pcb = e.target.closest("[data-piece]"); if (pcb && last && last.piece) { goPiece(last.piece.k + (pcb.dataset.piece === "next" ? 1 : -1)); return; }
+    if (e.target.closest("[data-slice-clear]") && table) { table.clear(); return; }
+    if (e.target.closest("[data-compare]") && last) { compare = !compare; syncHash(); repaint(); status(compare ? (curSlice ? "Compare is on: the outlined bars are the whole file, the red bars are the slice." : "Filter or search the records to compare a slice with the whole file.") : "Compare is off."); return; }
+    const sliced = !!curSlice && last !== base, rowsId = id => (sliced ? "rows:" + id : id);   // a finding of a slice names the slice's rows, which a link must not carry
+    const f = e.target.closest("[data-find]");
+    if (f && table) { const fd = sliced ? (last.findingsAll || []).find(x => x.id === f.dataset.find) : null; if (fd) table.showRows(fd.rows, fd.crumb || fd.title, rowsId(fd.id)); else table.showFinding(f.dataset.find); }
+    const sc = e.target.closest("[data-sec]");
+    if (sc && table) { if (sliced) { const k = sc.dataset.sec, rows = new Set((last.findingsAll || []).filter(x => (x.kind === "insight") === (k === "insight")).flatMap(x => x.rows)); table.showRows([...rows], k === "insight" ? "Insight rows" : "QA rows", "rows:sec:" + k); } else table.showSection(sc.dataset.sec); }
+    const cb = e.target.closest("[data-colflag]");
+    if (cb && table) { if (sliced) { const ci = last.header.indexOf(cb.dataset.colflag), rows = new Set(); last.flags.forEach((_, k) => { const j = k.indexOf(":"); if (+k.slice(j + 1) === ci) rows.add(+k.slice(0, j)); }); if (rows.size) table.showRows([...rows], "Marked cells in " + cb.dataset.colflag, "rows:col:" + cb.dataset.colflag); else status(`No cell in ${cb.dataset.colflag} is marked in this slice.`); } else table.showColumn(cb.dataset.colflag); }
+    const qs = e.target.closest("[data-qs]");
+    if (qs && table && last && last.qaSample) {
+      if (qs.dataset.qs === "show") table.showRows(last.qaSample.rows, "QA sample");
+      else if (qs.dataset.qs === "resample") { choice.seed = Math.floor(Math.random() * 1000000); show2(); status(`New random part drawn (seed ${choice.seed}); the flagged rows stay.`); }
+      else if (qs.dataset.qs === "csv") { const url = URL.createObjectURL(new Blob([Rec.qaSampleCSV(store, last.qaSample)], { type: "text/csv;charset=utf-8" })), link = document.createElement("a"); link.href = url; link.download = "QA sample.csv"; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000); }
+    }
+    const nw = e.target.closest("[data-news]");
+    if (nw && last && last.worth) { const it = last.worth.items.find(x => String(x.ri) === nw.dataset.news);
+      if (it) { const at = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); searched.set(it.query, at); window.open("https://news.google.com/search?q=" + encodeURIComponent(it.query), "_blank", "noopener,noreferrer");
+        const li = nw.closest("li"), b = li.querySelector("button.news"); b.classList.add("done"); b.firstChild.textContent = "Searched "; let d = li.querySelector(".news-done"); if (!d) { d = document.createElement("small"); d.className = "news-done"; li.querySelector(".wnews").appendChild(d); }
+        d.innerHTML = `Opened Google News in a new tab at ${esc(at)}. <button class="rec-link" type="button" data-news="${it.ri}">Search again</button>`; status(`Opened Google News in a new tab for ${it.query}. Nothing else from your file was sent.`); } return; }
+    const bw = e.target.closest("[data-by]"); if (bw && current) { choice.worthBy = bw.dataset.by; show2(); return; }
+    if (e.target.closest("[data-reseed]") && current) { choice.worthSeed = Math.floor(Math.random() * 10000); show2(); status(`Five others picked (seed ${choice.worthSeed}); the same file and seed give the same five.`); return; }
     const w = e.target.closest("[data-row]"); if (w && table && w.classList.contains("wrow")) table.jumpTo(+w.dataset.row);
-    const g = e.target.closest("[data-g]"); if (g && table && last && last.breakdown) table.showGroup(last.breakdown.ci, g.dataset.g);
+    const g = e.target.closest("[data-g]");
+    if (g && table && last && last.grouping) { const gr = last.grouping;
+      if (g.dataset.g2 != null && gr.ci2 != null) table.showGroup(gr.ci, g.dataset.g, gr.ci2, g.dataset.g2);
+      else table.showGroup(gr.ci, g.dataset.g); }
+    else if (g && table && last && last.breakdown) table.showGroup(last.breakdown.ci, g.dataset.g);
   });
   // One printed page: letter paper with .4in margins is 739 x 979 css px. Lay the sheet out at the printed width, then keep the most worth-a-look rows (5, then 3, then none)
   // at the largest zoom that fits. The floor is .6 (about 6 pt): a dense sheet with five findings only fits that small, and the list gives way before the report does.
@@ -669,22 +1245,27 @@ ${a.truncated ? `<p class="calm limit print-hide">The free report reads the firs
     body.classList.add("print-fit"); sh.style.zoom = "1";
     try {
       let set = false;
-      fit: for (const rows of [5, 3, 0]) for (const drop of [0, 1]) {   // keep everything if it fits; else give up the Columns table and shrink the chart (1), then worth-a-look rows, before the type gets smaller than 0.6
+      fit: for (const rows of [5, 3, 0]) for (const drop of [0, 1, 2]) for (const kids of [1, 0]) {   // the nested rows of the grouping table go first at each level (data-pk=0), then the Columns table and the chart, then worth-a-look rows   // keep everything if it fits; else give up the Columns table and shrink the chart (1), then worth-a-look rows, before the type gets smaller than 0.6
         if (rows === 5) sh.removeAttribute("data-pw"); else sh.dataset.pw = rows;
         if (!drop) sh.removeAttribute("data-ph"); else sh.dataset.ph = drop;
-        for (let z = 0.76; z >= 0.595 && !set; z -= 0.02) { sh.style.width = PW / z + "px"; if (z < 0.61) fitLog.push(`${rows}/${drop}:${Math.round(sh.offsetHeight * z)}`); if (sh.offsetHeight * z <= PH) { sh.style.setProperty("--pz", z.toFixed(2)); set = true; } }
+        if (kids) sh.removeAttribute("data-pk"); else sh.dataset.pk = "0";
+        for (let z = 0.76; z >= 0.595 && !set; z -= 0.02) { sh.style.width = PW / z + "px"; if (z < 0.61) fitLog.push(`${rows}/${drop}/${kids}:${Math.round(sh.offsetHeight * z)}`); if (sh.offsetHeight * z <= PH) { sh.style.setProperty("--pz", z.toFixed(2)); set = true; } }
         if (set) break fit;
       }
       if (!set) sh.style.setProperty("--pz", "0.6");
     } finally { sh.style.width = ""; sh.style.zoom = ""; body.classList.remove("print-fit"); }
   }
+  // the Compare layer is a screen layer: a printed slice shows its own numbers, so Compare is switched off for the print and back on after it
+  let printUndo = false;
+  window.addEventListener("beforeprint", () => { if (compare && curSlice && last !== base) { printUndo = true; compare = false; repaint(); } });
+  window.addEventListener("afterprint", () => { if (printUndo) { printUndo = false; compare = true; repaint(); } });
   window.addEventListener("beforeprint", fitPrint);
   const file = $("#report-file"), drop = $("#report-drop");
-  file.addEventListener("change", async () => { if (file.files[0]) { status("Reading…"); try { run(await readFile(file.files[0])); } catch (e) { status(e.message); } } });
+  file.addEventListener("change", () => { if (file.files[0]) runFile(file.files[0]); });
   ["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
-  drop.addEventListener("drop", async e => { const f = e.dataTransfer.files[0]; if (f) { status("Reading…"); try { run(await readFile(f)); } catch (x) { status(x.message); } } });
-  $("#report-sample").addEventListener("click", () => run({ name: "cafe-sales-sample.csv (made up)", rows: cafeSample() }));
-  if (location.hash === "#sample") $("#report-sample").click();
-  window.JAIReportDebug = { get table() { return table; }, get store() { return store; }, get analysis() { return last; }, get fitLog() { return fitLog; }, setLimits };
+  drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) runFile(f); });
+  $("#report-sample").addEventListener("click", () => { loadedSample = true; run({ name: "cafe-sales-sample.csv (made up)", rows: cafeSample() }); });
+  { const d = decodeView(location.hash); if (Object.keys(d.view).length) pendingView = d.view; if (d.sample) $("#report-sample").click(); }   // #sample alone is the old link; with a view after it, the sample opens in that view
+  window.JAIReportDebug = { get pending() { return inflight; }, get engine() { return engine.mode; }, usePack, get pack() { return activePack; }, get table() { return table; }, get store() { return store; }, get analysis() { return last; }, get base() { return base; }, get slice() { return curSlice; }, get compare() { return compare; }, get hash() { return hashNow(); }, get fitLog() { return fitLog; }, setLimits };
 })();

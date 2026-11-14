@@ -20,7 +20,7 @@
   // ---------- the store: current values, the file as read, and the edit history
   function createStore(o) {
     const rows = o.rows.map(r => r.slice());
-    return { header: o.header, names: o.names || o.header, rows, orig: o.rows.map(r => r.slice()), mask: o.mask || null, headerMask: o.headerMask || null, fmt: o.fmt || { delim: ",", eol: "\n", finalEol: true },
+    return { header: o.header, lead: o.lead || (o.header ? [o.header] : []), leadMask: o.leadMask || (o.headerMask ? [o.headerMask] : null), rowBase: o.rowBase || 2, names: o.names || o.header, rows, orig: o.rows.map(r => r.slice()), mask: o.mask || null, fmt: o.fmt || { delim: ",", eol: "\n", finalEol: true },
       isNum: o.isNum || [], num: o.num, calc: o.calc || null, edits: [], edited: new Set(), hay: [], rev: 0, name: o.name || "records" };
   }
   const syncEdited = (s, ri, ci) => { const k = ri + ":" + ci; if (s.rows[ri][ci] !== s.orig[ri][ci]) s.edited.add(k); else s.edited.delete(k); };
@@ -47,6 +47,12 @@
     s.edits.push({ ri, ci, before, after: v, at: at.toISOString(), derived }); s.rev++;
     return { ok: true, changed: true };
   }
+  // Merge (CONS-0073): write each spelling in the map the way the map says, in one column. Every cell is an edit of its own, so the change log shows it and Undo takes it back.
+  function mergeCells(s, ci, pairs) {
+    const m = new Map(pairs), at = new Date(); let n = 0;
+    for (let ri = 0; ri < s.rows.length; ri++) { const to = m.get(s.rows[ri][ci]); if (to != null && to !== s.rows[ri][ci] && commitEdit(s, ri, ci, to, at).changed) n++; }
+    return n;
+  }
   function undoEdit(s) {
     const e = s.edits.pop(); if (!e) return null;
     const row = s.rows[e.ri]; row[e.ci] = e.before; s.hay[e.ri] = null; syncEdited(s, e.ri, e.ci);
@@ -57,7 +63,7 @@
   function computeView(s, f = {}) {
     let idx;
     if (f.rows) { idx = [...f.rows].sort((a, b) => a - b); } else { idx = new Array(s.rows.length); for (let i = 0; i < idx.length; i++) idx[i] = i; }
-    if (f.group) idx = idx.filter(i => (s.rows[i][f.group.col].trim() || "(blank)") === f.group.val);
+    if (f.group) { const G = f.group, key = (i, c) => s.rows[i][c].trim() || "(blank)"; idx = idx.filter(i => key(i, G.col) === G.val && (G.col2 == null || key(i, G.col2) === G.val2)); }
     if (f.q) {
       const q = f.q.toLowerCase(), hay = s.hay;
       idx = idx.filter(i => (hay[i] || (hay[i] = s.rows[i].join("\u0001").toLowerCase())).indexOf(q) >= 0);
@@ -83,14 +89,21 @@
   }
 
   // ---------- export
-  const exportCSV = s => rowsToCSV([s.header, ...s.rows], s.fmt, s.mask ? [s.headerMask, ...s.mask] : null);
+  const exportCSV = s => rowsToCSV([...s.lead, ...s.rows], s.fmt, s.mask ? [...(s.leadMask || s.lead.map(r => [])), ...s.mask] : null);   // title rows and the header (when the file has them) come first, as read
   function changeLogCSV(s) {
     const L = [["row", "column", "before", "after", "edited_at"]];
-    s.edits.forEach(e => { L.push([e.ri + 2, s.names[e.ci], e.before, e.after, e.at]); e.derived.forEach(d => L.push([e.ri + 2, s.names[d.ci], d.before, d.after, e.at])); });
+    s.edits.forEach(e => { L.push([e.ri + s.rowBase, s.names[e.ci], e.before, e.after, e.at]); e.derived.forEach(d => L.push([e.ri + s.rowBase, s.names[d.ci], d.before, d.after, e.at])); });
     return rowsToCSV(L, { delim: ",", eol: "\n" });
   }
 
-  const api = { rowsToCSV, createStore, commitEdit, undoEdit, computeView, visibleRange, exportCSV, changeLogCSV };
+  // the QA sample as its own file: the original columns, then why the row is there and what to do (accept, reject or defer)
+  function qaSampleCSV(s, q) {
+    const head = ["row", ...s.names, "qa_basis", "qa_class", "qa_issue", "qa_suggestion"];
+    const rows = q.rows.map(ri => { const i = q.info.get(ri); return [ri + s.rowBase, ...s.rows[ri], i.basis, i.cls || "", i.issue, i.suggestion]; });
+    return rowsToCSV([head, ...rows], { delim: ",", eol: "\n" });
+  }
+
+  const api = { qaSampleCSV, rowsToCSV, createStore, commitEdit, mergeCells, undoEdit, computeView, visibleRange, exportCSV, changeLogCSV };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.JAIRecords = api;
   if (typeof document === "undefined") return;
 
@@ -106,7 +119,7 @@
     for (let c = 0; c < NC; c++) { let m = String(s.names[c]).length + 3; for (let i = 0, n = Math.min(300, s.rows.length); i < n; i++) m = Math.max(m, s.rows[i][c].length); widths.push(Math.max(70, Math.min(260, Math.round(m * 7.9 + 28)))); }
     const template = widths.map(w => w + "px").join(" "), totalW = widths.reduce((x, y) => x + y, 0);
     host.innerHTML = `
-<div class="rec-head"><h2>All records</h2><span class="rec-hint">Every row the report read. Double-click a cell to correct it. Nothing you change leaves this tab.</span></div>
+<div class="rec-head"><h2>All records</h2><span class="rec-hint">Every row the report read. Double-click a cell to correct it (on a phone, tap it). Nothing you change leaves this tab.</span></div>
 <div class="rec-tools"><label class="rec-search"><span aria-hidden="true">⌕</span><input type="search" data-q placeholder="Search every column" aria-label="Search the records"></label><div class="rec-edits" data-edits></div></div>
 <div class="rec-tools"><nav class="rec-crumbs" data-crumbs aria-label="Filter"></nav><span class="rec-count" data-count aria-live="polite"></span></div>
 <div class="rec-win" data-win role="grid" aria-label="Records" aria-rowcount="${s.rows.length + 1}" tabindex="0"><div class="rec-thead" data-thead role="row"></div><div class="rec-tbody" data-tbody></div></div>
@@ -125,7 +138,7 @@
     function drawHead() {
       thead.innerHTML = [-1, ...s.names.keys()].map(c => {
         const on = filt.sortCol === c, name = c === -1 ? "Row" : s.names[c];
-        return `<button data-k="${c}" role="columnheader" aria-sort="${on ? (filt.sortDir > 0 ? "ascending" : "descending") : "none"}" class="${c === -1 ? "first" : numCol[c] ? "num" : ""}" title="${c === -1 ? "Row in your file; the header is row 1" : "Sort by " + esc(name)}"><span>${esc(name)}</span><i>${c === -1 && !on ? "" : sortLabel(c)}</i></button>`;
+        return `<button data-k="${c}" role="columnheader" aria-sort="${on ? (filt.sortDir > 0 ? "ascending" : "descending") : "none"}" class="${c === -1 ? "first" : numCol[c] ? "num" : ""}" title="${c === -1 ? "Row in your file" : "Sort by " + esc(name)}"><span>${esc(name)}</span><i>${c === -1 && !on ? "" : sortLabel(c)}</i></button>`;
       }).join("");
     }
     function recompute() {
@@ -140,10 +153,10 @@
       let h = "";
       for (let i = first; i < last; i++) {
         const ri = view[i], row = s.rows[ri];
-        h += `<div class="rec-tr${ri === hl ? " hl" : ""}" role="row" aria-rowindex="${i + 2}" style="top:${i * RH}px;grid-template-columns:${template}"><div class="rec-td first" role="rowheader">${(ri + 2).toLocaleString("en-US")}</div>`;
+        h += `<div class="rec-tr${ri === hl ? " hl" : ""}" role="row" aria-rowindex="${i + 2}" style="top:${i * RH}px;grid-template-columns:${template}"><div class="rec-td first" role="rowheader">${(ri + s.rowBase).toLocaleString("en-US")}</div>`;
         for (let c = 0; c < NC; c++) {
           const fl = flags.get(ri + ":" + c), ed = s.edited.has(ri + ":" + c), cls = "rec-td" + (numCol[c] ? " num" : "") + (ed ? " edited" : fl ? " " + fl.sev : "");
-          const inner = editing && editing.ri === ri && editing.ci === c ? `<input data-edit value="${esc(row[c])}" aria-label="Edit ${esc(s.names[c])}, row ${ri + 2}">` : showVal(row[c], fl);
+          const inner = editing && editing.ri === ri && editing.ci === c ? `<input data-edit value="${esc(row[c])}" aria-label="Edit ${esc(s.names[c])}, row ${ri + s.rowBase}">` : showVal(row[c], fl);
           h += `<div class="${cls}" role="gridcell" tabindex="${fl || ed ? 0 : -1}" data-r="${ri}" data-c="${c}"${fl ? ` aria-label="${esc(plain(fl.why))}"` : ""}>${inner}</div>`;
         }
         h += "</div>";
@@ -154,7 +167,7 @@
     function crumbs() {
       const p = ['<button class="rec-link" data-all>All records</button>'];
       if (filt.finding) p.push("›", `<span class="here">${esc(filt.finding.crumb)}</span>`);
-      if (filt.group) p.push("›", `<span class="here">${esc(s.names[filt.group.col])}: ${esc(filt.group.val)}</span>`);
+      if (filt.group) p.push("›", `<span class="here">${esc(s.names[filt.group.col])}: ${esc(filt.group.val)}${filt.group.col2 != null ? ` · ${esc(s.names[filt.group.col2])}: ${esc(filt.group.val2)}` : ""}</span>`);
       if (filt.q) p.push("›", `<span class="here">Search: “${esc(filt.q)}”</span>`);
       if (filt.finding || filt.group || filt.q) p.push('<button class="rec-x" data-all>Back to all ✕</button>');
       $("crumbs").innerHTML = p.join(" ");
@@ -187,10 +200,27 @@
     function startEdit(cell) { if (!cell || cell.dataset.c == null) return; editing = { ri: +cell.dataset.r, ci: +cell.dataset.c }; tip.style.opacity = 0; draw(true); }
     function stopEdit(focus) { const e = editing; editing = null; draw(true); if (focus && e) { const c = tbody.querySelector(`[data-r="${e.ri}"][data-c="${e.ci}"]`); if (c) c.focus(); } }
     tbody.addEventListener("dblclick", e => startEdit(e.target.closest(".rec-td")));
+    // ----- on a phone one field is edited at a time, in a sheet at the bottom of the screen (CONS-0056): a double-tap is hard to do, a tap is not
+    const narrow = () => typeof matchMedia === "function" && matchMedia("(max-width: 760px)").matches;
+    const sheet = document.createElement("div"); sheet.className = "rec-sheet"; sheet.hidden = true; host.appendChild(sheet);
+    let sheetAt = null;
+    function closeSheet(focus) { const at = sheetAt; sheetAt = null; sheet.hidden = true; sheet.innerHTML = ""; if (focus && at) { const c = tbody.querySelector(`[data-r="${at.ri}"][data-c="${at.ci}"]`); if (c) c.focus({ preventScroll: true }); } }
+    function openSheet(ri, ci) {
+      const row = s.rows[ri], fl = flags.get(ri + ":" + ci); sheetAt = { ri, ci };
+      sheet.innerHTML = `<form class="rec-sheet-in" novalidate><label>Row ${(ri + s.rowBase).toLocaleString("en-US")} · ${esc(s.names[ci])}<input data-sedit value="${esc(row[ci])}" inputmode="${s.isNum[ci] ? "decimal" : "text"}" autocomplete="off" aria-label="Edit ${esc(s.names[ci])}, row ${ri + s.rowBase}"></label>${fl ? `<p class="rec-why">${fl.why}</p>` : ""}<p class="rec-msg" role="alert"></p>
+        <div class="rec-sheet-btns"><button type="submit" class="btn red">Save</button><button type="button" class="btn" data-scancel>Cancel</button></div></form>`;
+      sheet.hidden = false; const inp = sheet.querySelector("input"); inp.focus(); inp.select();
+    }
+    tbody.addEventListener("click", e => { if (!narrow() || editing) return; const c = e.target.closest(".rec-td"); if (!c || c.dataset.c == null) return; openSheet(+c.dataset.r, +c.dataset.c); });
+    sheet.addEventListener("submit", e => { e.preventDefault(); if (!sheetAt) return; const inp = sheet.querySelector("input"), at = sheetAt, r = commitEdit(s, at.ri, at.ci, inp.value);
+      if (!r.ok) { sheet.querySelector(".rec-msg").textContent = r.reason; o.say && o.say(r.reason); return; }
+      closeSheet(true); draw(true); if (r.changed) { toolbar(); o.onChange(); } });
+    sheet.addEventListener("click", e => { if (e.target.closest("[data-scancel]")) closeSheet(true); });
+    sheet.addEventListener("keydown", e => { if (e.key === "Escape") { e.preventDefault(); closeSheet(true); } });
     tbody.addEventListener("keydown", e => {
       const inp = e.target.closest("[data-edit]");
       if (inp) {
-        if (e.key === "Enter") { e.preventDefault(); const e0 = editing, r = commitEdit(s, e0.ri, e0.ci, inp.value); if (!r.ok) { inp.setCustomValidity(r.reason); inp.title = r.reason; inp.classList.add("bad"); o.say && o.say(r.reason); return; } stopEdit(true); if (r.changed) o.onChange(); }
+        if (e.key === "Enter") { e.preventDefault(); const e0 = editing, r = commitEdit(s, e0.ri, e0.ci, inp.value); if (!r.ok) { inp.setCustomValidity(r.reason); inp.title = r.reason; inp.classList.add("bad"); o.say && o.say(r.reason); return; } stopEdit(true); if (r.changed) { toolbar(); o.onChange(); } }
         else if (e.key === "Escape") { e.preventDefault(); stopEdit(true); }
         return;
       }
@@ -202,13 +232,21 @@
     thead.addEventListener("click", e => {
       const b = e.target.closest("[data-k]"); if (!b) return; const k = +b.dataset.k;
       if (filt.sortCol !== k) { filt.sortCol = k; filt.sortDir = 1; } else if (filt.sortDir === 1) filt.sortDir = -1; else { filt.sortCol = null; filt.sortDir = 0; }
-      refresh(true);
+      refresh(true); emit();
     });
-    $("q").addEventListener("input", e => { filt.q = e.target.value.trim(); refresh(true); });
+    $("q").addEventListener("input", e => { filt.q = e.target.value.trim(); refresh(true); emit("typing"); });
     function clearFilters() { filt = { finding: null, group: null, q: "", sortCol: null, sortDir: 0 }; hl = null; $("q").value = ""; }
-    $("crumbs").addEventListener("click", e => { if (e.target.closest("[data-all]")) { clearFilters(); refresh(true); } });
+    $("crumbs").addEventListener("click", e => { if (e.target.closest("[data-all]")) { clearFilters(); refresh(true); emit(); } });
+    // The page listens (CONS-0051): every change the visitor makes to what the table shows is reported with the filter in words, so the panels can be worked out for that slice and the URL can carry it.
+    // The filter names a finding, a section, a column or a group by name; a list of rows has an id that begins "rows:" and is never written to a URL.
+    const emit = how => { if (o.onFilter) o.onFilter(self.getFilter(), how); };
+    const idRows = id => {   // the rows an id stands for in this analysis, or null
+      if (id.startsWith("sec:")) { const kind = id.slice(4); return { rows: new Set(a.findingsAll.filter(f => (f.kind === "insight") === (kind === "insight")).flatMap(f => f.rows)), crumb: kind === "insight" ? "Insight rows" : "QA rows" }; }
+      if (id.startsWith("col:")) { const ci = s.names.indexOf(id.slice(4)); if (ci < 0) return null; const rows = new Set(); a.flags.forEach((_, k) => { const j = k.indexOf(":"); if (+k.slice(j + 1) === ci) rows.add(+k.slice(0, j)); }); return { rows, crumb: "Marked cells in " + s.names[ci] }; }
+      const f = a.findingsAll.find(x => x.id === id); return f ? { rows: new Set(f.rows), crumb: f.crumb || f.title } : null;
+    };
     host.addEventListener("click", e => {
-      if (e.target.closest("[data-undo]")) { undoEdit(s); o.onChange(); }
+      if (e.target.closest("[data-undo]")) { undoEdit(s); toolbar(); draw(true); o.onChange(); }
       else if (e.target.closest("[data-export]")) openExport();
     });
 
@@ -219,7 +257,7 @@
     function setTab(t) {
       tab = t; host.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
       const full = text(t), lines = full.split("\n"); $("pre").textContent = lines.length > 60 ? lines.slice(0, 60).join("\n") + `\n… ${lines.length - 60} more lines in the download` : full;
-      $("note").textContent = t === "csv" ? `${base()}-corrected.csv · ${s.rows.length.toLocaleString("en-US")} rows in your original column order and quoting${o.truncated ? " · the rows beyond the free limit were not read, so they are not in this file" : ""}` : `${base()}-change-log.csv · row, column, before, after, edited_at (row 1 is the header)`;
+      $("note").textContent = t === "csv" ? `${base()}-corrected.csv · ${s.rows.length.toLocaleString("en-US")} rows in your original column order and quoting${o.piece ? ` · piece ${o.piece.k} of ${o.piece.n} only: the rows in the other pieces are not in this file` : o.truncated ? " · the columns beyond the free limit were not read, so they are not in this file" : ""}` : `${base()}-change-log.csv · row, column, before, after, edited_at (row 1 is the header)`;
     }
     function openExport() { modal.hidden = false; setTab("csv"); modal.querySelector("[data-close]").focus(); }
     const closeExport = () => { modal.hidden = true; };
@@ -239,17 +277,37 @@
       update(next) { a = next; flags = a.flags; refresh(false); },
       showFinding(id) {
         const f = a.findingsAll.find(x => x.id === id); if (!f) return;
-        clearFilters(); filt.finding = { id, rows: new Set(f.rows), crumb: f.crumb || f.title }; refresh(true);
+        clearFilters(); filt.finding = { id, rows: new Set(f.rows), crumb: f.crumb || f.title }; refresh(true); emit();
         host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       },
       showSection(kind) {   // every row behind an Insight, or every row behind a QA finding
         const fs = a.findingsAll.filter(f => (f.kind === "insight") === (kind === "insight")), rows = new Set(fs.flatMap(f => f.rows));
-        clearFilters(); filt.finding = { id: "sec:" + kind, rows, crumb: kind === "insight" ? "Insight rows" : "QA rows" }; refresh(true);
+        clearFilters(); filt.finding = { id: "sec:" + kind, rows, crumb: kind === "insight" ? "Insight rows" : "QA rows" }; refresh(true); emit();
         host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       },
-      showGroup(col, val) { clearFilters(); filt.group = { col, val }; refresh(true); host.scrollIntoView({ block: "nearest", behavior: "smooth" }); },
+      showRows(rows, crumb, id) { clearFilters(); filt.finding = { id: id || "rows:" + crumb, rows: new Set(rows), crumb }; refresh(true); emit(); host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); },
+      showGroup(col, val, col2, val2) { clearFilters(); filt.group = col2 != null ? { col, val, col2, val2 } : { col, val }; refresh(true); emit(); host.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); },
+      // the rows of a column that carry a marked cell, as a filter (a click on a column's name)
+      showColumn(name) { const r = idRows("col:" + name); if (!r || !r.rows.size) { o.say && o.say(`No cell in ${name} is marked, so there is nothing to show.`); return false; } self.showRows([...r.rows], r.crumb, "col:" + name); return true; },
+      getFilter() {
+        const g = filt.group, sc = filt.sortCol, f = filt.finding;
+        return { id: f ? f.id : null, crumb: f ? f.crumb : null, group: g ? { col: s.names[g.col], val: g.val, col2: g.col2 != null ? s.names[g.col2] : null, val2: g.col2 != null ? g.val2 : null } : null, q: filt.q || "",
+          sort: sc != null && filt.sortDir ? { col: sc === -1 ? "@row" : s.names[sc], dir: filt.sortDir } : null, filtered: !!(f || g || filt.q), shown: view.length, total: s.rows.length };
+      },
+      // the rows the table shows now when something filters them (ascending, as the store holds them), else null: the slice the rest of the report is worked out for
+      sliceRows() { return filt.finding || filt.group || filt.q ? [...view].sort((x, y) => x - y) : null; },
+      // put a filter back (a link, or the Back button): the same spec getFilter() gives, with names; what no longer exists is skipped
+      setFilter(sp = {}, quiet) {
+        clearFilters();
+        if (sp.id && !sp.id.startsWith("rows:")) { const r = idRows(sp.id); if (r) filt.finding = { id: sp.id, rows: r.rows, crumb: r.crumb }; }
+        if (sp.group) { const c = s.names.indexOf(sp.group.col), c2 = sp.group.col2 != null ? s.names.indexOf(sp.group.col2) : -1; if (c >= 0) filt.group = c2 >= 0 ? { col: c, val: sp.group.val, col2: c2, val2: sp.group.val2 } : { col: c, val: sp.group.val }; }
+        if (sp.q) { filt.q = sp.q; $("q").value = sp.q; }
+        if (sp.sort) { const c = sp.sort.col === "@row" ? -1 : s.names.indexOf(sp.sort.col); if (c >= -1 && (c >= 0 || sp.sort.col === "@row")) { filt.sortCol = c; filt.sortDir = sp.sort.dir < 0 ? -1 : 1; } }
+        refresh(true); if (!quiet) emit();
+      },
+      clear() { clearFilters(); refresh(true); emit(); },
       jumpTo(ri) {
-        clearFilters(); hl = ri; recompute(); drawHead(); toolbar(); crumbs();
+        clearFilters(); hl = ri; recompute(); drawHead(); toolbar(); crumbs(); emit();
         win.scrollTop = Math.max(0, view.indexOf(ri) * RH - RH * 4); draw(true);
         win.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
         const c = tbody.querySelector(`[data-r="${ri}"] .rec-td[tabindex="0"]`); if (c) c.focus({ preventScroll: true });

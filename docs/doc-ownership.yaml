@@ -1,0 +1,44 @@
+# File -> owning documentation section (standards rule 20, JEBYUS-0062). Read by _src/check_docs.py.
+#   glob  repo-relative, forward slashes; ** crosses folders, * does not, {a,b} alternates.
+#   doc   the document, optionally path#anchor (a heading slug in that file).
+# When a file changes, its owning section changes in the same commit, or the commit says
+# `Docs: none - <reason>`. Every file under _src/, docs/ and .github/ must match a rule,
+# the last matching rule wins, and every rule must match a file and name a real section.
+# Validate with: python _src/check_docs.py
+
+# ---- build, checks and workflows
+- {glob: "_src/build.py",                      doc: "docs/COMMANDS.md#build-release-docs"}
+- {glob: "_src/test_*.py",                     doc: "docs/COMMANDS.md#build-release-docs"}
+- {glob: "_src/check_docs.py",                 doc: "docs/COMMANDS.md#build-release-docs"}
+- {glob: ".github/workflows/*.yml",            doc: "docs/COMMANDS.md#build-release-docs"}
+- {glob: "_src/preview.py",                    doc: "docs/COMMANDS.md#daily"}
+- {glob: "_src/check_{links,text}.py",         doc: "docs/COMMANDS.md#daily"}
+- {glob: "_src/og.py",                         doc: "docs/COMMANDS.md#daily"}
+- {glob: "_src/.gitignore",                    doc: "_src/README.md#layout"}
+
+# ---- jeby.us
+- {glob: "_src/jeby/**",                       doc: "_src/README.md#layout"}
+
+# ---- JA Insights and the free report
+- {glob: "_src/jai/build.py",                  doc: "_src/README.md#layout"}
+- {glob: "_src/jai/src/**",                    doc: "_src/README.md#layout"}
+- {glob: "_src/jai/packs/**",                  doc: "_src/README.md#layout"}
+- {glob: "_src/jai/tests/*.js",                doc: "docs/COMMANDS.md#daily"}
+- {glob: "_src/jai/tests/make_fixtures.py",    doc: "docs/COMMANDS.md#daily"}
+- {glob: "_src/jai/tests/fixtures/**",         doc: "_src/README.md#layout"}
+
+# ---- shared by both sites
+- {glob: "_src/brand/**",                      doc: "_src/README.md#layout"}
+- {glob: "_src/brand/check_brand.js",          doc: "docs/COMMANDS.md#daily"}
+- {glob: "_src/family/**",                     doc: "_src/README.md#layout"}
+- {glob: "_src/research/**",                   doc: "_src/README.md#layout"}
+
+# ---- architecture and the docs themselves
+- {glob: "_src/ARCHITECTURE.md",               doc: "_src/ARCHITECTURE.md"}
+- {glob: "_src/architecture/**",               doc: "_src/ARCHITECTURE.md"}
+- {glob: "_src/README.md",                     doc: "_src/README.md"}
+- {glob: "docs/QUICKSTART.md",                 doc: "docs/QUICKSTART.md"}
+- {glob: "docs/COMMANDS.md",                   doc: "docs/COMMANDS.md"}
+- {glob: "docs/RELEASE.md",                    doc: "docs/RELEASE.md"}
+- {glob: "docs/LESSONS.md",                    doc: "docs/LESSONS.md"}
+- {glob: "docs/doc-ownership.yaml",            doc: "README.md#get-started"}
