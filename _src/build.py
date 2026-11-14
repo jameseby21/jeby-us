@@ -2,7 +2,7 @@
 
     python3 _src/build.py            build both sites into _src/jeby/out and _src/jai/out
     python3 _src/build.py --publish  also copy the jeby.us build into the repository root, which GitHub Pages serves
-    python3 _src/build.py --check    build, then list root files that differ from the build; exit 1 if any do
+    python3 _src/build.py --check    build, then list root files that differ from the build and any site missing its 404.html; exit 1 if any
 """
 import pathlib, shutil, subprocess, sys
 HERE = pathlib.Path(__file__).resolve().parent
@@ -17,6 +17,11 @@ def differing(out, root):
     """Published files whose root copy is missing or has different bytes, as posix paths."""
     return [rel.as_posix() for rel in build_files(out)
             if not (root / rel).is_file() or (root / rel).read_bytes() != (out / rel).read_bytes()]
+
+
+def missing_404(outs):
+    """Site builds without a 404.html; GitHub Pages then shows its own unbranded page for a bad link."""
+    return [str(o) for o in outs if not (o / "404.html").is_file()]
 
 
 def publish(out, root):
@@ -45,7 +50,9 @@ def main(argv):
         diff = differing(out, root)
         for name in diff: print("differs:", name)
         print(f"{len(diff)} files differ")
-        if diff: sys.exit(1)
+        no404 = missing_404([out, HERE / "jai" / "out"])
+        for o in no404: print("missing 404.html:", o)
+        if diff or no404: sys.exit(1)
 
 
 if __name__ == "__main__":
