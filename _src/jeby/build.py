@@ -51,10 +51,10 @@ def footer():
     site = "".join(f'<li><a href="{k}.html">{n}</a></li>' for k, n in PAGES)
     return f'''<footer class="site-footer"><div class="wrap">
   <div><p class="sig">No trackers and no pop-ups. Just pages.</p><small>© <span data-year>2026</span> James Eby · Miami, FL</small></div>
-  <div><h3>Site</h3><ul><li><a href="index.html">Home</a></li>{site}</ul></div>
-  <div><h3>Free</h3><ul><li><a data-x="jai" data-p="report.html">Data report</a></li><li><a href="qr.html">Image to QR code</a></li><li><a href="lab.html">Lab projects</a></li></ul></div>
-  <div><h3>Elsewhere</h3><ul><li><a href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">Instagram</a></li><li><a href="{C.CONFIG["linkedin"]}" target="_blank" rel="noopener">LinkedIn</a></li><li><a href="{C.CONFIG["github"]}" target="_blank" rel="noopener">GitHub</a></li>{f'<li><a href="{C.CONFIG["youtube"]}" target="_blank" rel="noopener">YouTube</a></li>' if C.CONFIG["youtube"] else ""}<li><a href="#" data-copy-email="{C.CONFIG["email"]}">Email</a></li></ul></div>
-  <div><h3>Family</h3><ul><li><a data-x="jai" data-p="index.html">JA Insights</a> <span class="muted">· data consulting</span></li><li><a href="lab.html">jebyLabs</a> <span class="muted">· projects</span></li><li>jeby Real Estate</li><li>jeby Industries</li></ul></div>
+  <div><h2>Site</h2><ul><li><a href="index.html">Home</a></li>{site}</ul></div>
+  <div><h2>Free</h2><ul><li><a data-x="jai" data-p="report.html">Data report</a></li><li><a href="qr.html">Image to QR code</a></li><li><a href="lab.html">Lab projects</a></li></ul></div>
+  <div><h2>Elsewhere</h2><ul><li><a href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">Instagram</a></li><li><a href="{C.CONFIG["linkedin"]}" target="_blank" rel="noopener">LinkedIn</a></li><li><a href="{C.CONFIG["github"]}" target="_blank" rel="noopener">GitHub</a></li>{f'<li><a href="{C.CONFIG["youtube"]}" target="_blank" rel="noopener">YouTube</a></li>' if C.CONFIG["youtube"] else ""}<li><a href="#" data-copy-email="{C.CONFIG["email"]}">Email</a></li></ul></div>
+  <div><h2>Family</h2><ul><li><a data-x="jai" data-p="index.html">JA Insights</a> <span class="muted">· data consulting</span></li><li><a href="lab.html">jebyLabs</a> <span class="muted">· projects</span></li><li>jeby Real Estate</li><li>jeby Industries</li></ul></div>
 </div></footer>'''
 
 PERSON = {"@context": "https://schema.org", "@type": "Person", "name": "James Eby", "alternateName": "jeby", "url": "https://jeby.us/",
@@ -215,13 +215,13 @@ pro = f'''
     <article class="sheet" aria-label="Résumé">
       <header><div class="nm">James David Eby</div><div class="sub">Business Intelligence · Data Science · Analytics Leadership</div>
         <div class="contacts"><span>Miami, FL</span><span data-email="{email}" data-show>{email}</span><a href="https://jeby.us">jeby.us</a><a href="{C.CONFIG["linkedin"]}">linkedin.com/in/jeby-d</a></div></header>
-      <h4>Summary</h4><p>{E(C.PRO["summary"])}</p>
-      <h4>Experience</h4>{sheet_jobs(C.EXPERIENCE)}
-      <h4>Ventures and projects</h4>{sheet_jobs(C.VENTURES)}
-      <h4>Skills</h4><dl>{"".join(f"<dt>{E(a)}</dt><dd>{E(b)}</dd>" for a, b in C.SKILLS)}</dl>
-      <h4>Education and teaching</h4><div class="job"><div class="l1"><b>{E(C.EDUCATION["school"])}</b><span>{C.EDUCATION["year"]}</span></div><div class="l2">{E(C.EDUCATION["degree"])}</div>
+      <h3>Summary</h3><p>{E(C.PRO["summary"])}</p>
+      <h3>Experience</h3>{sheet_jobs(C.EXPERIENCE)}
+      <h3>Ventures and projects</h3>{sheet_jobs(C.VENTURES)}
+      <h3>Skills</h3><dl>{"".join(f"<dt>{E(a)}</dt><dd>{E(b)}</dd>" for a, b in C.SKILLS)}</dl>
+      <h3>Education and teaching</h3><div class="job"><div class="l1"><b>{E(C.EDUCATION["school"])}</b><span>{C.EDUCATION["year"]}</span></div><div class="l2">{E(C.EDUCATION["degree"])}</div>
         <p>Coursework: {E(C.EDUCATION["coursework"])}</p><p>{E(C.EDUCATION["teaching"])}</p></div>
-      <h4>Awards and activities</h4><ul>{"".join(f"<li>{E(a)}</li>" for a in C.AWARDS)}</ul>
+      <h3>Awards and activities</h3><ul>{"".join(f"<li>{E(a)}</li>" for a in C.AWARDS)}</ul>
     </article>
   </div>
   <div class="tabpanel" role="tabpanel" id="p-sk" aria-labelledby="t-sk" hidden>
