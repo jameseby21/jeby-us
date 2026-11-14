@@ -3,9 +3,9 @@
 
 - [Professional](https://jeby.us/professional): Director-level BI and data science; experience, timeline, résumé.
 - [Teach](https://jeby.us/teach): tutoring (math, SAT/ACT math, statistics, data analysis), first-job mentorship, résumé services. English and Spanish.
-- [Lab](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, learningLabs (a free learning library with a data analysis course), a band game, Lighting Lab, Quorum, Plantriloquist, AppForge, a route optimizer and driver tracking for small businesses, and a dog territory app.
+- [Lab](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, learningLabs (a learning library, data analysis course in progress), a band game, Lighting Lab, Quorum, Plantriloquist, AppForge, and ideas for a route optimizer, driver tracking and a dog territory app. Each listing says if it is live, preview, in build or an idea.
 - [Research](https://jeby.us/research): Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression (Carnegie Mellon, 2015).
 - [About](https://jeby.us/about): James, and Drew.
 - [Free data report](https://jainsights.com/report): a one-page report on any spreadsheet, run in the browser.
-- [Dog QR prompt](https://jeby.us/qr): a prompt that makes an AI build a picture QR code that scans.
+- [Turn your image into a QR code](https://jeby.us/qr): a prompt that asks a chat AI to build a picture QR code and test it.
 Contact: jeby@jainsights.com · https://www.instagram.com/jeby_d/ · https://www.linkedin.com/in/jeby-d · https://github.com/jameseby21

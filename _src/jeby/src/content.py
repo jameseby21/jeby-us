@@ -17,20 +17,21 @@ CONFIG = {
 }
 
 # The words the red dot hops across on the home hero before it lands as the full stop. Personal, not a skills list.
-DISCIPLINES = ["Statistics", "Galaxy clusters", "Machining", "Golf", "SCUBA", "Brisket", "Drew"]
+DISCIPLINES = [("Statistics", "research.html"), ("Galaxy clusters", "research.html"), ("Machining", "about.html#interests"),
+               ("Golf", "about.html#interests"), ("SCUBA", "about.html#interests"), ("Brisket", "about.html#interests"), ("Drew", "about.html#drew")]
 
 # Voice (James, 2026-11-08): personal pages call him James, never jeby; work is a link, not a story.
 # jeby is his online handle and can introduce him on professional pages only.
-ABOUT_SHORT = ("I live in Miami with Drew. I studied statistics at Carnegie Mellon, I speak English and Spanish, "
-               "and I have more side projects than free evenings.")
+ABOUT_SHORT = "I live in Miami with Drew. I studied statistics at Carnegie Mellon, and I have more side projects than free evenings."
+HERO = "Super serious about my silliness."
 
 ABOUT_LONG = [
     "I live in Miami with Drew, a Scottish Terrier who appears on more of my projects than I do.",
-    "I studied statistics at Carnegie Mellon. My undergraduate research asked whether the standard way of weighing galaxy clusters was counting the same data more than once. It was. I still like that kind of problem best: the accepted answer is a little wrong and nobody has checked.",
-    "Away from the keyboard I mostly pick things that can't be rushed: machining, golf, diving, archery, kayaking with Drew, and brisket on the Big Green Egg, which is twelve hours of patience for twenty minutes of dinner.",
+    "I studied statistics at Carnegie Mellon University with a concentration in computer science, I am a senior BI manager, and I'm drawn to difficult problems.",
+    "Away from the keyboard I like things that can't be rushed: machining, golf, diving, archery, kayaking with Drew, and brisket, which is twelve hours of patience for twenty minutes of dinner.",
 ]
-FACTS = [("Based", "Miami, FL"), ("Roots", "Nicaraguan"), ("Studied", "B.S. Statistics, Carnegie Mellon, 2019"), ("Speaks", "English, Spanish, some French"),
-         ("Off the clock", "Gunsmithing and machining, golf, SCUBA, archery, kayaking with Drew, and brisket on the Big Green Egg")]
+FACTS = [("Based", "Miami, FL"), ("Studied", "B.S. Statistics, Carnegie Mellon, 2019"),
+         ("Off the clock", "Machining, golf, SCUBA, archery, kayaking with Drew, and brisket")]
 
 DREW = {
     "title": "Drew",
@@ -38,25 +39,23 @@ DREW = {
     "short": "He's on my business cards, my QR codes and half my projects. Nobody asked him.",
 }
 
-# The story and the support section are no longer shown (James, 2026-11-08: the personal pages link to work instead
-# of narrating it). Kept here so either can come back with one line in build.py; nothing below is rendered.
 # The story (About page, #story). DRAFT: every line is for James to check; only facts he has stated are used.
-# HEALTH_DETAIL is James's own words about his health, as much or as little as he wants. Empty = the sentence is left out.
-HEALTH_DETAIL = "The health part is real: open-heart surgery, a Bentall procedure, a new mechanical heart valve, and a kidney transplant may be next."
+# HEALTH_DETAIL is James's own words about his health: open-heart surgery and no more (James, 2026-11-12).
+HEALTH_DETAIL = "I had open-heart surgery."
 STORY = {
     "title": "The story so far",
     "chapters": [
-        {"when": "2015", "head": "A problem I couldn't leave alone",
-         "body": "My undergraduate research at Carnegie Mellon asked whether the way astronomers weigh galaxy clusters was quietly counting the same data more than once. It was. That's still my favorite kind of problem: one where the accepted answer is a little bit wrong and nobody has checked."},
-        {"when": "2019 – 2025", "head": "Building teams from nothing",
-         "body": "Six years in business intelligence. I founded two analytics functions, led a company-wide Power BI rollout, moved a warehouse to Snowflake, and mentored the analysts who run those systems now. I kept teaching the whole way: about ten years of tutoring, a coding camp for kids, and college TA work."},
-        {"when": "2025 – now", "head": "Then my health stepped in", "break": True,
-         "body": "In 2025 the startup where I'd built the analytics function ran out of money while I was in the hospital, and the job went with it.",
+        {"when": "High school", "head": "The math club",
+         "body": "It started with the math club. In 2013 I took sixth place in statistics at the Mu Alpha Theta national convention. [James: a line or two about the club]"},
+        {"when": "2015 – 2019", "head": "Carnegie Mellon",
+         "body": "I studied statistics, with a concentration in computer science. My undergraduate research asked whether the usual way of weighing galaxy clusters counted the same data more than once. It did. I was president of the archery club, and I taught kids to code at a summer camp."},
+        {"when": "2019 – 2025", "head": "Work",
+         "body": "Six years in business intelligence, the last of them leading analytics at a startup. The details are on the Professional page."},
+        {"when": "2025", "head": "Then my health stepped in", "break": True,
+         "body": "In 2025 the startup ran out of money while I was in the hospital, and the job went with it.",
          "after": "I couldn't choose that part. I could choose what to do with the time I had."},
-        {"when": "Since then", "head": "So I kept building",
-         "body": "The Lab now holds more than a dozen projects: a real-estate analytics platform, a free learning library that starts with a data analysis course, keyboard lighting software, a band game, a houseplant that roasts your friends, and the galaxy research, rebuilt. Every one of them gets a free version. Along the way I worked out a way of building with AI coding agents where every mistake becomes a test, so it can't happen twice."},
-        {"when": "Next", "head": "What I'm after",
-         "body": "Happiness is the goal, and trying new things is what makes me happy. Right now that means teaching again, taking on data work through JA Insights, and finding my next role leading a BI team. Drew handles morale."},
+        {"when": "Since then", "head": "I kept building",
+         "body": "I build things in my spare time: a real-estate database, a learning library, keyboard lighting software, a band game, and a houseplant that roasts your friends. Some are out and some are still ideas; the Lab says which. I also tutor math, statistics and data. Drew handles morale."},
     ],
 }
 SUPPORT = {
@@ -71,16 +70,16 @@ PREVIEW_SLOTS = False  # show empty draft slots and unconfigured providers in pr
 NOW = [
     ("Research", "Picking the galaxy-cluster work back up, ten years after the poster, to see if it holds.", "research.html"),
     ("Building", "A band game that turns any song into a chart you can actually play.", "lab.html#musicalgames"),
-    ("Teaching", "Taking on math, statistics and data students again, in English or Spanish.", "teach.html"),
+    ("Teaching", "Taking on math, statistics and data students again.", "teach.html"),
     ("Work", "Looking for my next BI leadership role.", "professional.html"),
 ]
 
 PRO = {
     "headline": "I build analytics teams and the systems they run on.",
     "summary": ("I'm James Eby, jeby to most people in tech. Six years in business intelligence and data science: I founded two analytics functions, "
-                "led a company-wide Power BI rollout and a Snowflake migration, and mentored the analysts who run those systems now. "
-                "Statistics from Carnegie Mellon, enough software engineering to build what the numbers need, and English and Spanish with clients and executives."),
-    "stats": [("6+", "years in BI and data science"), ("2", "analytics functions founded"), ("~1,000", "webinar attendees reached"), ("2", "languages, native")],
+                "led a company-wide Power BI rollout and a Snowflake migration, and mentored the analysts on the team. "
+                "I studied statistics at Carnegie Mellon and write enough code to build what the numbers need. I work in English and Spanish."),
+    "stats": [("6+", "years in BI and data science"), ("2", "analytics functions founded"), ("1", "company-wide Power BI rollout led"), ("~10", "years of teaching and tutoring")],
 }
 
 # Experience from resume_extended (Nov 2026). Bracketed placeholders are left out on the web.
@@ -103,7 +102,7 @@ EXPERIENCE = [
                  "Prototyped new products in Python and Excel, later built into the client portal"],
      "tags": ["Python", "Excel", "MDM", "Team lead"]},
     {"id": "autoquotes", "org": "AutoQuotes (now Revalize), LLC", "title": "Business Intelligence Analyst", "start": [2020, 6], "end": [2021, 10],
-     "lead": "Founded AQ Data; built churn health scores and presented to about 1,000 webinar attendees.",
+     "lead": "Founded AQ Data; built churn health scores; ran industry trend webinars.",
      "bullets": ["Founded AQ Data, delivering custom reporting, business insights, and KPI dashboards in Power BI",
                  "Presented commercial-kitchen industry trend reports in 3–4 webinars reaching roughly 1,000 participants",
                  "Built and automated customer health scores to reduce churn; set post-launch baselines and target metrics",
@@ -193,7 +192,7 @@ RESUME_SERVICES = [("ATS Tune-Up", "$129", "An edit of your current résumé, a 
                    ("Add-ons", "from $75", "LinkedIn $149 · cover letter $99 · 48-hour rush $75 · personal QR mark $79")]
 FAQ = [("Online or in person?", "Both. Online sessions run on video with a shared whiteboard. In-person sessions are in Miami."),
        ("English or Spanish?", "Either, or both in the same session. Clases en español disponibles."),
-       ("How do I pay?", "Through a secure payment link before the session. Packs are paid up front and don't expire for six months."),
+       ("How do I pay?", "We settle it by email before the first session; there is no online checkout yet. Packs are paid up front and don't expire for six months."),
        ("What's the cancellation policy?", "Reschedule for free up to 24 hours ahead. Later cancellations count as a session."),
        ("Do you work with younger students?", "Yes. For students under 18, a parent books, stays in the loop, and nothing is recorded without written consent.")]
 
@@ -201,92 +200,92 @@ FAQ = [("Online or in person?", "Both. Online sessions run on video with a share
 # Every project. "open" = the free jebyLabs version; "paid" = the supported version sold through JA Insights.
 LAB = [
     {"group": "Data and analytics", "items": [
-        {"id": "jre", "name": "jRE", "status": "Prototype · v0.4", "accent": "#2EC4B6", "mark": "jR",
+        {"id": "jre", "name": "jRE", "status": "In build", "accent": "#2EC4B6", "mark": "jR",
          "line": "Miami real-estate analytics where every number shows its source.",
          "detail": "A property database for Miami Springs and Virginia Gardens built around each lot's full history: owners, sales, features and valuations over time, with a review queue for records that look wrong.",
          "stack": ["PostgreSQL 16", "FastAPI", "Angular", "Docker", "scikit-learn"],
          "open": "Schema, app scaffold, synthetic-data generator, review workflow and data-intake framework",
          "paid": "Curated South Florida data, valuation and comparable-homes engines, market scores, advisory",
          "code": None, "jai": "jre"},
-        {"id": "learninglabs", "name": "learningLabs", "status": "Open source · 164 tests", "accent": "#83DFC1", "mark": "L",
-         "line": "A free learning library. First up: a data analysis course, with fraud detection as one of its case studies.",
-         "detail": "The data analysis course runs in Python, R, Power BI and Excel. Its fraud-detection case study comes with a library of resolved real cases, an investigation game and a public-data intake desk, all on the Python standard library. More labs are planned beyond data.",
+        {"id": "learninglabs", "name": "learningLabs", "status": "In build", "accent": "#83DFC1", "mark": "L",
+         "line": "A learning library. First up: a data analysis course, with fraud detection as one of its case studies.",
+         "detail": "The data analysis course is in progress, in Python, R, Power BI and Excel. Its fraud-detection case study comes with a library of resolved real cases, an investigation game and a public-data intake desk. More labs beyond data are an idea.",
          "stack": ["Python", "R", "Power BI", "JavaScript"],
          "open": "Courses, case library, the game and all original data (GPL-3.0 and CC0)",
          "paid": "A hosted workspace for the course's investigations, and team training through JA Insights",
          "code": "https://github.com/jameseby21/Become-a-Data-Analyst", "jai": "learninglabs"},
-        {"id": "research", "name": "Galaxy-cluster masses", "status": "Research · active", "accent": "#4084FF", "mark": "σ",
+        {"id": "research", "name": "Galaxy-cluster masses", "status": "In build", "accent": "#4084FF", "mark": "σ",
          "line": "Weighing galaxy clusters by how their galaxies move, revisited ten years on.",
          "detail": "The 2015 Carnegie Mellon poster, rebuilt as an animated slideshow, and a new public repository for the follow-up work.",
          "stack": ["Python", "R", "Statistics"],
          "open": "Everything: code, figures and data cards", "paid": None, "code": None, "jai": None, "page": "research.html"},
-        {"id": "cellcount", "name": "Cell-count pipeline", "status": "Case study", "accent": "#9C8CFF", "mark": "C",
+        {"id": "cellcount", "name": "Cell-count pipeline", "status": "Preview", "accent": "#9C8CFF", "mark": "C",
          "line": "CSV to a normalized database to a dashboard, in one command.",
          "detail": "Loads 52,500 measurements from 10,500 samples into a normalized SQLite schema, then summarizes them in tables, plots and a Streamlit dashboard. Written as a take-home exercise.",
          "stack": ["Python", "pandas", "SQLite", "Streamlit"],
          "open": "Shared on request", "paid": None, "code": None, "jai": None},
     ]},
     {"group": "For small businesses", "items": [
-        {"id": "route-optimizer", "name": "Route optimizer", "status": "Planned · free", "accent": "#3FA7D6", "mark": "R",
-         "line": "Route planning for businesses whose day is a list of stops. Free.",
-         "detail": "Put in the day's stops and get a sensible order to drive them in, without a routing subscription. Built for small route-based businesses, through JA Insights.",
+        {"id": "route-optimizer", "name": "Route optimizer", "status": "Idea", "accent": "#3FA7D6", "mark": "R",
+         "line": "Route planning for businesses whose day is a list of stops.",
+         "detail": "Put in the day's stops and get a sensible order to drive them in, without a routing subscription. Not built yet; this is the brief. Meant for small route-based businesses, through JA Insights.",
          "stack": ["Python", "Maps"],
-         "open": "The free tool", "paid": None, "code": None, "jai": None},
-        {"id": "driver-tracking", "name": "Driver tracking", "status": "Planned · free", "accent": "#5C7CFA", "mark": "D",
-         "line": "Driver tracking for small businesses with several drivers and no software budget. Free.",
-         "detail": "Where each driver is and what's done, for a team of a few drivers rather than a fleet department. Built through JA Insights.",
+         "open": "Planned as a free tool", "paid": None, "code": None, "jai": None},
+        {"id": "driver-tracking", "name": "Driver tracking", "status": "Idea", "accent": "#5C7CFA", "mark": "D",
+         "line": "Driver tracking for small businesses with several drivers and no software budget.",
+         "detail": "Where each driver is and what's done, for a team of a few drivers rather than a fleet department. Not built yet; this is the brief. Meant to go through JA Insights.",
          "stack": ["Python", "Maps"],
-         "open": "The free tool", "paid": None, "code": None, "jai": None},
+         "open": "Planned as a free tool", "paid": None, "code": None, "jai": None},
     ]},
     {"group": "For dogs and their people", "items": [
-        {"id": "territory", "name": "Dog territory app", "status": "Planned · working name", "accent": "#F2994A", "mark": "T",
-         "line": "A dog game and network for walks: claim territory, leave scent marks, keep dogs safe. Working name.",
-         "detail": "Walks claim ground on a hex map and scent marks become a game between dogs on the same streets. The safety side keeps a lost-pet kit and reactive-dog warnings one tap away.",
+        {"id": "territory", "name": "Dog territory app", "status": "Idea", "accent": "#F2994A", "mark": "T",
+         "line": "A dog game for walks: claim territory, leave scent marks, keep dogs safe. Working name.",
+         "detail": "Walks claim ground on a hex map and scent marks become a game between dogs on the same streets. The idea includes a lost-pet kit and reactive-dog warnings. Nothing is built yet.",
          "stack": ["Mobile", "Maps"],
-         "open": "The app, free", "paid": None, "code": None, "jai": None},
+         "open": "Planned as a free app", "paid": None, "code": None, "jai": None},
     ]},
     {"group": "Games and music", "items": [
-        {"id": "musicalgames", "name": "MusicalGames", "status": "Working build", "accent": "#FFCC33", "mark_img": "musicalgames.svg",
-         "line": "A full-band rhythm game with karaoke, real guitars and keyboards, and charts made from any audio.",
-         "detail": "One app for full-band rhythm games, karaoke with pitch scoring, a Guitar Room for real instruments, and a party mode where friends add songs by scanning a QR code. Working title.",
+        {"id": "musicalgames", "name": "MusicalGames", "status": "In build", "accent": "#FFCC33", "mark_img": "musicalgames.svg",
+         "line": "A full-band rhythm game with karaoke, real guitars and keyboards, and charts made from audio.",
+         "detail": "One app for full-band rhythm games, karaoke with pitch scoring, a Guitar Room for real instruments, and a party mode where friends add songs by scanning a QR code. Working title. The commercial route is undecided.",
          "stack": ["Python", "JavaScript", "MIDI"],
-         "open": "The app, chart generation from your own audio, karaoke and party mode",
-         "paid": "A one-time purchase, with an optional subscription for updates and new features",
+         "open": "Planned: chart generation from your own audio, karaoke and party mode",
+         "paid": "Planned: a one-time purchase",
          "code": None, "jai": "musicalgames"},
     ]},
     {"group": "Hardware", "items": [
-        {"id": "plantriloquist", "name": "Plantriloquist", "status": "v0.1 · bench hardware", "accent": "#5FD38D", "mark_img": "plantriloquist.png",
-         "line": "A Raspberry Pi hidden in a plant pot that listens, and roasts your friends in English or Spanish.",
+        {"id": "plantriloquist", "name": "Plantriloquist", "status": "In build", "accent": "#5FD38D", "mark_img": "plantriloquist.png",
+         "line": "A Raspberry Pi hidden in a plant pot that listens and roasts your friends.",
          "detail": "A provider-neutral talking-character engine: speech recognition, a comedy engine and neural voices, with a simulator and a control panel. First character: Potty Mouth.",
          "stack": ["Python", "Raspberry Pi", "faster-whisper", "Piper"],
-         "open": "Character engine, simulator, control panel and the offline voice path",
+         "open": "Character engine, simulator, control panel and offline voice path (on the bench)",
          "paid": "Character and voice packs, hosted AI responses, a ready-made hardware kit",
          "code": None, "jai": "plantriloquist"},
     ]},
     {"group": "Tools and software", "items": [
-        {"id": "desk", "name": "Desk", "status": "Mockup · build starting", "accent": "#C8F03C", "mark_img": "desk.svg",
-         "line": "Tickets that can't close without proof, and every fix leaves a lesson behind.",
-         "detail": "One ticketing system for every project, personal and professional. Tickets are Markdown files in git. Done means evidence, an explicit approval and a lesson, and Drew digs up old lessons when a new problem looks familiar.",
+        {"id": "desk", "name": "Desk", "status": "Preview", "accent": "#C8F03C", "mark_img": "desk.svg",
+         "line": "A ticket system where nothing closes without proof.",
+         "detail": "One ticketing system for every project, personal and professional. Tickets are Markdown files in git. Done means evidence, an explicit approval and a lesson. I use it on my own projects; it is not packaged for anyone else yet.",
          "stack": ["Python", "Markdown + git", "FastAPI", "htmx"],
          "open": "The CLI, the Markdown ticket format, the local web app and the lesson library, self-hosted",
          "paid": "Hosted sync across machines, AI-agent seats, lessons matched across projects, and proof captured from CI",
          "code": None, "jai": "desk"},
-        {"id": "lightinglab", "name": "Lighting Lab", "status": "v0.2 · open source", "accent": "#B9A5FF", "mark_img": "lighting-lab.svg",
-         "line": "Keyboard lighting you can actually design: anchors, backgrounds and reactions, layered.",
-         "detail": "A keyboard RGB editor with a preset gallery, a physical keyboard preview, live Razer Chroma control and exportable presets. 12 presets, 120 automated checks.",
+        {"id": "lightinglab", "name": "Lighting Lab", "status": "Preview", "accent": "#B9A5FF", "mark_img": "lighting-lab.svg",
+         "line": "A keyboard lighting editor: anchors, backgrounds and reactions, layered.",
+         "detail": "A keyboard RGB editor with a preset gallery, a physical keyboard preview, live Razer Chroma control and exportable presets. 12 presets.",
          "stack": ["Node", "JavaScript", "C#"],
          "open": "Editor, presets, preview and JSON export (GPL-3.0)",
          "paid": "A Windows player, keyboard firmware export and app-based profiles",
          "code": "https://github.com/jameseby21/lighting-lab", "jai": "lightinglab"},
-        {"id": "quorum", "name": "Quorum", "status": "Spec", "accent": "#FFB547", "mark": "Q",
+        {"id": "quorum", "name": "Quorum", "status": "Idea", "accent": "#FFB547", "mark": "Q",
          "line": "Group payments where everyone's in, or nobody's charged. Working name.",
-         "detail": "Each member's card is held for their share, and charged only if enough people commit by the deadline. Nobody fronts the money.",
+         "detail": "The idea: each member's card is held for their share, and charged only if enough people commit by the deadline, so nobody fronts the money. A written spec, nothing built.",
          "stack": ["Postgres", "Stripe"],
-         "open": "The commitment engine (Apache-2.0)", "paid": "The hosted app, with a small per-person fee shown up front",
+         "open": "Planned: the commitment engine (Apache-2.0)", "paid": "Planned: a hosted app",
          "code": None, "jai": "quorum"},
-        {"id": "appforge", "name": "AppForge", "status": "In use", "accent": "#FF7A1A", "mark": "A",
+        {"id": "appforge", "name": "AppForge", "status": "In build", "accent": "#FF7A1A", "mark": "A",
          "line": "An app that makes apps: every defect becomes a case, a rule and a test.",
-         "detail": "The method behind how I build with AI coding agents. jRE and Plantriloquist run on it today.",
+         "detail": "The method behind how I build with AI coding agents. jRE and Plantriloquist were built with it. It is not packaged as a product.",
          "stack": ["AI agents", "Testing"],
          "open": "The method and its reusable skills", "paid": "Setup and coaching for teams, through JA Insights",
          "code": None, "jai": "appforge"},
@@ -300,16 +299,22 @@ LAB = [
 
 # Free things that bring people in. Featured on Home, in the footer and in the family strip.
 QR = {
-    "title": "How I turned my dog into a QR code that actually scans",
-    "lede": "The first AI-made versions looked right and didn't scan. This prompt fixes that: it has the AI write code that builds a real QR code, blends your picture in, and tests that it scans before handing it over.",
+    "title": "Turn your image into a QR code",
+    "lede": "A pet, a logo, a painting, a photo of your street. The first AI-made versions I tried looked right and didn't scan. This prompt has the AI build a real QR code, blend your image into it, and test it before it hands it over.",
+    "card": "A prompt that asks your chat AI to blend your image into a QR code and test it. Drew was the first.",
+    "will_it_work": [
+        "It needs an assistant that can run code inside the chat. Several of the big ones can, usually on a paid plan or with a setting switched on; check yours.",
+        "An assistant that can only chat or draw may still try. It will probably give you something that looks like a QR code and doesn't scan, or a plain one with no picture in it. If it says it can't run code, that is the honest answer.",
+        "Nothing here is promised to scan. Point your phone at the result before you print it, and say what happened if it didn't.",
+    ],
     # DRAFT: James approves this wording before it goes live (Joe offered to test it first).
-    "prompt": """Write and run code for this. Don't draw it: image models can't reliably draw a QR code that scans.
+    "prompt": """Make me a QR code with my image blended in, and do all of it yourself here in this chat. Don't send me setup steps, and don't draw it as a picture: image models can't reliably draw a QR code that scans. Use your own code tool with the libraries it already has. If you can't run code here, tell me that now and stop.
 
-Goal: a QR code for [YOUR URL] with my picture blended in, that still scans on an ordinary phone camera.
+Goal: a QR code for [YOUR URL] with my image blended in, that still scans on an ordinary phone camera.
 
-1. Generate a real QR code for [YOUR URL] in Python with the segno or qrcode library. Use error correction level H and a quiet zone (white border) of at least 4 modules.
-2. Load my picture [ATTACHED]. Crop it square and raise the contrast.
-3. Blend: draw each module as a dot about 60% of its size over the picture, dark modules dark and light modules light, so the picture shows between the dots. Leave these exactly as generated, with no picture behind them: the three corner squares, the alignment squares, the timing lines, the format information and the white border.
-4. Test: decode the result with two different decoders, for example OpenCV and zxing-cpp. Also decode a copy shrunk to 300 px and a slightly blurred copy. If any decode fails or returns anything except [YOUR URL], make the dots bigger or the contrast stronger and try again, up to 10 times.
-5. Give me the PNG at 2000 px, the code, and every decode result. If it never passes, say so and give me the plain QR code instead. Never tell me it scans unless your own test decoded it.""",
+1. Generate a real QR code for [YOUR URL] with error correction level H and a quiet zone (white border) of at least 4 modules.
+2. Load my image [ATTACHED]. Crop it square and raise the contrast.
+3. Blend: draw each module as a dot about 60% of its size over the image, dark modules dark and light modules light, so the image shows between the dots. Leave these exactly as generated, with no image behind them: the three corner squares, the alignment squares, the timing lines, the format information and the white border.
+4. Test: decode the result with whatever QR decoder your code tool has. Also decode a copy shrunk to 300 px and a slightly blurred copy. If any decode fails or returns anything except [YOUR URL], make the dots bigger or the contrast stronger and try again, up to 10 times.
+5. Give me the PNG, and tell me which decoders you used and what each returned. If it never passes, say so and give me the plain QR code instead. Never tell me it scans unless your own test decoded it.""",
 }
