@@ -1,0 +1,8 @@
+# Python build and tooling output (_src has its own .gitignore for */out/ and jeby/artifact/)
+__pycache__/
+*.pyc
+.venv/
+_src/*/out/
+# Local secrets never belong in this public repository
+.env
+.env.*
