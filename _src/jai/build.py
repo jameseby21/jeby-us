@@ -80,7 +80,7 @@ def mark(it):
 def figure():
     """Fig. 1: twelve months of sales; points land, the trend draws, then the duplicated August invoice gets circled."""
     vals = [41, 44, 43, 47, 50, 49, 53, 108, 55, 58, 57, 61]
-    x0, x1, y0, y1, vmax = 46, 540, 268, 24, 120
+    x0, x1, y0, y1, vmax = 86, 540, 268, 24, 120   # x0 leaves room for the "120k" tick label left of the axis (AUDIT: it clipped at 46)
     X = lambda i: x0 + i * (x1 - x0) / 11; Y = lambda v: y0 - (v / vmax) * (y0 - y1)
     pts = "".join(f'<circle class="pt" cx="{X(i):.1f}" cy="{Y(v):.1f}" r="{7 if i == 7 else 5.5}" style="animation-delay:{.15 + i * .07:.2f}s"/>' for i, v in enumerate(vals))
     clean = [v for i, v in enumerate(vals) if i != 7]; xs = [i for i in range(12) if i != 7]

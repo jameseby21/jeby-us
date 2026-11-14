@@ -370,6 +370,19 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     await send("Emulation.clearDeviceMetricsOverride"); return out.join(", ");
   });
 
+  await check("AUDIT: the Home chart's y-axis labels (120k, 80k, 40k, 0k) sit inside the figure at 1440 and 390 px, none clipped at the left edge", async () => {
+    const out = [];
+    for (const [w, h, mobile] of [[1440, 900, false], [390, 800, true]]) {
+      await send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile });
+      await send("Page.navigate", { url: BASE + "/index.html" }); await waitFor("document.readyState === 'complete'"); await sleep(250);
+      const m = await js(`(async () => { await document.fonts.ready; return [...document.querySelectorAll('figure.fig .tick')].map(t => ({ t: t.textContent, x: t.getBBox().x })); })()`);
+      assert(m.length >= 4, "no tick labels found at " + w); const bad = m.filter(t => t.x < 0);
+      assert.strictEqual(bad.length, 0, `at ${w}: labels start left of the figure: ${JSON.stringify(bad)}`);
+      out.push(`${w}: leftmost ${Math.min(...m.map(t => t.x)).toFixed(1)}`);
+    }
+    await send("Emulation.clearDeviceMetricsOverride"); return out.join(", ");
+  });
+
   await check("CONS-0042: every report ends with How to supplement your data: at least three free and two paid sources, each a link that opens in a new tab, chosen by shape; it is not printed", async () => {
     const out = [];
     for (const [fx, want, not] of [["venues.csv", /OpenStreetMap/, /NOAA/], ["sales_clean.csv", /NOAA/, /retail trade/], ["ledger_header.csv", /retail trade/, /OpenStreetMap/], ["numeric_header.csv", /Data\.gov/, /OpenStreetMap|NOAA|Consumer Price/]]) {
