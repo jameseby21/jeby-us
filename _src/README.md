@@ -43,7 +43,7 @@ The Lab projects in `jeby/src/content.py` feed both sites: the free edition on j
 
 ## jainsights.com
 
-The JA Insights build in `_src/jai/out` is served from its own repository with its own GitHub Pages site and `CNAME` (`jainsights.com`). The domain's DNS lives at Squarespace. Go-live order: jainsights.com first, then jeby.us, so the family links never point at an empty site.
+The JA Insights build in `_src/jai/out` is served from its own repository with its own GitHub Pages site and `CNAME` (`jainsights.com`). The build also copies this repository's `LICENSE` (MIT, code) and `LICENSE-CONTENT.md` (CC BY-NC-SA 4.0, content) into it, so that public repository carries both licenses. The domain's DNS lives at Squarespace. Go-live order: jainsights.com first, then jeby.us, so the family links never point at an empty site.
 
 ## Release
 

@@ -259,6 +259,7 @@ for f in ("plantriloquist.png", "musicalgames.svg", "lighting-lab.svg", "desk.sv
 BR.copy_assets(OUT / "assets")
 shutil.copy(OUT / "assets" / "brand" / "jai-monogram-light.svg", OUT / "assets" / "favicon.svg")  # for anything that asks for /assets/favicon.svg
 (OUT / "CNAME").write_text("jainsights.com\n", encoding="utf-8")
+for f in ("LICENSE", "LICENSE-CONTENT.md"): shutil.copy(ROOT.parents[1] / f, OUT / f)  # the public jainsights repository carries the code and content licenses (rule 50)
 (OUT / "robots.txt").write_text("User-agent: *\nAllow: /\nSitemap: https://jainsights.com/sitemap.xml\n", encoding="utf-8")
 (OUT / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
     "".join(f"<url><loc>https://jainsights.com/{'' if k == 'index' else k}</loc></url>" for k in ("index", "services", "report", "products", "approach", "about", "contact")) + "</urlset>", encoding="utf-8")
