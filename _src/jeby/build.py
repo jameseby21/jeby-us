@@ -68,6 +68,7 @@ def page(key, title, desc, body, extra_head="", extra_js="", artifact=False):
 <meta name="description" content="{E(desc)}">
 <meta name="theme-color" content="#0c0b0a">
 <meta property="og:title" content="{E(title)}"><meta property="og:description" content="{E(desc)}"><meta property="og:image" content="https://jeby.us/og.png"><meta property="og:url" content="https://jeby.us/{'' if key=='home' else key}">
+{'' if 'rel="canonical"' in extra_head else f'<link rel="canonical" href="https://jeby.us/{"" if key == "home" else key}">'}
 <meta name="twitter:card" content="summary_large_image">
 {BR.favicon_links("jeby", default_theme="dark")}
 {FONTS}
