@@ -616,10 +616,10 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
 
   await check("CONS-0051: the view survives a reload from its link (names and clicked values only), and the link holds no row", async () => {
     await send("Page.navigate", { url: "about:blank" }); await sleep(200);
-    await send("Page.navigate", { url: BASE + "/report.html#sample&g=location&gv=Wynwood&cmp=1&m=total" });
+    await send("Page.navigate", { url: BASE + "/report.html#sample&g=location&gv=Hialeah&cmp=1&m=total" });
     await waitFor("!!window.JAIReportDebug && !!JAIReportDebug.store && document.querySelectorAll('.rec-tr').length > 0 && !!JAIReportDebug.slice && JAIReportDebug.pending === 0", 30000);
     const m = await js(`({ crumb: document.querySelector('#rep-slice .here').textContent, cmp: JAIReportDebug.compare, tracks: document.querySelectorAll('table.grp.cmp .grp-track').length, count: document.querySelector('[data-count]').textContent, hash: location.hash, rows: document.querySelector('.sh-kpis').textContent })`);
-    assert(/location: Wynwood/.test(m.crumb), m.crumb); assert.strictEqual(m.cmp, true); assert(m.tracks >= 5, "compare bars " + m.tracks); assert(/^Showing [\d,]+ of 5,000$/.test(m.count) && !/Showing 5,000/.test(m.count), m.count);
+    assert(/location: Hialeah/.test(m.crumb), m.crumb); assert.strictEqual(m.cmp, true); assert(m.tracks >= 5, "compare bars " + m.tracks); assert(/^Showing [\d,]+ of 5,000$/.test(m.count) && !/Showing 5,000/.test(m.count), m.count);
     assert(/^#sample&/.test(m.hash) && m.hash.length < 120 && !/A10\d\d\d|2026-\d\d-\d\d|Cuban|\$/.test(decodeURIComponent(m.hash)), "no row in the address: " + m.hash);
     return `reloaded at ${m.hash}: "${m.crumb}", ${m.count}, compare on`;
   });

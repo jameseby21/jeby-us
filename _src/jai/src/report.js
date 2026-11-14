@@ -744,7 +744,7 @@
   // A made-up café's sales: seeded, with the usual problems planted (the twelve $115.00 sandwiches are the headline).
   function cafeSample(n = 5000) {
     let seed = 20261108; const R = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const LOCS = ["Brickell", "Wynwood", "Coral Gables", "Little Havana", "Sunny Isles Beach"];
+    const LOCS = ["Brickell", "Hialeah", "Coral Gables", "Little Havana", "Sunny Isles Beach"];
     const ITEMS = [["Cortadito", 3.25], ["Café con leche", 4.50], ["Cold brew", 5.25], ["Guava pastelito", 2.75], ["Croqueta", 1.75], ["Cuban sandwich", 11.50], ["Catering tray", 145.00]];
     const PAYS = ["Card", "Card", "Card", "Cash", "Apple Pay"], base = n - 9, rs = [];
     for (let i = 0; i < base; i++) {
@@ -758,7 +758,7 @@
     at(2201).qty = -2; at(2201).total = +(at(2201).price * -2).toFixed(2); at(4007).qty = -1; at(4007).total = +(at(4007).price * -1).toFixed(2);
     at(812).total = +(at(812).total + 10).toFixed(2); at(2950).total = +(at(2950).total * 10).toFixed(2); at(4400).total = 0;
     [90, 455, 1300, 1980, 2405, 3333, 3809, 4120, 4700, 18, 2020, 2777, 3999, 4501].forEach(k => at(k).pay = "");
-    [150, 1777, 3021].forEach(k => at(k).loc = "Coral gables"); [260, 2608].forEach(k => at(k).loc = "Wynwood "); at(999).loc = "Sunny Isles";
+    [150, 1777, 3021].forEach(k => at(k).loc = "Coral gables"); [260, 2608].forEach(k => at(k).loc = "Hialeah "); at(999).loc = "Sunny Isles";
     [120, 640, 1024, 1500, 2048, 2600, 3100, 3700, 4444].forEach(k => rs.push(Object.assign({}, at(k))));
     return [["order_id", "date", "location", "item", "qty", "unit_price", "total", "payment"], ...rs.map(r => [r.order, r.date, r.loc, r.item, String(r.qty), r.price.toFixed(2), r.total.toFixed(2), r.pay])];
   }
