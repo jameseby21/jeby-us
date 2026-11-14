@@ -51,6 +51,11 @@ class PublishAndDrift(unittest.TestCase):
         (self.root / "index.html").unlink()
         self.assertIn("index.html", build.differing(self.out, self.root))
 
+    def test_check_names_a_site_without_a_404(self):
+        """Protects the audit fix: a site build with no 404.html is named, one with it is not."""
+        tree(self.root, {"404.html": "x"})
+        self.assertEqual(build.missing_404([self.out, self.root]), [str(self.out)])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -29,7 +29,7 @@ Every command a person or an agent runs day to day. Use `python3` for `python` o
 ## Build, release, docs
 | Command | What it does | Notes |
 | --- | --- | --- |
-| `python _src/build.py --check` | builds, then lists every file in the repository root that differs from the build (`differs: <path>`) and prints `N files differ`; exit 1 when N is above 0; also runs on every pull request in `.github/workflows/drift.yml` | before a PR that touches `_src/` or the root |
+| `python _src/build.py --check` | builds, then lists every file in the repository root that differs from the build (`differs: <path>`) and prints `N files differ`; prints `missing 404.html: <site out>` for a site build without its not-found page; exit 1 when N is above 0 or a 404 is missing; also runs on every pull request in `.github/workflows/drift.yml` | before a PR that touches `_src/` or the root |
 | `python _src/build.py --publish` | also makes the repository root (what GitHub Pages serves) match the jeby.us build, file by file; unchanged files are not touched, no folder is deleted, and it prints the files it changed | only on a branch, only per [RELEASE.md](RELEASE.md); merging to main is the deploy |
 | `git push origin <branch>` | pushes a branch | never push to main |
 

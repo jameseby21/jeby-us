@@ -55,13 +55,13 @@ def footer():
   <div><h3>Family</h3><ul><li><a data-x="jeby" data-p="index.html">jeby.us</a> · the founder</li><li><a data-x="jeby" data-p="lab.html">jebyLabs</a> · free versions</li><li>jeby Real Estate</li><li><a href="{J.CONFIG["linkedin"]}" target="_blank" rel="noopener">LinkedIn</a></li></ul></div>
 </div></footer>'''
 
-def page(key, title, desc, body):
+def page(key, title, desc, body, extra_head=""):
     ld = ""
     if key == "index":
         ld = '<script type="application/ld+json">' + json.dumps({"@context": "https://schema.org", "@type": "ProfessionalService", "name": "JA Insights",
               "url": "https://jainsights.com/", "email": EMAIL, "areaServed": "US", "address": {"@type": "PostalAddress", "addressLocality": "Miami", "addressRegion": "FL", "addressCountry": "US"},
               "founder": {"@type": "Person", "name": "James Eby", "url": "https://jeby.us/"}, "priceRange": f"${RATE}/hour"}) + "</script>"
-    doc = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    doc = f'''<!doctype html><html lang="en"><head><meta charset="utf-8">{extra_head}<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{E(title)}</title><meta name="description" content="{E(desc)}"><meta name="theme-color" content="#fafaf7">
 <meta property="og:title" content="{E(title)}"><meta property="og:description" content="{E(desc)}"><meta property="og:type" content="website">
 <link rel="canonical" href="https://jainsights.com/{"" if key == "index" else key}">{BR.favicon_links("jai")}
@@ -249,6 +249,12 @@ page("contact", "Contact · JA Insights", "Book a free 30-minute intro call with
 <div class="fit"><div><span class="label"><b>●</b> Book</span><p style="margin-top:8px">Pick a time for a free 30-minute video call.</p><p style="margin-top:12px"><a class="btn red small" {booking("Intro call")}>Book a call {ARROW}</a></p></div>
 <div><span class="label">Email</span><p style="margin-top:8px"><a href="#" data-copy-email="{EMAIL}">{EMAIL}</a> · a reply within one business day.</p></div>
 <div class="no"><span class="label">Helpful to have</span><p style="margin-top:8px">Where your data lives, who uses the numbers, and the decision you're trying to make. No files needed yet.</p></div></div></div></section>''')
+
+# 404: GitHub Pages serves 404.html for any missing path, nested ones included; <base>, first in head, keeps the relative links working
+page("404", "Page not found · JA Insights", "This page does not exist on jainsights.com.",
+     page_head("404", "That page isn't here.", "The link may be old or mistyped. Everything on the site is one click from the home page.") +
+     f'<section class="block" style="padding-top:24px"><div class="wrap"><div class="cta" style="margin:0"><a class="btn red" href="index.html">Go to the home page {ARROW}</a><a class="btn" href="report.html">Try the free report</a></div></div></section>',
+     extra_head='<base href="/"><meta name="robots" content="noindex">')
 
 # assets
 S2 = ROOT.parent / "jeby" / "out" / "assets"; FAM = ROOT.parent / "family"

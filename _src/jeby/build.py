@@ -399,6 +399,13 @@ for key, title, desc, body, xh, xj in SPECS:
     (OUT / fn).write_text(page(key, title, desc, body, xh, xj), encoding="utf-8")
     (ART / fn).write_text(page(key, title, desc, body, xh, xj, artifact=(key == "home")), encoding="utf-8")
 
+# 404: GitHub Pages serves 404.html for any missing path, nested ones included; <base>, first in head, keeps the relative links working
+NOT_FOUND = f'''<section class="wrap page-head"><div class="eyebrow">404</div><h1 class="page-title">That page isn't here.</h1>
+<p>The link may be old or mistyped. Everything on the site is one click from the home page.</p>
+<p class="cta"><a class="btn solid" href="index.html">Go to the home page {ARROW}</a> <a class="btn" href="lab.html">See the Lab</a></p></section>'''
+(OUT / "404.html").write_text(page("404", "Page not found · jeby.us", "This page does not exist on jeby.us.", NOT_FOUND,
+                                   '<meta name="robots" content="noindex">').replace("<head>\n", '<head>\n<base href="/">\n', 1), encoding="utf-8")
+
 # assets
 for d in (OUT, ART):
     shutil.copy(ROOT / "src/site.css", d / "assets/site.css"); shutil.copy(ROOT / "src/site.js", d / "assets/site.js")
