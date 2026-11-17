@@ -50,7 +50,7 @@ def header(active):
 def footer():
     site = "".join(f'<li><a href="{k}.html">{n}</a></li>' for k, n in PAGES)
     return f'''<footer class="site-footer"><div class="wrap">
-  <div><p class="sig">No trackers and no pop-ups. Just pages.</p><small>© <span data-year>2026</span> James Eby · Miami, FL</small></div>
+  <div><p class="sig">Interdisciplinary problem-solver.</p><small>© <span data-year>2026</span> James Eby · Miami, FL</small></div>
   <div><h3>Site</h3><ul><li><a href="index.html">Home</a></li>{site}</ul></div>
   <div><h3>Free</h3><ul><li><a data-x="jai" data-p="report.html">Data report</a></li><li><a href="qr.html">Image to QR code</a></li><li><a href="lab.html">Lab projects</a></li></ul></div>
   <div><h3>Elsewhere</h3><ul><li><a href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">Instagram</a></li><li><a href="{C.CONFIG["linkedin"]}" target="_blank" rel="noopener">LinkedIn</a></li><li><a href="{C.CONFIG["github"]}" target="_blank" rel="noopener">GitHub</a></li>{f'<li><a href="{C.CONFIG["youtube"]}" target="_blank" rel="noopener">YouTube</a></li>' if C.CONFIG["youtube"] else ""}<li><a href="#" data-copy-email="{C.CONFIG["email"]}">Email</a></li></ul></div>
@@ -58,7 +58,7 @@ def footer():
 </div></footer>'''
 
 PERSON = {"@context": "https://schema.org", "@type": "Person", "name": "James Eby", "alternateName": "jeby", "url": "https://jeby.us/",
-          "jobTitle": "Business intelligence leader and data scientist", "description": "Statistician in Miami, FL.",
+          "jobTitle": "Business intelligence leader and data scientist", "description": "Interdisciplinary problem-solver: statistics, software, business intelligence and teaching.",
           "address": {"@type": "PostalAddress", "addressLocality": "Miami", "addressRegion": "FL", "addressCountry": "US"},
           "alumniOf": {"@type": "CollegeOrUniversity", "name": "Carnegie Mellon University"}, "knowsLanguage": ["en", "es"],
           "sameAs": [C.CONFIG["instagram"], C.CONFIG["linkedin"], C.CONFIG["github"]]}
@@ -81,10 +81,13 @@ def page(key, title, desc, body, extra_head="", extra_js="", artifact=False):
     return f'<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n{head}\n</head>\n<body data-page="{key}">\n{bodyhtml}\n</body>\n</html>\n'
 
 # ---------------------------------------------------------------- shared bits
+# James (2026-11-17): every appearance of the photo with Drew credits the photographer.
+CREDIT_LINK = '<a href="https://jenniferglezphotography.com" rel="noopener">jenniferglezphotography.com</a>'
+PHOTO_CREDIT = f'<p class="photo-credit">Photo: {CREDIT_LINK}</p>'
 drew_src = (ST / "drew-tongue.svg").read_text(encoding="utf-8")
 drew_svg = re.sub(r"<style>.*?</style>", "", drew_src, flags=re.S).replace('class="tongue"', 'class="tongue-anim"').replace('id="mouth"', 'id="drew-mouth"').replace("url(#mouth)", "url(#drew-mouth)")
 drew_svg = re.sub(r'<svg ([^>]*?) width="512" height="504"', r'<svg \1', drew_svg).replace("<title>Drew sticking his tongue out</title>", "")
-DREW = '<div class="drew-photo"><img src="assets/james-drew-600.jpg" alt="Drew, a black Scottish Terrier, in James&#39;s arms in a Miami backyard" width="600" height="750" loading="lazy"></div>'
+DREW = '<div class="drew-photo"><img src="assets/james-drew-600.jpg" alt="Drew, a black Scottish Terrier, in James&#39;s arms in a Miami backyard" width="600" height="750" loading="lazy"></div>' + PHOTO_CREDIT
 
 def mark(item):
     t = BR.tile(item["id"], themed=True)
@@ -119,8 +122,8 @@ def free_strip(title="Free things"):
 stars = "".join(f'<circle cx="{(i*73)%400}" cy="{(i*131)%300}" r="{0.6 + (i%5)*0.35}" fill="{["#eeecf2","#4084ff","#ff2b3d"][i%7==0 and 2 or (i%5==0 and 1) or 0]}" opacity="{0.25 + (i%4)*0.18:.2f}"/>' for i in range(90))
 home = f'''
 <section class="hero wrap">
-  <div class="eyebrow">Miami, FL</div>
-  <h1 class="page-title">James <span style="white-space:nowrap"><em>Eby</em><span class="dot-slot" aria-hidden="true"></span></span></h1>
+  <div class="eyebrow">James Eby · Miami, FL</div>
+  <h1 class="page-title">Interdisciplinary <span style="white-space:nowrap"><em>problem-solver</em><span class="dot-slot" aria-hidden="true"></span></span></h1>
   <ul class="disciplines" aria-label="Some of what I spend time on">{"".join(f'<li><a href="{E(h)}">{E(d)}</a></li>' for d, h in C.DISCIPLINES)}</ul>
   <p class="lede">{E(C.HERO)}</p>
   <p class="hero-work">Work: <a href="professional.html">Professional</a> · <a data-x="jai" data-p="index.html">JA Insights</a> · <a href="teach.html">Teach</a></p>
@@ -129,7 +132,7 @@ home = f'''
 <section class="wrap block" aria-label="Start here">
   <div class="bento">
     <div class="tile span-7 about-tile">
-      <picture class="me"><img src="assets/james-drew-600.jpg" srcset="assets/james-drew-600.jpg 600w, assets/james-drew.jpg 1000w" sizes="(max-width:640px) 90vw, 280px" alt="James holding Drew, his black Scottish Terrier, in a Miami backyard" width="600" height="750" loading="lazy"></picture>
+      <div class="me-wrap"><picture class="me"><img src="assets/james-drew-600.jpg" srcset="assets/james-drew-600.jpg 600w, assets/james-drew.jpg 1000w" sizes="(max-width:640px) 90vw, 280px" alt="James holding Drew, his black Scottish Terrier, in a Miami backyard" width="600" height="750" loading="lazy"></picture>{PHOTO_CREDIT}</div>
       <div class="about-text"><div class="eyebrow">About</div>
       <h2>Hi, I'm James.</h2>
       <p>{E(C.ABOUT_SHORT)}</p>
@@ -356,7 +359,7 @@ about = f'''
   <div class="prose">{"".join(f"<p>{E(p)}</p>" for p in C.ABOUT_LONG)}<p class="work-line">Work lives on other pages: <a href="professional.html">Professional</a>, <a data-x="jai" data-p="index.html">JA Insights</a> and <a href="teach.html">Teach</a>.</p>
     <div class="tile" id="interests" style="margin-top:28px"><dl class="facts">{"".join(f"<dt>{E(a)}</dt><dd>{E(b)}</dd>" for a, b in C.FACTS)}</dl><a class="go" href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">@jeby_d on Instagram {ARROW}</a></div></div>
   <div style="display:grid;gap:16px">
-    <figure class="photo"><img src="assets/james-drew.jpg" srcset="assets/james-drew-600.jpg 600w, assets/james-drew.jpg 1000w" sizes="(max-width:860px) 92vw, 460px" alt="James holding Drew, his black Scottish Terrier, in a Miami backyard" width="1000" height="1250"><figcaption>Drew and me.</figcaption></figure>
+    <figure class="photo"><img src="assets/james-drew.jpg" srcset="assets/james-drew-600.jpg 600w, assets/james-drew.jpg 1000w" sizes="(max-width:860px) 92vw, 460px" alt="James holding Drew, his black Scottish Terrier, in a Miami backyard" width="1000" height="1250"><figcaption>Drew and me. Photo: {CREDIT_LINK}</figcaption></figure>
     <div class="tile drew-tile" id="drew"><div class="eyebrow">{E(C.DREW["role"])}</div>{DREW}<h2>{E(C.DREW["title"])}</h2><p>{E(C.DREW["short"])}</p></div>
   </div>
 </div></section>
