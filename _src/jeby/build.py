@@ -5,6 +5,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import content as C
 sys.path.insert(0, str(ROOT.parent / "brand"))
 import brand as BR  # marks.json: the cycling rule's candidates
+import cooking as CK  # recipes/ data, schema check and recipe pages (JEBYUS-0083)
 BR.check_coverage([i["id"] for g in C.LAB for i in g["items"]])
 
 OUT = ROOT / "out"; ART = ROOT / "artifact"
@@ -15,7 +16,9 @@ RS = ROOT.parent / "research" / "src"; ST = ROOT / "static"; FAM = ROOT.parent /
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..700,0..100,0..1;1,9..144,300..700,0..100,0..1'
          '&family=Instrument+Sans:ital,wdth,wght@0,75..100,400..700;1,75..100,400..700&family=Geist+Mono:wght@400..600&display=swap">')
-PAGES = [("professional", "Professional"), ("teach", "Teach"), ("lab", "Lab"), ("research", "Research"), ("about", "About")]
+CATS = [(k, n) for n, k in C.CATEGORIES]   # the five main categories: the header nav on every page (JEBYUS-0083)
+MORE = [("about", "About"), ("professional", "Professional"), ("teach", "Teach")]   # kept in the menu and the footer
+PAGES = CATS + MORE
 
 ICON_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>'
 ICON_MENU = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 8h16M4 16h16"/></svg>'
@@ -32,10 +35,11 @@ def booking(subject):
     return f'href="mailto:{C.CONFIG["email"]}?subject={E(subject)}" data-email="{C.CONFIG["email"]}" data-subject="{E(subject)}"'
 
 def header(active):
+    if active.startswith("cooking-"): active = "cooking"   # a recipe page sits under Cooking
     cur = lambda k: ' aria-current="page"' if k == active else ""
-    links = "".join(f'<a href="{k}.html"{cur(k)}>{n}</a>' for k, n in PAGES)
-    links = links.replace('<a href="research.html"', '<a data-x="jai" data-p="index.html" data-family-only="A">Insights</a><a href="research.html"', 1)
-    links += '<a data-x="jai" data-p="index.html" data-family-only="B">JA Insights ↗</a>'
+    fam = '<a data-x="jai" data-p="index.html" data-family-only="A">Insights</a><a data-x="jai" data-p="index.html" data-family-only="B">JA Insights ↗</a>'
+    links = "".join(f'<a href="{k}.html"{cur(k)}>{n}</a>' for k, n in CATS) + fam
+    more = '<hr>' + "".join(f'<a href="{k}.html"{cur(k)}>{n}</a>' for k, n in MORE)
     return f'''<a class="skip" href="#main">Skip to content</a>
 <header class="site-header"><div class="wrap">
   <a class="wordmark" href="index.html" aria-label="jeby.us, home"><span class="j">ȷ<i></i></span>eby</a>
@@ -44,7 +48,7 @@ def header(active):
     <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch between dark and light">{ICON_SUN}</button>
     <button class="icon-btn menu-btn" type="button" popovertarget="navpop" aria-label="Open menu">{ICON_MENU}</button>
   </div>
-  <div id="navpop" class="nav-pop" popover><a href="index.html"{cur("home")}>Home</a>{links}</div>
+  <div id="navpop" class="nav-pop" popover><a href="index.html"{cur("home")}>Home</a>{links}{more}</div>
 </div></header>'''
 
 def footer():
@@ -63,7 +67,7 @@ PERSON = {"@context": "https://schema.org", "@type": "Person", "name": "James Eb
           "alumniOf": {"@type": "CollegeOrUniversity", "name": "Carnegie Mellon University"}, "knowsLanguage": ["en", "es"],
           "sameAs": [C.CONFIG["instagram"], C.CONFIG["linkedin"], C.CONFIG["github"]]}
 
-def page(key, title, desc, body, extra_head="", extra_js="", artifact=False):
+def page(key, title, desc, body, extra_head="", extra_js="", artifact=False, lang="en"):
     head = f'''<title>{E(title)}</title>
 <meta name="description" content="{E(desc)}">
 <meta name="theme-color" content="#0c0b0a">
@@ -78,7 +82,7 @@ def page(key, title, desc, body, extra_head="", extra_js="", artifact=False):
     bodyhtml = f'{header(key)}\n<main id="main">{body}</main>\n{footer()}\n<script src="assets/site.js" defer></script><script src="assets/brand.js" defer></script><script src="assets/family.js" data-site="jeby" defer></script>{extra_js}'
     if artifact:
         return f'{head}\n<meta name="claude:viewport-fit-sides" content="cover">\n<div data-page="{key}" class="artifact-body">{bodyhtml}</div><script>document.body.dataset.page="{key}"</script>'
-    return f'<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n{head}\n</head>\n<body data-page="{key}">\n{bodyhtml}\n</body>\n</html>\n'
+    return f'<!doctype html>\n<html lang="{lang}">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n{head}\n</head>\n<body data-page="{key}">\n{bodyhtml}\n</body>\n</html>\n'
 
 # ---------------------------------------------------------------- shared bits
 # James (2026-11-17): every appearance of the photo with Drew credits the photographer.
@@ -124,7 +128,7 @@ home = f'''
 <section class="hero wrap">
   <div class="eyebrow">James Eby · Miami, FL</div>
   <h1 class="page-title">Interdisciplinary <span style="white-space:nowrap"><em>problem-solver</em><span class="dot-slot" aria-hidden="true"></span></span></h1>
-  <ul class="disciplines" aria-label="Some of what I spend time on">{"".join(f'<li><a href="{E(h)}">{E(d)}</a></li>' for d, h in C.DISCIPLINES)}</ul>
+  <ul class="categories" aria-label="Main categories">{"".join(f'<li><a href="{k}.html">{E(n)}</a></li>' for k, n in CATS)}</ul>
   <p class="lede">{E(C.HERO)}</p>
   <p class="hero-work">Work: <a href="professional.html">Professional</a> · <a data-x="jai" data-p="index.html">JA Insights</a> · <a href="teach.html">Teach</a></p>
 </section>
@@ -383,6 +387,51 @@ def qr_page(src):
 <p>Paste it into your chat assistant, attach your image and swap in your link. Why code: an image model draws something that looks like a QR code. Code builds one that is one, then checks it.</p></div></section>
 <section class="wrap block" style="padding-top:0" id="will-it-work" aria-labelledby="wiw-h"><div class="tile"><h2 id="wiw-h">Will it work in my AI?</h2>{"".join(f"<p>{E(t)}</p>" for t in C.QR["will_it_work"])}</div></section>
 {free_strip("More free things")}'''
+# ---------------------------------------------------------------- cooking (JEBYUS-0083: recipes/ data, validated at build time)
+RECIPES = CK.load()
+cooking = CK.index_body(RECIPES, C.COOKING_LEDE)
+
+# ---------------------------------------------------------------- real estate
+jre_v = next(v for v in C.VENTURES if v["id"] == "jre"); jre_l = next(i for g in C.LAB for i in g["items"] if i["id"] == "jre")
+real_estate = f'''
+<section class="wrap page-head">
+  <div class="eyebrow">Real Estate</div>
+  <h1 class="page-title">jeby Real Estate.</h1>
+  <p class="lede">{E(jre_v["lead"])} {E(C.REAL_ESTATE["line"])}</p>
+</section>
+<section class="wrap block" style="padding-top:0"><div class="bento">
+  <a class="tile span-6" href="{E(C.REAL_ESTATE["hub"])}" rel="noopener"><div class="eyebrow">Market hub · staging</div><h3>The market hub</h3><p>{E(C.REAL_ESTATE["hub_note"])}</p><span class="go">Open the staging hub {ARROW}</span></a>
+  <a class="tile span-6" data-x="jai" data-p="report.html"><div class="eyebrow">Free · JA Insights</div><h3>A one-page report on your data</h3><p>Drop in a spreadsheet. It never leaves your browser.</p><span class="go">Open the report {ARROW}</span></a>
+  <a class="tile span-12" href="lab.html#jre"><div class="eyebrow">{E(jre_l["name"])} · {E(jre_l["status"])}</div><h3>{E(jre_l["line"])}</h3><p>{E(jre_l["detail"])}</p><span class="go">In Open-Source Software {ARROW}</span></a>
+</div></section>'''
+
+# ---------------------------------------------------------------- random: one item per load, from a list built here
+interests = [w.strip() for w in re.split(r",\s*(?:and\s+)?", dict(C.FACTS)["Off the clock"]) if w.strip()]
+slug = lambda w: re.sub(r"[^a-z]+", "-", w.lower()).strip("-")
+RANDOM = ([{"id": f"interest-{slug(w)}", "kind": "Off the clock", "title": w[0].upper() + w[1:], "text": "", "href": "about.html#interests"} for w in interests]
+          + [{"id": f"lab-{i['id']}", "kind": f"Open-Source Software · {i['status']}", "title": i["name"], "text": i["line"], "href": f"lab.html#{i['id']}"}
+             for g in C.LAB for i in g["items"] if i["id"] != "research"]
+          + [{"id": "drew", "kind": C.DREW["role"], "title": C.DREW["title"], "text": C.DREW["short"], "href": "about.html#drew"},
+             {"id": "research-poster", "kind": "Astrophysics · Carnegie Mellon, 2015", "title": "Predicting the masses of galaxy clusters",
+              "text": next(i["line"] for g in C.LAB for i in g["items"] if i["id"] == "research"), "href": "research.html"}]
+          + [{**x, "kind": "Cooking"} for x in CK.random_items(RECIPES)])
+assert len({x["id"] for x in RANDOM}) == len(RANDOM), "random: duplicate ids"
+lang_attr = lambda x: f' lang="{x["lang"]}"' if x.get("lang", "en") != "en" else ""
+rand_list = "".join(f'<li><a href="{E(x["href"])}"><span class="eyebrow">{E(x["kind"])}</span><b{lang_attr(x)}>{E(x["title"])}</b></a></li>' for x in RANDOM)
+rand_json = json.dumps(RANDOM, ensure_ascii=False).replace("</", "<\\/")
+random_pg = f'''
+<section class="wrap page-head">
+  <div class="eyebrow">Random</div>
+  <h1 class="page-title">Random.</h1>
+  <p class="lede">{E(C.RANDOM_LEDE)}</p>
+</section>
+<section class="wrap block" style="padding-top:0">
+  <div id="random-pick" class="random-pick" hidden aria-live="polite"><a class="tile" id="random-tile" href="#"><div class="eyebrow" id="random-kind"></div><h2 id="random-title"></h2><p id="random-text"></p><span class="go">Open {ARROW}</span></a>
+    <button class="btn solid" type="button" id="random-again">Another</button></div>
+  <details class="random-all" id="random-all" open><summary>Everything it picks from · {len(RANDOM)}</summary><ul class="random-list">{rand_list}</ul></details>
+</section>
+<script type="application/json" id="random-data">{rand_json}</script>'''
+
 # ---------------------------------------------------------------- write
 research_head = '<link rel="stylesheet" href="assets/research.css">'
 research_js = '<script src="assets/research.js"></script><script>mountDeck(document.getElementById("rsdeck"), { cover: { eyebrow: "<b>●</b>&nbsp; Carnegie Mellon · Statistics · 2015", title: "Predicting the masses of galaxy clusters <span>with weighted regression</span>", sub: "Nobody can put a galaxy cluster on a scale. What you can measure is how fast its galaxies move, and that depends on where you\'re standing." } });</script>'
@@ -391,9 +440,12 @@ SPECS = [
     ("home", "James Eby · jeby.us", "James Eby's personal site: Miami, Drew, side projects and a galaxy-cluster research slideshow.", home, "", ""),
     ("professional", "Professional · James Eby", "James Eby (jeby): business intelligence and data science leadership. Experience, timeline and résumé.", pro, "", tl_js),
     ("teach", "Teach · James Eby", "Math, SAT, statistics and data-analysis tutoring, first-job mentorship and résumé services in Miami and online, in English or Spanish.", teach, "", ""),
-    ("lab", "Lab · jebyLabs", "jebyLabs: real-estate analytics, a band game, open-source tools and hardware experiments by James Eby.", lab, "", ""),
-    ("research", "Research · James Eby", "Predicting the masses of galaxy clusters using weighted linear regression: an animated slideshow of the 2015 Carnegie Mellon poster.", research, research_head, research_js),
+    ("lab", "Open-Source Software · jebyLabs", "jebyLabs: real-estate analytics, a band game, open-source tools and hardware experiments by James Eby.", lab, "", ""),
+    ("research", "Astrophysics · James Eby", "Predicting the masses of galaxy clusters using weighted linear regression: an animated slideshow of the 2015 Carnegie Mellon poster.", research, research_head, research_js),
     ("about", "About · James Eby", "About James Eby, and Drew.", about, "", ""),
+    ("cooking", "Cooking · jeby.us", "Recipes James Eby has cooked, step by step, with every source credited.", cooking, "", ""),
+    ("real-estate", "Real Estate · jeby.us", "jeby Real Estate: market analysis for two Miami-area cities on verified public data.", real_estate, "", ""),
+    ("random", "Random · jeby.us", "One thing from jeby.us, picked at random.", random_pg, "", ""),
     ("qr", "Turn your image into a QR code · jeby.us", "A free prompt that asks a chat AI to blend your image into a QR code and test it.", qr_page("qr"), "", ""),
     ("yt", "Turn your image into a QR code · jeby.us", "A free prompt that has your chat AI blend any image into a QR code and test that it scans.", qr_page("yt"), '<link rel="canonical" href="https://jeby.us/qr">', ""),
 ]
@@ -401,6 +453,9 @@ for key, title, desc, body, xh, xj in SPECS:
     fn = "index.html" if key == "home" else f"{key}.html"
     (OUT / fn).write_text(page(key, title, desc, body, xh, xj), encoding="utf-8")
     (ART / fn).write_text(page(key, title, desc, body, xh, xj, artifact=(key == "home")), encoding="utf-8")
+RECIPE_PAGES = CK.pages(RECIPES)
+for key, lang, title, desc, body in RECIPE_PAGES:
+    for d in (OUT, ART): (d / f"{key}.html").write_text(page(key, title, desc, body, lang=lang), encoding="utf-8")
 
 # assets
 for d in (OUT, ART):
@@ -419,14 +474,20 @@ shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT 
 (OUT / "CNAME").write_text("jeby.us\n", encoding="utf-8")
 (OUT / "robots.txt").write_text("User-agent: *\nAllow: /\nSitemap: https://jeby.us/sitemap.xml\n", encoding="utf-8")
 (OUT / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    "".join(f"  <url><loc>https://jeby.us/{'' if k == 'home' else k}</loc></url>\n" for k, *_ in SPECS if k != "yt") + "</urlset>\n", encoding="utf-8")
+    "".join(f"  <url><loc>https://jeby.us/{'' if k == 'home' else k}</loc></url>\n" for k in [k for k, *_ in SPECS if k != "yt"] + [r[0] for r in RECIPE_PAGES]) + "</urlset>\n", encoding="utf-8")
 (OUT / "llms.txt").write_text(f"""# James Eby (jeby)
-> James Eby's personal site, Miami, FL. Work is on the Professional page and at JA Insights.
+> Interdisciplinary problem-solver in Miami, FL: statistics, software, business intelligence and teaching.
 
+## Main categories
+- [Open-Source Software](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, learningLabs (a learning library, data analysis course in progress), a band game, Lighting Lab, Quorum, Plantriloquist, AppForge, and ideas for a route optimizer, driver tracking and a dog territory app. Each listing says if it is live, preview, in build or an idea.
+- [Astrophysics](https://jeby.us/research): Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression (Carnegie Mellon, 2015).
+- [Cooking](https://jeby.us/cooking): recipes, step by step: {"; ".join(r[2].split(" · ")[0] for r in RECIPE_PAGES)}.
+- [Real Estate](https://jeby.us/real-estate): jeby Real Estate. {jre_v["lead"]}
+- [Random](https://jeby.us/random): one thing from the site, picked at random.
+
+## Also
 - [Professional](https://jeby.us/professional): Director-level BI and data science; experience, timeline, résumé.
 - [Teach](https://jeby.us/teach): tutoring (math, SAT/ACT math, statistics, data analysis), first-job mentorship, résumé services. English and Spanish.
-- [Lab](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, learningLabs (a learning library, data analysis course in progress), a band game, Lighting Lab, Quorum, Plantriloquist, AppForge, and ideas for a route optimizer, driver tracking and a dog territory app. Each listing says if it is live, preview, in build or an idea.
-- [Research](https://jeby.us/research): Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression (Carnegie Mellon, 2015).
 - [About](https://jeby.us/about): James, and Drew.
 - [Free data report](https://jainsights.com/report): a one-page report on any spreadsheet, run in the browser.
 - [Turn your image into a QR code](https://jeby.us/qr): a prompt that asks a chat AI to build a picture QR code and test it.

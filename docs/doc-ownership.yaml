@@ -18,6 +18,8 @@
 
 # ---- jeby.us
 - {glob: "_src/jeby/**",                       doc: "_src/README.md#layout"}
+- {glob: "_src/jeby/cooking.py",               doc: "_src/README.md#recipes"}
+- {glob: "_src/jeby/recipes/**",               doc: "_src/README.md#recipes"}
 
 # ---- JA Insights and the free report
 - {glob: "_src/jai/build.py",                  doc: "_src/README.md#layout"}

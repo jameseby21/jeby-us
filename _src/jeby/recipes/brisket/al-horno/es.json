@@ -1,0 +1,239 @@
+{
+  "id": "brisket/al-horno/es",
+  "category": "brisket",
+  "variant": "al-horno",
+  "lang": "es",
+  "authored": false,
+  "_authored_note": "Reformulado a partir de la fuente, no escrito por James. Pendiente: que James lo pase a su propio español. Cambiar a authored: true cuando lo haga.",
+  "title": "Brisket al horno",
+  "subtitle": "Braseado en caldo y tomate. Cuatro horas, sin ahumador y sin manejar fuego.",
+  "source": {
+    "name": "Comiendo con Lau",
+    "url": "https://comiendoconlau.com",
+    "relationship": "adapted",
+    "credit_prominence": "header",
+    "note": "Receta de ella. Acá está reformulada en estructura propia; el texto original es suyo."
+  },
+  "yield": {
+    "servings": 6,
+    "note": "Según el tamaño del pecho."
+  },
+  "equipment": [
+    {
+      "item": "Olla de fondo grueso con tapa",
+      "alternatives": [
+        "Olla de hierro fundido (ideal)",
+        "Cualquier olla que vaya del fuego al horno con tapa",
+        "Fuente honda bien sellada con papel aluminio"
+      ]
+    },
+    {
+      "item": "Horno",
+      "no_substitute": true,
+      "why": "El plato es un braseado largo a temperatura estable. No hay forma de hacerlo en sartén."
+    }
+  ],
+  "ingredients": [
+    {
+      "item": "Brisket de res (pecho)",
+      "amount": {
+        "value": 2,
+        "max": 2.5,
+        "unit": "kg"
+      },
+      "term": "brisket"
+    },
+    {
+      "item": "Sal",
+      "amount": {
+        "value": 1,
+        "unit": "tbsp"
+      }
+    },
+    {
+      "item": "Pimienta",
+      "amount": {
+        "value": 1,
+        "unit": "tbsp"
+      },
+      "prep": "molido grueso, mejor recién molida"
+    },
+    {
+      "item": "Paprika",
+      "amount": {
+        "value": 1,
+        "unit": "tbsp"
+      }
+    },
+    {
+      "item": "Orégano",
+      "amount": {
+        "value": 1,
+        "unit": "tbsp"
+      }
+    },
+    {
+      "item": "Aceite vegetal",
+      "amount": {
+        "value": 3,
+        "unit": "tbsp"
+      },
+      "alternatives": [
+        "Cualquier aceite neutro de punto de humo alto"
+      ]
+    },
+    {
+      "item": "Caldo de pollo",
+      "amount": {
+        "value": 3.5,
+        "unit": "cup"
+      },
+      "alternatives": [
+        "Caldo de res",
+        "Agua con un cubito, si no hay otra cosa"
+      ]
+    },
+    {
+      "item": "Tomate picado",
+      "amount": {
+        "value": 400,
+        "unit": "g"
+      },
+      "alternatives": [
+        "Tomate en lata picado",
+        "Tomate fresco maduro, picado"
+      ]
+    },
+    {
+      "item": "Hojas de laurel",
+      "amount": {
+        "value": 2,
+        "unit": "leaf"
+      }
+    },
+    {
+      "item": "Cebolla grande",
+      "amount": {
+        "value": 1,
+        "unit": "whole"
+      },
+      "prep": "en medias lunas delgadas"
+    },
+    {
+      "item": "Dientes de ajo",
+      "amount": {
+        "value": 3,
+        "unit": "clove"
+      },
+      "prep": "picados finamente o triturados"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "offset_min": 0,
+      "duration_min": 15,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Precalentar el horno y condimentar la carne",
+      "applies_to": "Toda la pieza de brisket",
+      "body": "Horno a 180 °C. Mezclar sal, pimienta, paprika y orégano, y cubrir la carne entera con la mezcla.",
+      "alert_lead_min": 5
+    },
+    {
+      "id": "s2",
+      "offset_min": 15,
+      "duration_min": 20,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Dorar por ambos lados",
+      "applies_to": "El brisket",
+      "body": "Calentar la olla a fuego medio, cubrir bien el fondo con el aceite y dorar 10 minutos de cada lado.",
+      "not_required": "No hace falta quitar la grasa de la carne antes de dorar. En un braseado largo esa grasa se derrite y se va a la salsa; es sabor, no desperdicio."
+    },
+    {
+      "id": "s3",
+      "offset_min": 35,
+      "duration_min": 5,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Añadir los líquidos y despegar el fondo",
+      "applies_to": "La olla",
+      "body": "Escurrir el exceso de aceite si se quiere. Añadir el caldo, el tomate y el laurel, y raspar el fondo con una pala para soltar todo lo pegado. Ese fondo tostado es lo que le da sabor a la salsa final.",
+      "terms": [
+        "fond"
+      ]
+    },
+    {
+      "id": "s4",
+      "offset_min": 40,
+      "duration_min": 30,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Tapar y al horno, 30 minutos",
+      "applies_to": "La olla tapada. La cebolla y el ajo todavía no entran",
+      "body": "Tapada, al horno, media hora.",
+      "alert_lead_min": 5
+    },
+    {
+      "id": "s5",
+      "offset_min": 70,
+      "duration_min": 30,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Añadir cebolla y ajo encima, 30 minutos más",
+      "applies_to": "Cebolla y ajo, repartidos sobre la carne — no en el líquido todavía",
+      "body": "Sacar la olla, repartir el ajo y la cebolla sobre el brisket, tapar y devolver al horno otra media hora.",
+      "alert_lead_min": 5
+    },
+    {
+      "id": "s6",
+      "offset_min": 100,
+      "duration_min": 5,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Pasar la cebolla y el ajo al caldo",
+      "applies_to": "La cebolla y el ajo que quedaron encima de la carne",
+      "body": "Sacar del horno y empujar al caldo toda la cebolla y el ajo que quedaron arriba."
+    },
+    {
+      "id": "s7",
+      "offset_min": 105,
+      "duration_min": 120,
+      "kind": "must",
+      "elasticity": "floor",
+      "title": "Tapar y al horno, 2 horas más",
+      "applies_to": "La olla tapada",
+      "body": "Dos horas más, tapada. La receta original pide una hora extra después de esto; la fuente dice que a las 3 horas de horno ya le quedaba perfecta. Es un rango real, no un error: la carne está lista cuando cede sin resistencia, no cuando suena el reloj.",
+      "alert_lead_min": 15
+    },
+    {
+      "id": "s8",
+      "offset_min": 225,
+      "duration_min": 20,
+      "kind": "must",
+      "elasticity": "hold",
+      "title": "Envolver en papel aluminio y reposar",
+      "applies_to": "El brisket, fuera del líquido",
+      "body": "Pasar el brisket a una cama de papel aluminio y envolver bien. Envuelto aguanta sin problema mientras se termina el resto de la comida."
+    }
+  ],
+  "verdict": null,
+  "would_change": null,
+  "_pending": [
+    "verdict y would_change en palabras de James",
+    "revisión del español por James"
+  ],
+  "photos": [
+    {
+      "file": "9K0A8063.jpg",
+      "caption": "Rebanado, con la cebolla y el jugo de la olla.",
+      "published": true,
+      "credit": {
+        "photographer": "Jennifer Glez Photography",
+        "url": "https://jenniferglezphotography.pixieset.com/mothersdaybbq/",
+        "rights": "unconfirmed"
+      }
+    }
+  ]
+}

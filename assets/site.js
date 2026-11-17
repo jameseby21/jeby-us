@@ -78,8 +78,8 @@
     if ("IntersectionObserver" in window && !reduced()) new IntersectionObserver((es, o) => { if (es[0].isIntersecting) { setTimeout(play, 500); o.disconnect(); } }, { threshold: .6 }).observe(el);
   });
 
-  /* the dot: hops across the disciplines, squashes on landing, settles as the full stop */
-  const hero = $(".hero"), slot = $(".dot-slot"), words = $$(".disciplines li");
+  /* the dot: hops across the five categories, squashes on landing, settles as the full stop */
+  const hero = $(".hero"), slot = $(".dot-slot"), words = $$(".categories li");
   if (hero && slot) {
     const dot = document.createElement("div"); dot.className = "jdot"; dot.setAttribute("aria-hidden", "true"); hero.appendChild(dot);
     let size = 16, pos = { x: 0, y: 0 }, busy = false, home = null;
@@ -115,7 +115,7 @@
     }
     /* Event-driven per word: the dot always targets the latest word entered or focused. A run of hops is a
        queue of one: if the target changes mid-hop the loop re-aims after the landing, so no word is skipped. */
-    const list = $(".disciplines"); let back, target = null, running = false;
+    const list = $(".categories"); let back, target = null, running = false;
     async function chase() {
       if (running) return; running = true;
       while (target !== undefined) {
@@ -168,6 +168,24 @@
       $$(".tl-item,.tl-year", tl).forEach(n => n.classList.toggle("lit", !n.hidden && n.getBoundingClientRect().top < mark));
     };
     addEventListener("scroll", update, { passive: true }); addEventListener("resize", update); addEventListener("tabchange", () => requestAnimationFrame(update)); update();
+  }
+
+  /* random page: one item per load from the list the build embedded; never the same item twice in a row.
+     Without JavaScript the full list stays open instead (JEBYUS-0083). */
+  const rdata = $("#random-data");
+  if (rdata) {
+    const items = JSON.parse(rdata.textContent), KEY = "jeby-random-last";
+    let last = null; try { last = sessionStorage.getItem(KEY); } catch (e) {}
+    const show = () => {
+      const pool = items.length > 1 ? items.filter(x => x.id !== last) : items, x = pool[Math.floor(Math.random() * pool.length)];
+      last = x.id; try { sessionStorage.setItem(KEY, x.id); } catch (e) {}
+      const tile = $("#random-tile"); tile.href = x.href;
+      $("#random-kind").textContent = x.kind; $("#random-title").textContent = x.title; $("#random-text").textContent = x.text || "";
+      $("#random-text").hidden = !x.text;
+      if (x.lang && x.lang !== "en") $("#random-title").setAttribute("lang", x.lang); else $("#random-title").removeAttribute("lang");
+    };
+    $("#random-pick").hidden = false; $("#random-all").open = false;
+    $("#random-again").addEventListener("click", show); show();
   }
 
   $$("[data-year]").forEach(e => e.textContent = new Date().getFullYear());

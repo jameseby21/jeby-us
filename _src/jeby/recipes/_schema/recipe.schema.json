@@ -1,0 +1,481 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jeby.us/recipes/_schema/recipe.schema.json",
+  "title": "jeby.us recipe",
+  "type": "object",
+  "required": [
+    "id",
+    "category",
+    "variant",
+    "lang",
+    "authored",
+    "title",
+    "steps"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "category/variant/lang, e.g. brisket/al-horno/es"
+    },
+    "category": {
+      "type": "string"
+    },
+    "variant": {
+      "type": "string"
+    },
+    "lang": {
+      "type": "string",
+      "enum": [
+        "en",
+        "es"
+      ]
+    },
+    "authored": {
+      "type": "boolean",
+      "description": "true = written in this language, false = rendered from a peer version"
+    },
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "description": "Required when the recipe is not James's own.",
+      "required": [
+        "name",
+        "relationship"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "relationship": {
+          "type": "string",
+          "enum": [
+            "original",
+            "adapted",
+            "as-published"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "credit_prominence": {
+          "type": "string",
+          "enum": [
+            "header",
+            "inline",
+            "footer"
+          ],
+          "default": "header",
+          "description": "Default header. A credit nobody sees is not a credit."
+        },
+        "embed": {
+          "type": "object",
+          "description": "Prefer an embed over a link where the platform supports it: an embed counts as a view on the creator's channel and carries their ad revenue. A link only sends a click.",
+          "properties": {
+            "platform": {
+              "type": "string",
+              "enum": [
+                "youtube",
+                "vimeo",
+                "none"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "caption": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "yield": {
+      "type": "object",
+      "properties": {
+        "servings": {
+          "type": "integer"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "equipment": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "item"
+        ],
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "no_substitute": {
+            "type": "boolean",
+            "default": false
+          },
+          "why": {
+            "type": "string",
+            "description": "Required when no_substitute is true."
+          }
+        }
+      }
+    },
+    "ingredients": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "item"
+        ],
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/$defs/quantity"
+          },
+          "prep": {
+            "type": "string"
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "term": {
+            "type": "string",
+            "description": "Term index id (COOK-09). Required for cut names."
+          }
+        }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "description": "Temperatures and other measured endpoints, per item.",
+      "items": {
+        "type": "object",
+        "required": [
+          "applies_to",
+          "pull"
+        ],
+        "properties": {
+          "applies_to": {
+            "type": "string"
+          },
+          "pull": {
+            "$ref": "#/$defs/quantity"
+          },
+          "ceiling": {
+            "$ref": "#/$defs/quantity"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "offset_min",
+          "kind",
+          "elasticity",
+          "title",
+          "applies_to"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "offset_min": {
+            "type": "integer",
+            "description": "Minutes from T+0. Never a clock time. On a temperature-gated step this is an ESTIMATE for scheduling only — see gate."
+          },
+          "duration_min": {
+            "type": "integer"
+          },
+          "gate": {
+            "type": "object",
+            "description": "What actually triggers this step. Long cooks are gated by internal temperature or feel, not by the clock, and a scheduler that assumes time will be wrong every time. Default is time.",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "time",
+                  "internal_temp",
+                  "tactile",
+                  "visual"
+                ]
+              },
+              "value": {
+                "$ref": "#/$defs/quantity"
+              },
+              "test": {
+                "type": "string",
+                "description": "For tactile/visual: the actual test, e.g. 'probe slides in between the bones with no resistance'."
+              },
+              "estimate_note": {
+                "type": "string",
+                "description": "Why the clock estimate can drift, so a late cook knows it is normal."
+              }
+            }
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "must",
+              "optional"
+            ]
+          },
+          "elasticity": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "floor",
+              "ceiling",
+              "hold"
+            ],
+            "description": "fixed: cannot move. floor: minimum only. ceiling: degrades past it. hold: absorbs unlimited slack."
+          },
+          "title": {
+            "type": "string"
+          },
+          "applies_to": {
+            "type": "string",
+            "description": "Which items. REQUIRED even when the answer is none — say 'nothing moves yet' explicitly."
+          },
+          "equipment_state": {
+            "type": "object",
+            "description": "Conditions the step runs under. Needed at a glance with dirty hands; must never be buried in prose.",
+            "properties": {
+              "lid": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "closed",
+                  "n/a"
+                ]
+              },
+              "vents": {
+                "type": "string",
+                "description": "e.g. 'bottom wide, top off'"
+              },
+              "zone": {
+                "type": "string",
+                "enum": [
+                  "direct",
+                  "indirect",
+                  "two-zone",
+                  "n/a"
+                ]
+              },
+              "temp": {
+                "$ref": "#/$defs/quantity"
+              }
+            }
+          },
+          "body": {
+            "type": "string"
+          },
+          "not_required": {
+            "type": "string",
+            "description": "A step people expect that is unnecessary or harmful here, and why. Rendered as a distinct callout."
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "alert_lead_min": {
+            "type": "integer",
+            "description": "Scales with the step's own duration, not a fixed interval."
+          }
+        }
+      }
+    },
+    "rest": {
+      "type": "object",
+      "description": "First-class, not buried in a step. Reverse-seared meat needs less rest than conventionally cooked — the steep gradient resting exists to fix was never built.",
+      "properties": {
+        "applies_to": {
+          "type": "string"
+        },
+        "min": {
+          "$ref": "#/$defs/quantity"
+        },
+        "max": {
+          "$ref": "#/$defs/quantity"
+        },
+        "elasticity": {
+          "type": "string",
+          "enum": [
+            "fixed",
+            "floor",
+            "ceiling",
+            "hold"
+          ]
+        },
+        "surface": {
+          "type": "string",
+          "description": "e.g. rack, not a plate — a plate steams the crust from underneath."
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "photos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "caption": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean",
+            "default": true,
+            "description": "Photos attach to the recipe by default. James's switch to turn one off, not a quality judgement made for him."
+          },
+          "credit": {
+            "type": "object",
+            "description": "Required for any photo James did not take. A commissioned shoot is not automatically licensed for web use — personal-use delivery is the common default.",
+            "properties": {
+              "photographer": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "rights": {
+                "type": "string",
+                "enum": [
+                  "owned",
+                  "licensed-web",
+                  "personal-use-only",
+                  "unconfirmed"
+                ]
+              }
+            }
+          },
+          "shows": {
+            "type": "string",
+            "enum": [
+              "result",
+              "technique",
+              "counter_example"
+            ],
+            "default": "result",
+            "description": "counter_example marks a photo that shows what went wrong. It must be labelled in the render, or it reads as an endorsement of the thing it is warning about."
+          },
+          "others_present": {
+            "type": "string",
+            "description": "Set when someone other than James is identifiable. The model release covers James only. Presence of this field holds publication until cleared."
+          }
+        }
+      }
+    },
+    "salvage": {
+      "type": "object",
+      "description": "For a dish that became something other than what it was meant to be. A recipe type almost nobody publishes, and the one the site's editorial position most obviously licenses. Kept as data, not markup: how it renders — strikethrough, callout, before-and-after — is Chaz's call, and a title string with formatting baked in cannot be restyled or translated.",
+      "required": [
+        "was",
+        "went_wrong",
+        "became"
+      ],
+      "properties": {
+        "was": {
+          "type": "string",
+          "description": "What it was supposed to be."
+        },
+        "went_wrong": {
+          "type": "string",
+          "description": "Plainly. No softening — the honesty is the point of the field."
+        },
+        "became": {
+          "type": "string",
+          "description": "What it turned into. This is the recipe's actual title."
+        },
+        "why_it_worked": {
+          "type": "string",
+          "description": "The mechanism. Without this it is an anecdote rather than a technique somebody else can use."
+        }
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "description": "James's own words. Never paraphrased."
+    },
+    "would_change": {
+      "type": "string",
+      "description": "James's own words. Never paraphrased."
+    }
+  },
+  "$defs": {
+    "quantity": {
+      "type": "object",
+      "required": [
+        "value",
+        "unit"
+      ],
+      "description": "Never a string. The renderer converts per locale; translators never touch it.",
+      "properties": {
+        "value": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "g",
+            "kg",
+            "ml",
+            "l",
+            "tbsp",
+            "tsp",
+            "cup",
+            "oz",
+            "lb",
+            "C",
+            "F",
+            "min",
+            "h",
+            "clove",
+            "leaf",
+            "whole"
+          ]
+        },
+        "max": {
+          "type": "number",
+          "description": "For ranges: 2 to 2.5 kg."
+        }
+      }
+    }
+  }
+}
