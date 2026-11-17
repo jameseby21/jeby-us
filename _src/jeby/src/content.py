@@ -16,9 +16,18 @@ CONFIG = {
     },
 }
 
-# The words the red dot hops across on the home hero before it lands as the full stop. Personal, not a skills list.
-DISCIPLINES = [("Statistics", "research.html"), ("Galaxy clusters", "research.html"), ("Machining", "about.html#interests"),
-               ("Golf", "about.html#interests"), ("SCUBA", "about.html#interests"), ("Brisket", "about.html#interests"), ("Drew", "about.html#drew")]
+# The five main categories, in James's order (2026-11-17, JEBYUS-0083): the main navigation on every page and the
+# category row the red dot hops across on the home hero. (label, page key); the page is <key>.html.
+CATEGORIES = [("Open-Source Software", "lab"), ("Astrophysics", "research"), ("Cooking", "cooking"), ("Real Estate", "real-estate"), ("Random", "random")]
+
+# New category pages (JEBYUS-0083). Drafts for James's word (copy review JEBYUS-0084); nothing here is his yet.
+COOKING_LEDE = "Recipes I've cooked, step by step. Where a step goes by the probe or by feel, that comes first and the clock is only an estimate. Every source is credited."
+REAL_ESTATE = {
+    "line": "Two cities, and only verified public data.",
+    "hub": "https://jameseby21.github.io/jebyrealestate/",
+    "hub_note": "A staging build of the market hub, on verified U.S. Census data only. jebyrealestate.com is not live yet.",
+}
+RANDOM_LEDE = "One thing from this site, picked at random each time the page loads."
 
 # Voice (James, 2026-11-08): personal pages call him James, never jeby; work is a link, not a story.
 # jeby is his online handle and can introduce him on professional pages only.

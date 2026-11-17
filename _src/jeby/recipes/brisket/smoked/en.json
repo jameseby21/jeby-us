@@ -1,0 +1,424 @@
+{
+  "id": "brisket/smoked/en",
+  "category": "brisket",
+  "variant": "smoked",
+  "lang": "en",
+  "authored": true,
+  "title": "Smoked brisket on the Big Green Egg",
+  "subtitle": "About 10 lb, overnight brine, roughly fourteen hours on the Egg. Twelve hours of patience for twenty minutes of dinner.",
+  "source": {
+    "name": "James Eby",
+    "relationship": "original",
+    "credit_prominence": "footer"
+  },
+  "yield": {
+    "servings": 12,
+    "note": "A 10 lb packer loses roughly 40% to trim and rendering."
+  },
+  "equipment": [
+    {
+      "item": "Big Green Egg or other ceramic smoker",
+      "alternatives": [
+        "Offset smoker",
+        "Kettle grill with a two-zone snake",
+        "Pellet smoker"
+      ],
+      "why": "Anything that holds 250F for twelve hours with clean smoke."
+    },
+    {
+      "item": "Conveggtor (ceramic heat deflector)",
+      "alternatives": [
+        "Any indirect setup: a drip pan between fire and meat, or a foiled pizza stone"
+      ],
+      "why": "Direct heat under a brisket for twelve hours burns the bottom long before the inside renders."
+    },
+    {
+      "item": "Leave-in probe thermometer",
+      "no_substitute": true,
+      "why": "This cook is gated by internal temperature for its entire length. An instant-read means opening the dome every twenty minutes, which is how a twelve-hour cook becomes a sixteen-hour cook."
+    },
+    {
+      "item": "Butcher paper",
+      "alternatives": [
+        "Heavy foil, at a cost — foil traps steam and softens the bark you spent eight hours building"
+      ]
+    },
+    {
+      "item": "Cooler and two towels",
+      "alternatives": [
+        "Oven set to its lowest setting",
+        "Any insulated box"
+      ],
+      "why": "The long hold is part of the cook, not storage."
+    }
+  ],
+  "ingredients": [
+    {
+      "item": "Whole packer brisket",
+      "amount": {
+        "value": 10,
+        "unit": "lb"
+      },
+      "term": "brisket-packer"
+    },
+    {
+      "item": "Kosher salt",
+      "amount": {
+        "value": 11,
+        "unit": "g"
+      },
+      "prep": "per pound of trimmed weight, 10–12 g",
+      "alternatives": [
+        "Any coarse salt. Table salt at roughly half the volume — finer crystals pack tighter"
+      ]
+    },
+    {
+      "item": "Coarse black pepper",
+      "amount": {
+        "value": 3,
+        "unit": "tbsp"
+      }
+    },
+    {
+      "item": "Paprika",
+      "amount": {
+        "value": 2,
+        "unit": "tbsp"
+      }
+    },
+    {
+      "item": "Garlic powder",
+      "amount": {
+        "value": 1.5,
+        "unit": "tbsp"
+      }
+    },
+    {
+      "item": "Onion powder",
+      "amount": {
+        "value": 1.5,
+        "unit": "tbsp"
+      }
+    },
+    {
+      "item": "Chili powder",
+      "amount": {
+        "value": 1,
+        "unit": "tbsp"
+      },
+      "alternatives": [
+        "Not interchangeable with cayenne — American chili powder is a mild blend, cayenne is far hotter"
+      ]
+    },
+    {
+      "item": "Cumin",
+      "amount": {
+        "value": 1,
+        "unit": "tsp"
+      }
+    },
+    {
+      "item": "Brown sugar",
+      "amount": {
+        "value": 1,
+        "unit": "tbsp"
+      },
+      "prep": "optional"
+    },
+    {
+      "item": "Yellow mustard",
+      "amount": {
+        "value": 3,
+        "unit": "tbsp"
+      },
+      "prep": "binder only",
+      "alternatives": [
+        "Hot sauce, oil, or nothing — the binder cooks off entirely and contributes no flavour"
+      ]
+    },
+    {
+      "item": "Beef tallow",
+      "amount": {
+        "value": 2,
+        "unit": "tbsp"
+      },
+      "prep": "optional, at the wrap"
+    }
+  ],
+  "targets": [
+    {
+      "applies_to": "Whole brisket, at the wrap",
+      "pull": {
+        "value": 165,
+        "unit": "F"
+      },
+      "note": "Range 160–170F, but bark condition decides, not the number."
+    },
+    {
+      "applies_to": "Whole brisket, finish",
+      "pull": {
+        "value": 203,
+        "unit": "F"
+      },
+      "ceiling": {
+        "value": 207,
+        "unit": "F"
+      },
+      "note": "Commonly 195–207F. Probe feel is the real endpoint; 203 is where it often lands, not a rule."
+    }
+  ],
+  "rest": {
+    "applies_to": "Whole brisket, wrapped",
+    "min": {
+      "value": 1,
+      "unit": "h"
+    },
+    "max": {
+      "value": 3,
+      "unit": "h"
+    },
+    "elasticity": "hold",
+    "surface": "Wrapped, in a cooler under towels",
+    "note": "Unlike a steak, this rest is part of the cook — collagen keeps converting and the muscle reabsorbs liquid. It is also the single most useful buffer in the recipe: if the cook runs long, shorten the hold; if it runs short, extend it. Plan to finish early on purpose."
+  },
+  "steps": [
+    {
+      "id": "s1",
+      "offset_min": 0,
+      "duration_min": 20,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Trim the fat cap to about ¼ inch",
+      "applies_to": "The whole packer",
+      "gate": {
+        "kind": "time"
+      },
+      "body": "Take off hard, waxy fat and square up loose edges. Leave about ¼ inch of cap.",
+      "not_required": "This is the opposite of the steak rule. On a four-minute steak you leave the cap alone because it cannot render in time. Over twelve hours it renders completely and bastes the meat on the way — but more than about ¼ inch never fully renders and comes off the plate as a greasy layer."
+    },
+    {
+      "id": "s2",
+      "offset_min": 20,
+      "duration_min": 10,
+      "kind": "must",
+      "elasticity": "floor",
+      "title": "Dry brine overnight",
+      "applies_to": "The whole packer, bare — no rub yet",
+      "gate": {
+        "kind": "time",
+        "estimate_note": "8 hours is the floor, 12–16 is better, 24 is fine."
+      },
+      "equipment_state": {
+        "lid": "n/a",
+        "zone": "n/a"
+      },
+      "body": "10–12 g kosher salt per pound of trimmed weight, every surface, uncovered on a rack in the fridge.",
+      "terms": [
+        "brine"
+      ]
+    },
+    {
+      "id": "s3",
+      "offset_min": 720,
+      "duration_min": 15,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Binder and rub",
+      "applies_to": "The whole packer",
+      "gate": {
+        "kind": "time"
+      },
+      "body": "Thin coat of mustard, then the rub over every surface.",
+      "not_required": "No extra salt in the rub. The brine already did it, and the two stacking is the most common way a brisket comes out inedible.\n\nThe mustard is not a flavour — it cooks off entirely. It is glue. Hot sauce, oil or nothing all work the same."
+    },
+    {
+      "id": "s4",
+      "offset_min": 735,
+      "duration_min": 55,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Light the fire and set up indirect",
+      "applies_to": "Nothing moves yet — the brisket stays in the fridge",
+      "gate": {
+        "kind": "visual",
+        "test": "Clean coals, thin blue or invisible smoke, no white acrid smoke."
+      },
+      "equipment_state": {
+        "lid": "closed",
+        "vents": "bottom open about an inch, top mostly closed",
+        "zone": "indirect",
+        "temp": {
+          "value": 255,
+          "unit": "F"
+        }
+      },
+      "body": "Clean the ash out first — ash over the bottom vent is the most common reason a ceramic will not hold temperature. Conveggtor in. Settle at 250–260F before anything goes on, and let the fire burn clean. Add modest oak or hickory.",
+      "terms": [
+        "twozone"
+      ],
+      "not_required": "Resist loading the firebox to the brim. A fully lit bed is harder to hold down at 250 than a conservative one is to bring up, and an over-ignited bed is exactly how this cook spiked to 390F."
+    },
+    {
+      "id": "s5",
+      "offset_min": 790,
+      "duration_min": 5,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Brisket on, fat cap toward the hotter side",
+      "applies_to": "The whole packer",
+      "gate": {
+        "kind": "time"
+      },
+      "equipment_state": {
+        "lid": "closed",
+        "zone": "indirect",
+        "temp": {
+          "value": 255,
+          "unit": "F"
+        }
+      },
+      "body": "Probe into the thickest part of the flat, not the point."
+    },
+    {
+      "id": "s6",
+      "offset_min": 800,
+      "duration_min": 420,
+      "kind": "must",
+      "elasticity": "floor",
+      "title": "Hold 250–260F until the bark sets",
+      "applies_to": "The brisket, undisturbed",
+      "gate": {
+        "kind": "internal_temp",
+        "value": {
+          "value": 165,
+          "unit": "F"
+        },
+        "estimate_note": "Roughly 7 hours, but this is an estimate only. The stall can add hours and it is normal. Go by the probe."
+      },
+      "equipment_state": {
+        "lid": "closed",
+        "vents": "small adjustments only",
+        "zone": "indirect",
+        "temp": {
+          "value": 255,
+          "unit": "F"
+        }
+      },
+      "body": "Leave it alone. Vent changes take 5–10 minutes to register on a ceramic, so adjust once and wait rather than chasing the needle.",
+      "not_required": "Do not panic at a temperature spike. On the recorded cook the dome hit about 390F for five minutes when the charcoal caught more broadly than expected, came back down through 370, 320 and 295, and the brisket still finished tender at 203F. A brief overshoot on a twelve-hour cook is noise, not a ruined brisket."
+    },
+    {
+      "id": "s7",
+      "offset_min": 1220,
+      "duration_min": 15,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Wrap — but only once the bark is right",
+      "applies_to": "The brisket",
+      "gate": {
+        "kind": "visual",
+        "test": "Bark is dark, firm and mahogany, and does not smear when you touch it. Internal is usually 160–170F when this is true."
+      },
+      "equipment_state": {
+        "lid": "closed",
+        "zone": "indirect",
+        "temp": {
+          "value": 255,
+          "unit": "F"
+        }
+      },
+      "body": "Butcher paper, tight. Optional 2–3 tbsp tallow. Back on, probe back in.",
+      "not_required": "The temperature is a signal, not the instruction. Wrapping a brisket whose bark has not set because the probe said 165 gives you a soft, steamed exterior that no amount of later time recovers. If the bark is not ready, wait.\n\nFoil works and softens the bark. That is a real trade, not a mistake — just know which one you are choosing."
+    },
+    {
+      "id": "s8",
+      "offset_min": 1235,
+      "duration_min": 180,
+      "kind": "must",
+      "elasticity": "floor",
+      "title": "Finish to probe-tender",
+      "applies_to": "The brisket, wrapped",
+      "gate": {
+        "kind": "tactile",
+        "test": "A probe slides into the thickest part of the flat with no resistance, like room-temperature butter. Internal is commonly 195–207F when this happens.",
+        "estimate_note": "Three hours is typical and it varies by hours between briskets."
+      },
+      "equipment_state": {
+        "lid": "closed",
+        "zone": "indirect",
+        "temp": {
+          "value": 255,
+          "unit": "F"
+        }
+      },
+      "body": "On the recorded cook the lowest reading at finish was 203F.",
+      "not_required": "Do not pull at a number. 203F is where briskets often become tender, not why they become tender — collagen conversion is a time-at-temperature process and two briskets of the same weight can finish two hours apart. The probe tells you; the thermometer only estimates."
+    },
+    {
+      "id": "s9",
+      "offset_min": 1415,
+      "duration_min": 10,
+      "kind": "must",
+      "elasticity": "ceiling",
+      "title": "Vent the wrap 5–10 minutes",
+      "applies_to": "The brisket, wrap opened",
+      "gate": {
+        "kind": "time"
+      },
+      "body": "Open the wrap and let the steam off before the long hold. Skipping this carries on cooking it inside its own packet."
+    },
+    {
+      "id": "s10",
+      "offset_min": 1425,
+      "duration_min": 120,
+      "kind": "must",
+      "elasticity": "hold",
+      "title": "Rewrap loosely and hold 1–3 hours",
+      "applies_to": "The brisket",
+      "gate": {
+        "kind": "time",
+        "estimate_note": "This is your buffer. Stretch or shrink it to hit your serving time."
+      },
+      "body": "Loosely rewrapped, in a cooler under two towels.",
+      "not_required": "There will be a lot of liquid in the wrap. That is normal — save it separately for slicing or for beans. Do not pour it back over the bark, which undoes the bark."
+    },
+    {
+      "id": "s11",
+      "offset_min": 1545,
+      "duration_min": 20,
+      "kind": "must",
+      "elasticity": "fixed",
+      "title": "Separate the point, slice the flat across the grain",
+      "applies_to": "The whole brisket",
+      "gate": {
+        "kind": "time"
+      },
+      "body": "The flat and the point have grain running in different directions, so find the fat seam, separate them, and slice each against its own grain. Flat at about ¼ inch; point thicker, or cube it for burnt ends.",
+      "terms": [
+        "grain",
+        "bias"
+      ]
+    }
+  ],
+  "photos": [
+    {
+      "file": "9K0A8036.jpg",
+      "caption": "Slicing out of the foil after the hold.",
+      "published": true,
+      "credit": {
+        "photographer": "Jennifer Glez Photography",
+        "url": "https://jenniferglezphotography.pixieset.com/mothersdaybbq/",
+        "rights": "unconfirmed"
+      }
+    }
+  ],
+  "verdict": null,
+  "would_change": null,
+  "_pending": [
+    "verdict and would_change in James's own words — the cook is recorded as tender but he has never said what he thought of it",
+    "total elapsed time from on to slice",
+    "slice photos; the two existing brisket photos are flagged unusable above",
+    "whether the stall happened and for how long"
+  ],
+  "_provenance": "Promoted from _archive/bge-brisket-smoked.json (chatgpt-migration-2026-11-17). Method and actual events are as recorded there; the not_required callouts are reasoning added at write-up, not claims about what James did."
+}

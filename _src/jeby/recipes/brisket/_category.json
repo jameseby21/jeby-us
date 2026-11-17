@@ -1,0 +1,46 @@
+{
+  "category": "brisket",
+  "title": {
+    "en": "Brisket",
+    "es": "Brisket (pecho de res)"
+  },
+  "blurb": {
+    "en": "The same cut, two completely different dishes. Pick by how much time you have and what equipment you own.",
+    "es": "El mismo corte, dos platos completamente distintos. Elegí según el tiempo que tengas y el equipo que tengás."
+  },
+  "variants": [
+    {
+      "slug": "smoked",
+      "title": {
+        "en": "Smoked",
+        "es": "Ahumado"
+      },
+      "status": "draft",
+      "languages": [
+        "en"
+      ],
+      "promoted_from": "_archive/bge-brisket-smoked.json",
+      "summary": {
+        "en": "Low and slow on the smoker. Twelve hours of patience for twenty minutes of dinner.",
+        "es": "Bajo y lento en el ahumador. Doce horas de paciencia para veinte minutos de cena."
+      }
+    },
+    {
+      "slug": "al-horno",
+      "title": {
+        "en": "Oven-braised",
+        "es": "Al horno"
+      },
+      "status": "draft",
+      "languages": [
+        "es",
+        "en"
+      ],
+      "summary": {
+        "en": "Braised in stock and tomato in a covered pot. About four hours start to finish, no smoker, no fire management.",
+        "es": "Braseado en caldo y tomate en olla tapada. Unas cuatro horas de principio a fin, sin ahumador y sin manejar fuego."
+      }
+    }
+  ],
+  "note_to_build": "Two variants exist from day one. This is why categories are structural rather than added later — a flat recipe list would have needed every brisket URL rewritten at recipe three."
+}

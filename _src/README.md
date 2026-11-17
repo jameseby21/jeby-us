@@ -19,6 +19,7 @@ Commit the root after `--publish`; that commit is what goes live on jeby.us. `py
 | --- | --- |
 | `jeby/src/content.py` | Every word and setting on jeby.us: contact links, booking, the Lab projects, prices, the QR prompt. Voice rule (James, 2026-11-08): personal pages call him James and link to work rather than describe it; "jeby" introduces him on professional pages only. The story and support text stay here but aren't rendered |
 | `jeby/build.py`, `jeby/src/site.css`, `jeby/src/site.js` | The jeby.us page generator, styles and behaviour |
+| `jeby/recipes/`, `jeby/cooking.py` | The recipes behind jeby.us/cooking and the code that reads them. See [Recipes](#recipes) |
 | `jeby/static/` | Images and files copied as they are: the Drew photo, the Drew QR, the poster PDF, project marks |
 | `jai/src/screening.js` | The screen that runs before any statistics (CONS-0045): one line per pattern (licensed identifiers such as TDLinx, D-U-N-S, MLS, credit-bureau and Nielsen ids; personal data; government ids; card numbers; credentials and tokens; minors), the class of each and the reason shown to the visitor. A flagged column is left out of the report, the table and the export unless it is in a class that allows the visitor to confirm they hold the rights; government ids, card numbers, credentials and minors have no override. It reads names and a sample of values to decide and keeps only the names; it makes no network call. The same list is the reference for the standards rule STD-0041 |
 | `jai/src/sources.js` | The "How to supplement your data" list at the end of every report: free and paid, open and licensed sources, in groups chosen by what the report detected (places, dates, money, a ledger, any file). It is data only, with the rules for editing it in its header; Joe and Chaz edit it without touching code |
@@ -33,6 +34,16 @@ Commit the root after `--publish`; that commit is what goes live on jeby.us. `py
 | `ARCHITECTURE.md`, `architecture/` | Diagrams of the hosting, the build, both sites, the family links and the free report, with the tech stack and brand assets. `architecture/` holds each diagram's Mermaid source and SVG render |
 
 The Lab projects in `jeby/src/content.py` feed both sites: the free edition on jeby.us/lab and the paid edition on jainsights.com/products.
+
+## Recipes
+
+jeby.us/cooking is built from data, not from `content.py` (JEBYUS-0083, from the cooking thread's handoff COOK-16).
+
+- `jeby/recipes/<category>/_category.json` names the category and its variants in order; `jeby/recipes/<category>/<variant>/<lang>.json` is one language version of one recipe. The contract is `jeby/recipes/_schema/recipe.schema.json`, explained in `jeby/recipes/_schema/README.md`.
+- `jeby/cooking.py` loads the tree and checks every file against the schema at build time (the keywords the schema uses, with no package to install); one problem stops the build and lists every problem. `python _src/test_cooking.py` tests it.
+- Pages: `cooking.html` (one card per recipe, brisket first) and `cooking-<category>-<variant>.html` per recipe (with `-<lang>` added only when a variant has two languages). Flat names keep the shared header's relative links working.
+- Rendering rules: quantities print in the data's own unit (nothing is converted yet, so no oven temperature needs snapping); a gated step shows its condition first and the clock as an estimate; the source block is rendered where `credit_prominence` says; `verdict` and `would_change` render only when they are filled in (James's words); a photo renders only with `usable: true` and its file in `jeby/recipes/photos/`. A recipe that exists in one language renders in that language and is marked on the index; nothing is machine-translated.
+- The cooking thread's `_archive` (provenance for imported cooks) is not in this repository and is never shown. Variant slugs name the method (`smoked`, `al-horno`), never a person.
 
 ## Switches
 

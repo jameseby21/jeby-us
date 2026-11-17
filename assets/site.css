@@ -90,10 +90,10 @@ section.block{padding-block:40px}
 .hero h1 em{font-style:italic;font-variation-settings:"SOFT" 0,"WONK" 0}
 .dot-slot{display:inline-block;width:.2em;height:.2em;margin-left:.04em;vertical-align:baseline}
 .jdot{position:absolute;left:0;top:0;border-radius:50%;background:var(--red);will-change:transform;pointer-events:none;z-index:2;opacity:0;transition:opacity .3s}
-.disciplines{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:34px;padding:0;list-style:none}
-.disciplines li{font:500 13px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);transition:color .2s;padding-top:14px}
-.disciplines a{color:inherit;text-decoration:none;display:inline-block;padding:2px 0}
-.disciplines li.on,.disciplines a:hover,.disciplines a:focus-visible{color:var(--fg)}
+.categories{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:34px;padding:0;list-style:none}
+.categories li{font:500 13px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);transition:color .2s;padding-top:14px}
+.categories a{color:inherit;text-decoration:none;display:inline-block;padding:2px 0}
+.categories li.on,.categories a:hover,.categories a:focus-visible{color:var(--fg)}
 .hero .lede{margin-top:28px}
 
 /* ---------- bento ---------- */
@@ -326,7 +326,7 @@ details.group[open]>summary .chev{transform:rotate(180deg)}
 .me img{aspect-ratio:4/5}
 figure.photo{margin:0;display:grid;gap:8px}
 figure.photo figcaption{font:500 12px/1.3 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-/* photographer credit on the photo with Drew (JEBYUS-0078) */
+/* photographer credit on the photo with Drew (JEBYUS-0082) */
 p.photo-credit{font:500 12px/1.3 var(--mono);letter-spacing:.04em;color:var(--muted);margin:8px 0 0}
 .photo-credit a,figure.photo figcaption a{color:inherit;text-transform:none;letter-spacing:.04em}
 .drew-tile .photo-credit{color:#5f5a52;margin:0}
@@ -386,6 +386,54 @@ p.photo-credit{font:500 12px/1.3 var(--mono);letter-spacing:.04em;color:var(--mu
 .btn.pending{opacity:.55;border-style:dashed;cursor:default}
 .help li.wide .help-act{grid-column:2/-1;grid-row:auto;justify-content:flex-start;margin-top:10px}
 @media (max-width:860px){.support{grid-template-columns:1fr;gap:24px}.help li{grid-template-columns:34px minmax(0,1fr)}.help-act{grid-column:2;grid-row:auto;justify-content:flex-start;margin-top:8px}}
+
+/* ---------- cooking, real estate, random (JEBYUS-0083) ---------- */
+.nav-pop hr{border:0;border-top:1px solid var(--line);margin:6px 8px}
+.recipe-head .eyebrow a{color:inherit}
+.recipe-card h3{font-size:clamp(24px,2.2vw,30px)}
+.recipe-card .chips{margin-top:0}
+.attrib{border-left:3px solid var(--red);padding:4px 0 4px 16px;display:grid;gap:4px;max-width:60ch}
+.attrib p{margin:0;color:var(--fg-2)}
+.attrib .attrib-name{font:600 17px/1.4 var(--sans);color:var(--fg)}
+.attrib .embed{margin:10px 0 0}.attrib .embed iframe{width:100%;aspect-ratio:16/9;border:0;border-radius:var(--r-md)}
+.recipe{display:grid;gap:36px}
+.recipe-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
+.rsec h2{font-family:var(--display);font-variation-settings:"SOFT" 0;font-size:clamp(26px,2.6vw,34px);line-height:1.1;letter-spacing:-.02em;margin-bottom:14px}
+.rlist{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.rlist li{display:grid;gap:4px;padding:12px 0;border-bottom:1px solid var(--line);color:var(--fg-2)}
+.rlist li b{color:var(--fg);font-weight:600}
+.rlist li .chip{justify-self:start}
+.rlist .alts{font-size:14px;color:var(--muted)}
+#r-ingredients+.rlist li{grid-template-columns:96px minmax(0,1fr);gap:4px 14px}
+#r-ingredients+.rlist .amt{font:500 15px/1.6 var(--mono);color:var(--fg)}
+#r-ingredients+.rlist li>span{display:grid;gap:2px;color:var(--fg)}
+.rsteps{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.rstep{display:grid;grid-template-columns:44px minmax(0,1fr);gap:16px;padding:22px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg)}
+.rnum{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-2);font:600 15px/1 var(--mono);color:var(--fg)}
+.rstep h3{font:600 20px/1.3 var(--sans);margin:4px 0 6px}
+.rstep p{color:var(--fg-2);margin:8px 0 0}
+.rstep .for{font-size:15px;margin-top:0}.rstep .for span{color:var(--muted)}
+.cond{display:grid;gap:4px;padding:12px 14px;border-radius:var(--r-sm);background:var(--card-2);border:1px solid var(--line)}
+.cond b{color:var(--fg);font-weight:600}
+.cond.gated{border-color:var(--red)}
+.cond-test{color:var(--fg)}
+.cond-est{font-size:14px;color:var(--muted)}
+.rstate{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.rstate li{font:500 13px/1.3 var(--mono);padding:6px 10px;border-radius:999px;border:1px solid var(--line);color:var(--fg)}
+.rstate li span{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:12px}
+.notreq{margin-top:12px;padding:12px 14px;border-radius:var(--r-sm);border:1px dashed var(--line-2)}
+.notreq p:first-of-type{margin-top:6px}
+.rest{gap:6px}.rest b{color:var(--fg)}.rest span{color:var(--fg-2)}
+.random-pick{display:grid;gap:16px;justify-items:start;max-width:720px}
+.random-pick .tile{width:100%;min-height:220px}
+.random-all{margin-top:28px}
+.random-all summary{cursor:pointer;font:500 13px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:6px 0}
+.random-list{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.random-list a{display:grid;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--card);text-decoration:none;color:var(--fg)}
+.random-list a:hover{border-color:var(--line-2)}
+.random-list b{font-weight:600}
+@media (max-width:860px){.recipe-cols{grid-template-columns:1fr}}
+@media (max-width:640px){.rstep{grid-template-columns:1fr;padding:18px}.rnum{width:32px;height:32px}#r-ingredients+.rlist li{grid-template-columns:80px minmax(0,1fr)}}
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
