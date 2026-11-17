@@ -54,7 +54,7 @@ def header(active):
 def footer():
     site = "".join(f'<li><a href="{k}.html">{n}</a></li>' for k, n in PAGES)
     return f'''<footer class="site-footer"><div class="wrap">
-  <div><p class="sig">Interdisciplinary problem-solver.</p><small>© <span data-year>2026</span> James Eby · Miami, FL</small></div>
+  <div><p class="sig">No trackers and no pop-ups. Just pages.</p><small>© <span data-year>2026</span> James Eby · Miami, FL</small></div>
   <div><h3>Site</h3><ul><li><a href="index.html">Home</a></li>{site}</ul></div>
   <div><h3>Free</h3><ul><li><a data-x="jai" data-p="report.html">Data report</a></li><li><a href="qr.html">Image to QR code</a></li><li><a href="lab.html">Lab projects</a></li></ul></div>
   <div><h3>Elsewhere</h3><ul><li><a href="{C.CONFIG["instagram"]}" target="_blank" rel="noopener">Instagram</a></li><li><a href="{C.CONFIG["linkedin"]}" target="_blank" rel="noopener">LinkedIn</a></li><li><a href="{C.CONFIG["github"]}" target="_blank" rel="noopener">GitHub</a></li>{f'<li><a href="{C.CONFIG["youtube"]}" target="_blank" rel="noopener">YouTube</a></li>' if C.CONFIG["youtube"] else ""}<li><a href="#" data-copy-email="{C.CONFIG["email"]}">Email</a></li></ul></div>
@@ -126,7 +126,7 @@ def free_strip(title="Free things"):
 stars = "".join(f'<circle cx="{(i*73)%400}" cy="{(i*131)%300}" r="{0.6 + (i%5)*0.35}" fill="{["#eeecf2","#4084ff","#ff2b3d"][i%7==0 and 2 or (i%5==0 and 1) or 0]}" opacity="{0.25 + (i%4)*0.18:.2f}"/>' for i in range(90))
 home = f'''
 <section class="hero wrap">
-  <div class="eyebrow">James Eby · Miami, FL</div>
+  <div class="eyebrow">Miami, FL</div>
   <h1 class="page-title">Interdisciplinary <span style="white-space:nowrap"><em>problem-solver</em><span class="dot-slot" aria-hidden="true"></span></span></h1>
   <ul class="categories" aria-label="Main categories">{"".join(f'<li><a href="{k}.html">{E(n)}</a></li>' for k, n in CATS)}</ul>
   <p class="lede">{E(C.HERO)}</p>
