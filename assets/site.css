@@ -326,6 +326,10 @@ details.group[open]>summary .chev{transform:rotate(180deg)}
 .me img{aspect-ratio:4/5}
 figure.photo{margin:0;display:grid;gap:8px}
 figure.photo figcaption{font:500 12px/1.3 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+/* photographer credit on the photo with Drew (JEBYUS-0078) */
+p.photo-credit{font:500 12px/1.3 var(--mono);letter-spacing:.04em;color:var(--muted);margin:8px 0 0}
+.photo-credit a,figure.photo figcaption a{color:inherit;text-transform:none;letter-spacing:.04em}
+.drew-tile .photo-credit{color:#5f5a52;margin:0}
 @media (max-width:640px){.about-tile{grid-template-columns:1fr}}
 
 /* qr prompt page */
