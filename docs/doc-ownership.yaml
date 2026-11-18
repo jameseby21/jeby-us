@@ -12,7 +12,7 @@
 - {glob: "_src/check_docs.py",                 doc: "docs/COMMANDS.md#build-release-docs"}
 - {glob: ".github/workflows/*.yml",            doc: "docs/COMMANDS.md#build-release-docs"}
 - {glob: "_src/preview.py",                    doc: "docs/COMMANDS.md#daily"}
-- {glob: "_src/check_{links,text}.py",         doc: "docs/COMMANDS.md#daily"}
+- {glob: "_src/check_{links,text,copy}.py",    doc: "docs/COMMANDS.md#daily"}
 - {glob: "_src/og.py",                         doc: "docs/COMMANDS.md#daily"}
 - {glob: "_src/.gitignore",                    doc: "_src/README.md#layout"}
 
@@ -43,4 +43,5 @@
 - {glob: "docs/COMMANDS.md",                   doc: "docs/COMMANDS.md"}
 - {glob: "docs/RELEASE.md",                    doc: "docs/RELEASE.md"}
 - {glob: "docs/LESSONS.md",                    doc: "docs/LESSONS.md"}
+- {glob: "docs/COPY-LEDGER.md",                doc: "docs/COPY-LEDGER.md"}
 - {glob: "docs/doc-ownership.yaml",            doc: "README.md#get-started"}
