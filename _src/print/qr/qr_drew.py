@@ -31,6 +31,8 @@ TONGUE = cv2.imread(str(HERE / "build/tongue-2000.png"), 0) < 128
 HEAD = (363, 90, 1681, 1969)        # x0, y0, x1, y1 of the whole head
 FACE = (760, 840, 1390, 1820)       # eyes to the tip of the tongue: what must stay clear of squares
 EYES_NOSE = (740, 820, 1400, 1460)  # the window option keeps this free of dots
+# James, 2026-11-17 19:46: "it's ok if the middle blocks him a little bit just not in the eyes tongue or nose"
+LANDMARKS = [(750, 840, 910, 985), (1220, 850, 1380, 1000), (1060, 1200, 1360, 1450), (955, 1536, 1290, 1823)]
 DARK = cv2.cvtColor(RASTER, cv2.COLOR_BGR2GRAY) < 200 if RASTER is not None else None
 
 
@@ -68,7 +70,7 @@ def small_mask(v: int) -> np.ndarray:
     return f
 
 
-def place(v, head_h, face_target, margin=1.0, keep_finders=False, inside=False):
+def place(v, head_h, face_target, margin=1.0, keep_finders=False, inside=False, protect_only=False):
     """Scale so the head is head_h modules tall; move it so the face box sits as near face_target
     (fractions of the code width) as possible without touching a finder or alignment square."""
     n = 17 + 4 * v
@@ -87,7 +89,7 @@ def place(v, head_h, face_target, margin=1.0, keep_finders=False, inside=False):
             if inside and (ox_i + HEAD[0] / k < 0.5 or oy_i + HEAD[1] / k < 0.5 or ox_i + HEAD[2] / k > n - 0.5):
                 continue  # keep his ears and cheeks inside the code
             # the timing row and column never cross his face
-            if (fy0 - margin < 7 and fy0 + fh + margin > 6) or (fx0 - margin < 7 and fx0 + fw + margin > 6):
+            if not protect_only and ((fy0 - margin < 7 and fy0 + fh + margin > 6) or (fx0 - margin < 7 and fx0 + fw + margin > 6)):
                 continue
             if keep_finders:
                 # no part of Drew within 2 modules of a finder: it keeps finder detection clean
@@ -101,9 +103,16 @@ def place(v, head_h, face_target, margin=1.0, keep_finders=False, inside=False):
                     if px1 > px0 and py1 > py0 and DARK[py0:py1, px0:px1].any():
                         clash = True
                         break
-            for _, r0, c0, s in pattern_boxes(v):
-                if fx0 - margin < c0 + s and c0 < fx0 + fw + margin and fy0 - margin < r0 + s and r0 < fy0 + fh + margin:
+            boxes = [(ox_i + a / k, oy_i + b / k, ox_i + c / k, oy_i + d_ / k) for a, b, c, d_ in LANDMARKS] if protect_only \
+                else [(fx0, fy0, fx0 + fw, fy0 + fh)]
+            for bx0, by0, bx1, by1 in boxes:
+                if (by0 - margin < 7 and by1 + margin > 6) or (bx0 - margin < 7 and bx1 + margin > 6):
                     clash = True
+                for _, r0, c0, s in pattern_boxes(v):
+                    if bx0 - margin < c0 + s and c0 < bx1 + margin and by0 - margin < r0 + s and r0 < by1 + margin:
+                        clash = True
+                        break
+                if clash:
                     break
             if not clash:
                 d = dx * dx + dy * dy
@@ -121,7 +130,7 @@ def render(opt, m=26, quiet=4):
     v = opt["version"]
     n = 17 + 4 * v
     M = matrix(v)
-    k, ox, oy = place(v, opt["head_h"], opt["face_at"], keep_finders=opt.get("keep_finders", False), inside=opt.get("inside", False))
+    k, ox, oy = place(v, opt["head_h"], opt["face_at"], keep_finders=opt.get("keep_finders", False), inside=opt.get("inside", False), protect_only=opt.get("protect_only", False))
     size = (n + 2 * quiet) * m
     canvas = np.full((size, size, 3), 255, np.uint8)
     code0 = quiet * m
@@ -184,6 +193,8 @@ def render(opt, m=26, quiet=4):
                 cv2.rectangle(canvas, (X + t * m, Y + t * m), (X + (5 - t) * m - 1, Y + (5 - t) * m - 1), col, -1)
     if txt:
         draw_wordmark(canvas, code0, m, txt)
+    if opt.get("protect_only"):
+        lm = [(ox + a / k, oy + b / k, ox + c / k, oy + d / k) for a, b, c, d in LANDMARKS]
     # report where the face sits relative to the squares
     fx0, fy0 = ox + FACE[0] / k, oy + FACE[1] / k
     fx1, fy1 = ox + FACE[2] / k, oy + FACE[3] / k
@@ -253,6 +264,11 @@ OPTIONS = [
      "face_at": (0.28, 0.36), "window": True, "inside": True, "wordmark": (39.2, 39.0, 7.0), "fixed_dot": 0.35},
     {"key": "5-top-left-jeby", "name": "Top left, a size down, with jeby", "version": 10, "head_h": 36,
      "face_at": (0.28, 0.36), "window": True, "inside": True, "wordmark": (39.2, 39.0, 7.0)},
+    # James, 2026-11-17 19:46: jeby low and horizontal; Drew a little bigger; squares may touch him, never eyes, nose or tongue
+    {"key": "6-bigger-jeby-low", "name": "Bigger Drew, jeby low (scan first)", "version": 10, "head_h": 44, "face_at": (0.30, 0.38),
+     "window": True, "inside": True, "protect_only": True, "wordmark": (39.2, 52.7, 6.2), "fixed_dot": 0.38},
+    {"key": "7-bigger-jeby-low-safer", "name": "A little bigger, jeby low", "version": 10, "head_h": 42, "face_at": (0.30, 0.38),
+     "window": True, "inside": True, "protect_only": True, "wordmark": (39.2, 52.7, 6.2), "fixed_dot": 0.38},
 ]
 
 if __name__ == "__main__":

@@ -8,5 +8,6 @@ James, 2026-11-17: "a version of the balanced QR code that shows more of Drew of
 
 Today: 18 of 21. Option 1 (lower right, clear face): 19. Option 2 (left, clear face): 18. Option 3 (bigger, right, clear face): 7, WeChat only, so phone test first.
 Option 4 (biggest, top left, jeby wordmark in the bottom-right gap; James, 2026-11-17 19:38): 17. Option 5 (the same, a size down): 19.
+Option 6 (bigger, jeby low between the bottom squares; squares may touch his cheeks, never eyes, nose or tongue; James, 2026-11-17 19:46): 16, scan first. Option 7 (the same, a little smaller): 18.
 `wordmark.js` renders the jeby wordmark from the site's own .wordmark CSS (Instrument Sans 700, dotless j, red dot) for options 4 and 5.
 Rendered options and the report: Drive, Chaz's Deliverables, "BRAND-0051 Drew QR off-centre options (for James's pick)".
