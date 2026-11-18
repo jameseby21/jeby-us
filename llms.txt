@@ -4,7 +4,7 @@
 ## Main categories
 - [Open-Source Software](https://jeby.us/lab): jebyLabs projects: Desk, jRE real-estate analytics, learningLabs (a learning library, data analysis course in progress), a band game, Lighting Lab, Quorum, Plantriloquist, AppForge, and ideas for a route optimizer, driver tracking and a dog territory app. Each listing says if it is live, preview, in build or an idea.
 - [Astrophysics](https://jeby.us/research): Predicting the Masses of Galaxy Clusters Using Weighted Linear Regression (Carnegie Mellon, 2015).
-- [Cooking](https://jeby.us/cooking): recipes, step by step: Smoked brisket on the Big Green Egg; Brisket al horno.
+- [Cooking](https://jeby.us/cooking): recipes, step by step: Smoked brisket; Brisket al horno.
 - [Real Estate](https://jeby.us/real-estate): jeby Real Estate. Market analysis for Miami Springs and Virginia Gardens, every fact traced to its source.
 - [Random](https://jeby.us/random): one thing from the site, picked at random.
 

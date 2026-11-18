@@ -18,9 +18,9 @@ Pages: index, about, lab, research, qr, cooking, cooking-brisket-smoked, cooking
 
 ## Findings (2026-11-17)
 
-- **431 rows: 20 owner-written, 6 owner-approved, 405 draft awaiting his word; 0 with no record of a source.** Every line traces to a commit and almost all to a ticket; what is missing for 405 lines is his word, not a source.
+- **431 rows: 20 owner-written, 9 owner-approved, 402 draft awaiting his word; 0 with no record of a source.** Every line traces to a commit and almost all to a ticket; what is missing for 402 lines is his word, not a source.
 - **The hero eyebrow and the footer line were Chaz's drafts, not his 2026-11-12 commands.** Both came from b46c863 (JEBYUS-0033, 2026-11-08) and went live on 2026-11-13 under decision 114; no 2026-11-12 commit touched them. PR 22 changed both without his word; PR 24 put both back. Both are Y/N questions for him (JEBYUS-0084).
-- **"Big Green Egg" is back on personal pages.** JEBYUS-0071 (2026-11-12, his point 8.5) says no mention of the Big Green Egg anywhere on the personal pages; JEBYUS-0083 (aaf2169, 2026-11-17) titles the recipe "Smoked brisket on the Big Green Egg" on Cooking, the recipe page and Random. Left as is (not this ticket's lines); a question for James.
+- **"Big Green Egg" left the recipe title (decision 156, James 2026-11-17, JEBYUS-0087).** The recipe is titled "Smoked brisket" on Cooking, the recipe page and Random, per his 2026-11-12 point 8.5. The equipment line inside the recipe may still name the cooker.
 - **Not covered by the check:** text drawn by JavaScript (the research slideshow, the family strip from family.js), image alt text, page titles and meta descriptions, the Professional and Teach pages (not ledger pages yet).
 
 ### Header and footer (every page)
@@ -291,7 +291,7 @@ Pages: index, about, lab, research, qr, cooking, cooking-brisket-smoked, cooking
 | 232 | cooking | Brisket | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
 | 233 | cooking | The same cut, two completely different dishes. Pick by how much time you have and what equipment you own. | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
 | 234 | cooking | Brisket · Smoked | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
-| 235 | cooking | Smoked brisket on the Big Green Egg | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
+| 235 | cooking | Smoked brisket | drafted for James | decision 156, James 2026-11-17: his 2026-11-12 point 8.5 (no Big Green Egg on the personal pages) applied to the recipe title; was JEBYUS-0083, aaf2169 | owner-approved |
 | 236 | cooking | Low and slow on the smoker. Twelve hours of patience for twenty minutes of dinner. | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
 | 237 | cooking | Open | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
 | 238 | cooking | Brisket · Oven-braised | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
@@ -303,7 +303,7 @@ Pages: index, about, lab, research, qr, cooking, cooking-brisket-smoked, cooking
 | # | Page | Text | Who | Command | State |
 | --- | --- | --- | --- | --- | --- |
 | 241 | cooking-brisket-smoked | Cooking · Brisket · Smoked | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
-| 242 | cooking-brisket-smoked | Smoked brisket on the Big Green Egg | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
+| 242 | cooking-brisket-smoked | Smoked brisket | drafted for James | decision 156, James 2026-11-17: his 2026-11-12 point 8.5 (no Big Green Egg on the personal pages) applied to the recipe title; was JEBYUS-0083, aaf2169 | owner-approved |
 | 243 | cooking-brisket-smoked | About 10 lb, overnight brine, roughly fourteen hours on the Egg. Twelve hours of patience for twenty minutes of dinner. | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
 | 244 | cooking-brisket-smoked | Makes 12 servings. A 10 lb packer loses roughly 40% to trim and rendering. | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
 | 245 | cooking-brisket-smoked | Ingredients | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: the cooking thread's recipes handoff (COOK-01 to COOK-23) | draft awaiting his word |
@@ -506,5 +506,5 @@ Pages: index, about, lab, research, qr, cooking, cooking-brisket-smoked, cooking
 | 427 | random | Astrophysics · Carnegie Mellon, 2015 | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: five categories | draft awaiting his word |
 | 428 | random | Predicting the masses of galaxy clusters | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: five categories | draft awaiting his word |
 | 429 | random | Cooking | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: five categories | draft awaiting his word |
-| 430 | random | Smoked brisket on the Big Green Egg | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: five categories | draft awaiting his word |
+| 430 | random | Smoked brisket | drafted for James | decision 156, James 2026-11-17: his 2026-11-12 point 8.5 (no Big Green Egg on the personal pages) applied to the recipe title; was JEBYUS-0083, aaf2169 | owner-approved |
 | 431 | random | Brisket al horno | drafted for James | JEBYUS-0083, aaf2169, 2026-11-17: five categories | draft awaiting his word |
