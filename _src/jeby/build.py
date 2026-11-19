@@ -3,8 +3,9 @@ import html, json, pathlib, re, shutil, sys
 ROOT = pathlib.Path(__file__).parent
 sys.path.insert(0, str(ROOT / "src"))
 import content as C
-sys.path.insert(0, str(ROOT.parent / "brand"))
+sys.path.insert(0, str(ROOT.parent)); sys.path.insert(0, str(ROOT.parent / "brand"))
 import brand as BR  # marks.json: the cycling rule's candidates
+import fontcopy as FC  # per-site font copy
 import cooking as CK  # recipes/ data, schema check and recipe pages (JEBYUS-0083)
 BR.check_coverage([i["id"] for g in C.LAB for i in g["items"]])
 
@@ -14,7 +15,7 @@ E = html.escape
 RS = ROOT.parent / "research" / "src"; ST = ROOT / "static"; FAM = ROOT.parent / "family"
 
 FONTS = ('<link rel="preload" href="assets/fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="assets/fonts/instrument-sans.woff2" as="font" type="font/woff2" crossorigin>'
-         '<link rel="stylesheet" href="assets/fonts.css">')   # self-hosted (W26, decision 210)
+         '<link rel="preload" href="assets/fonts/instrument-sans-ext.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="assets/fonts.css">')   # self-hosted (W26, decision 210)
 CATS = [(k, n) for n, k in C.CATEGORIES]   # the five main categories: the header nav on every page (JEBYUS-0083)
 MORE = [("about", "About"), ("professional", "Professional"), ("teach", "Teach")]   # kept in the menu and the footer
 PAGES = CATS + MORE
@@ -468,8 +469,7 @@ for d in (OUT, ART):
     shutil.copy(FAM / "family.js", d / "assets/family.js")
     shutil.copy(ST / "favicon.svg", d / "favicon.svg")
     BR.copy_assets(d / "assets")
-    shutil.copy(ROOT.parent / "fonts" / "jeby-fonts.css", d / "assets/fonts.css")   # self-hosted fonts (W26, decision 210)
-    shutil.copytree(ROOT.parent / "fonts", d / "assets/fonts", ignore=shutil.ignore_patterns("*.css"), dirs_exist_ok=True)
+    FC.copy_site_fonts(ROOT.parent / "fonts", "jeby-fonts.css", d / "assets")   # only jeby.us's own fonts (W26, decision 210)
     (d / "research").mkdir(exist_ok=True); shutil.copy(ST / "poster.pdf", d / "research/poster.pdf")
 shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT / "drew-qr.png")
 (OUT / "CNAME").write_text("jeby.us\n", encoding="utf-8")
