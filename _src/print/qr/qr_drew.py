@@ -153,7 +153,8 @@ def render(opt, m=26, quiet=4):
     txt = None
     if opt.get("wordmark"):
         cx_, cy_, hm = opt["wordmark"]          # centre (module coords) and cap-to-descender height in modules
-        wm = hm * WORDMARK.shape[1] / WORDMARK.shape[0]
+        mark = load_wordmark(opt["wordmark_file"]) if opt.get("wordmark_file") else WORDMARK
+        wm = hm * mark.shape[1] / mark.shape[0]
         txt = (cx_ - wm / 2, cy_ - hm / 2, cx_ + wm / 2, cy_ + hm / 2)
     small = small_mask(v)
     func = np.zeros((n, n), bool)
@@ -192,7 +193,7 @@ def render(opt, m=26, quiet=4):
             for t, col in ((0, INK), (1, PAPER), (2, INK)):
                 cv2.rectangle(canvas, (X + t * m, Y + t * m), (X + (5 - t) * m - 1, Y + (5 - t) * m - 1), col, -1)
     if txt:
-        draw_wordmark(canvas, code0, m, txt)
+        draw_wordmark(canvas, code0, m, txt, mark)
     if opt.get("protect_only"):
         lm = [(ox + a / k, oy + b / k, ox + c / k, oy + d / k) for a, b, c, d in LANDMARKS]
     # report where the face sits relative to the squares
@@ -205,14 +206,20 @@ def render(opt, m=26, quiet=4):
     return canvas, info
 
 
-def draw_wordmark(canvas, code0, m, box):
+def load_wordmark(name):
+    w = cv2.imread(str(HERE / "build" / name), cv2.IMREAD_UNCHANGED)
+    ys, xs = np.where(w[..., 3] > 10)
+    return w[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+
+
+def draw_wordmark(canvas, code0, m, box, mark=None):
     """White knockout, then the jeby wordmark exactly as jeby.us sets it (wordmark.js renders it from the site CSS)."""
     x0, y0, x1, y1 = [code0 + c * m for c in box]
     pad = 0.5 * m
     X0, Y0, X1, Y1 = int(x0 - pad), int(y0 - pad), int(x1 + pad), int(y1 + pad)
     cv2.rectangle(canvas, (X0, Y0), (X1, Y1), PAPER, -1)
     w, h = int(round(x1 - x0)), int(round(y1 - y0))
-    wm = cv2.resize(WORDMARK, (w, h), interpolation=cv2.INTER_AREA)
+    wm = cv2.resize(WORDMARK if mark is None else mark, (w, h), interpolation=cv2.INTER_AREA)
     a = wm[..., 3:4] / 255.0
     roi = canvas[int(y0):int(y0) + h, int(x0):int(x0) + w]
     roi[:] = (wm[..., :3] * a + roi * (1 - a)).astype(np.uint8)
@@ -269,6 +276,9 @@ OPTIONS = [
      "window": True, "inside": True, "protect_only": True, "wordmark": (39.2, 52.7, 6.2), "fixed_dot": 0.38},
     {"key": "7-bigger-jeby-low-safer", "name": "A little bigger, jeby low", "version": 10, "head_h": 42, "face_at": (0.30, 0.38),
      "window": True, "inside": True, "protect_only": True, "wordmark": (39.2, 52.7, 6.2), "fixed_dot": 0.38},
+    # James, 2026-11-18 21:28: jeby.us in place of jeby, so the code always carries its own URL
+    {"key": "8-jeby-us", "name": "Option 7 with jeby.us", "version": 10, "head_h": 42, "face_at": (0.30, 0.38),
+     "window": True, "inside": True, "protect_only": True, "wordmark": (39.2, 52.7, 5.2), "wordmark_file": "wordmark-us.png", "fixed_dot": 0.38},
 ]
 
 if __name__ == "__main__":
