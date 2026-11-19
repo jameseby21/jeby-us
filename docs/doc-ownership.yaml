@@ -33,6 +33,7 @@
 - {glob: "_src/brand/**",                      doc: "_src/README.md#layout"}
 - {glob: "_src/brand/check_brand.js",          doc: "docs/COMMANDS.md#daily"}
 - {glob: "_src/family/**",                     doc: "_src/README.md#layout"}
+- {glob: "_src/fonts/**",                      doc: "_src/README.md#layout"}
 - {glob: "_src/research/**",                   doc: "_src/README.md#layout"}
 
 # ---- architecture and the docs themselves

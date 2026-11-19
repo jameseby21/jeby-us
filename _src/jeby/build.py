@@ -13,9 +13,8 @@ for d in (OUT, ART): shutil.rmtree(d, ignore_errors=True); (d / "assets").mkdir(
 E = html.escape
 RS = ROOT.parent / "research" / "src"; ST = ROOT / "static"; FAM = ROOT.parent / "family"
 
-FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..700,0..100,0..1;1,9..144,300..700,0..100,0..1'
-         '&family=Instrument+Sans:ital,wdth,wght@0,75..100,400..700;1,75..100,400..700&family=Geist+Mono:wght@400..600&display=swap">')
+FONTS = ('<link rel="preload" href="assets/fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="assets/fonts/instrument-sans.woff2" as="font" type="font/woff2" crossorigin>'
+         '<link rel="stylesheet" href="assets/fonts.css">')   # self-hosted (W26, decision 210)
 CATS = [(k, n) for n, k in C.CATEGORIES]   # the five main categories: the header nav on every page (JEBYUS-0083)
 MORE = [("about", "About"), ("professional", "Professional"), ("teach", "Teach")]   # kept in the menu and the footer
 PAGES = CATS + MORE
@@ -469,6 +468,8 @@ for d in (OUT, ART):
     shutil.copy(FAM / "family.js", d / "assets/family.js")
     shutil.copy(ST / "favicon.svg", d / "favicon.svg")
     BR.copy_assets(d / "assets")
+    shutil.copy(ROOT.parent / "fonts" / "jeby-fonts.css", d / "assets/fonts.css")   # self-hosted fonts (W26, decision 210)
+    shutil.copytree(ROOT.parent / "fonts", d / "assets/fonts", ignore=shutil.ignore_patterns("*.css"), dirs_exist_ok=True)
     (d / "research").mkdir(exist_ok=True); shutil.copy(ST / "poster.pdf", d / "research/poster.pdf")
 shutil.copy(ST / "og.png", OUT / "og.png"); shutil.copy(ST / "drew-qr.png", OUT / "drew-qr.png")
 (OUT / "CNAME").write_text("jeby.us\n", encoding="utf-8")

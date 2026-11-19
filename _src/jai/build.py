@@ -15,9 +15,8 @@ price = lambda p: money(p["hours"] * RATE) + ("/mo" if p["monthly"] else "")
 PRODUCTS = [it for g in LAB for it in g["items"] if it.get("jai")]
 ALL_PROJECTS = [it for g in LAB for it in g["items"]]
 
-FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..600'
-         '&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">')
+FONTS = ('<link rel="preload" href="assets/fonts/newsreader.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="assets/fonts/ibm-plex-sans-400.woff2" as="font" type="font/woff2" crossorigin>'
+         '<link rel="stylesheet" href="assets/fonts.css">')   # self-hosted (W26, decision 210)
 NAV = [("services", "Services"), ("report", "Free report"), ("products", "Products"), ("approach", "Approach"), ("about", "About")]
 ARROW = '<span class="arrow" aria-hidden="true">→</span>'
 MENU = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 8h16M4 16h16"/></svg>'
@@ -257,6 +256,8 @@ shutil.copytree(ROOT / "packs", OUT / "assets" / "packs", dirs_exist_ok=True)
 shutil.copy(FAM / "family.js", OUT / "assets" / "family.js")
 for f in ("plantriloquist.png", "musicalgames.svg", "lighting-lab.svg", "desk.svg"): shutil.copy(S2 / f, OUT / "assets" / f)
 BR.copy_assets(OUT / "assets")
+shutil.copy(ROOT.parent / "fonts" / "jai-fonts.css", OUT / "assets" / "fonts.css")   # self-hosted fonts (W26, decision 210)
+shutil.copytree(ROOT.parent / "fonts", OUT / "assets" / "fonts", ignore=shutil.ignore_patterns("*.css"), dirs_exist_ok=True)
 shutil.copy(OUT / "assets" / "brand" / "jai-monogram-light.svg", OUT / "assets" / "favicon.svg")  # for anything that asks for /assets/favicon.svg
 (OUT / "CNAME").write_text("jainsights.com\n", encoding="utf-8")
 (OUT / "robots.txt").write_text("User-agent: *\nAllow: /\nSitemap: https://jainsights.com/sitemap.xml\n", encoding="utf-8")
