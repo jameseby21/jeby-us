@@ -37,7 +37,6 @@ flowchart LR
   end
 
   subgraph ext["External services"]
-    fonts["Google Fonts · fonts.googleapis.com"]
     sheetjs["cdnjs · SheetJS xlsx 0.18.5"]
     mail["Visitor's email app · mailto: links"]
     social["LinkedIn, Instagram, GitHub · outbound links"]
@@ -60,8 +59,6 @@ flowchart LR
   jaiPages -->|"HTTPS"| jaiSite
   dnsE -.-> pages
   dnsJ -.-> jaiPages
-  jebySite -->|"web fonts"| fonts
-  jaiSite -->|"web fonts"| fonts
   jaiSite -->|"lazy-loads for .xlsx"| sheetjs
   fileIn -->|"FileReader"| jaiSite
   jebySite <-->|"family links"| jaiSite
@@ -297,7 +294,7 @@ There are no lockfiles or package manifests; versions below come from the code a
 | Styles | Plain CSS: custom properties, `@view-transition`, `interpolate-size`; dark default with a light theme on jeby.us | `_src/jeby/src/site.css`, `_src/jai/src/jai.css`, `_src/research/src/visuals.css` |
 | Browser scripts | Vanilla JavaScript; no framework, no bundler | `_src/jeby/src/site.js`, `_src/jai/src/jai.js`, `_src/jai/src/report.js`, `_src/family/family.js`, `_src/research/src/*.js` |
 | Browser features | Speculation Rules prerender, cross-page view transitions, `popover` menus, Clipboard API, Web Share API, `FileReader`, `localStorage` | `page()` in each `build.py`; `site.css`; `site.js`; `report.js` |
-| Fonts | Google Fonts css2 API, unversioned. jeby.us: Fraunces, Instrument Sans, Geist Mono. jainsights.com: Newsreader, IBM Plex Sans, IBM Plex Mono | `FONTS` constant in each `build.py` |
+| Fonts | Self-hosted WOFF2 (Latin subset, SIL OFL 1.1), served from each site's own `assets/fonts/` with `font-display: swap`; no third-party font host. jeby.us: Fraunces, Instrument Sans, Geist Mono. jainsights.com: Newsreader, IBM Plex Sans, IBM Plex Mono. Licences in `_src/fonts/LICENSES.md` | `FONTS` constant in each `build.py`; files in `_src/fonts/` |
 | Spreadsheet reader | SheetJS `xlsx` 0.18.5 from cdnjs, loaded at runtime | `loadXLSX` in `_src/jai/src/report.js` |
 | Metadata | schema.org JSON-LD (Person on jeby.us, ProfessionalService on jainsights.com); Open Graph; Twitter card on jeby.us | `page()` in each `build.py` |
 | Crawler files | `robots.txt` and `sitemap.xml` for both sites; `llms.txt` for jeby.us | written by each `build.py` |

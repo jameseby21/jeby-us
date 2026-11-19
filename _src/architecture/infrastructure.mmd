@@ -26,7 +26,6 @@ flowchart LR
   end
 
   subgraph ext["External services"]
-    fonts["Google Fonts · fonts.googleapis.com"]
     sheetjs["cdnjs · SheetJS xlsx 0.18.5"]
     mail["Visitor's email app · mailto: links"]
     social["LinkedIn, Instagram, GitHub · outbound links"]
@@ -49,8 +48,6 @@ flowchart LR
   jaiPages -->|"HTTPS"| jaiSite
   dnsE -.-> pages
   dnsJ -.-> jaiPages
-  jebySite -->|"web fonts"| fonts
-  jaiSite -->|"web fonts"| fonts
   jaiSite -->|"lazy-loads for .xlsx"| sheetjs
   fileIn -->|"FileReader"| jaiSite
   jebySite <-->|"family links"| jaiSite

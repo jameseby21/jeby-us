@@ -12,7 +12,8 @@
 - {glob: "_src/check_docs.py",                 doc: "docs/COMMANDS.md#build-release-docs"}
 - {glob: ".github/workflows/*.yml",            doc: "docs/COMMANDS.md#build-release-docs"}
 - {glob: "_src/preview.py",                    doc: "docs/COMMANDS.md#daily"}
-- {glob: "_src/check_{links,text,copy}.py",    doc: "docs/COMMANDS.md#daily"}
+- {glob: "_src/check_{links,text,copy,fonts}.py", doc: "docs/COMMANDS.md#daily"}
+- {glob: "_src/fontcopy.py",                   doc: "_src/README.md#layout"}
 - {glob: "_src/og.py",                         doc: "docs/COMMANDS.md#daily"}
 - {glob: "_src/.gitignore",                    doc: "_src/README.md#layout"}
 
@@ -33,6 +34,7 @@
 - {glob: "_src/brand/**",                      doc: "_src/README.md#layout"}
 - {glob: "_src/brand/check_brand.js",          doc: "docs/COMMANDS.md#daily"}
 - {glob: "_src/family/**",                     doc: "_src/README.md#layout"}
+- {glob: "_src/fonts/**",                      doc: "_src/README.md#layout"}
 - {glob: "_src/research/**",                   doc: "_src/README.md#layout"}
 
 # ---- architecture and the docs themselves

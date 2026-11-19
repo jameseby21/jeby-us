@@ -1,0 +1,7 @@
+{
+  "note": "Characters the upstream Google Fonts family itself lacks (checked 2026-11-18 against every slice Google serves for the family), so the browser falls back to a system font with or without self-hosting. check_fonts.py reports them as fallbacks by design and fails if one of them turns out to be covered, so the list cannot go stale.",
+  "Instrument Sans": ["U+00BC", "U+2192", "U+2197"],
+  "IBM Plex Sans": ["U+2192", "U+2197"],
+  "IBM Plex Mono": ["U+25CF"],
+  "Geist Mono": ["U+25CF"]
+}

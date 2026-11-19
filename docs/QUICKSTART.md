@@ -7,7 +7,7 @@ Goal: a stranger on a clean machine sees both sites running locally in under fif
 - Python 3.10 or newer (tested on 3.13); no packages to install
 - Git
 - Node 22 or newer and Edge or Chrome, only for the optional browser tests (tested on Node 24)
-- No accounts or keys. Fonts load from Google Fonts when online.
+- No accounts or keys. Fonts are served from the site itself, so the pages look the same offline.
 
 ## Install
 ```powershell

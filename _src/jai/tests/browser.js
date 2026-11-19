@@ -221,8 +221,8 @@ const check = (name, fn) => Promise.resolve().then(fn).then(r => { passed++; con
     return `1 printed page at zoom ${f.z}, ${f.rows} worth-a-look rows, print detail level ${f.drop} (0 = everything kept)`;
   });
   await check("nothing leaves the browser: no request while working, none that is a POST or PUT, ever", async () => {
-    // a web font the page's own stylesheet asks for the first time a glyph style is drawn is a plain GET for a public file, carrying nothing of the visitor's
-    const quiet = requests.filter(r => r.t >= quietFrom && !r.url.startsWith("data:") && !r.url.startsWith("blob:") && !(r.method === "GET" && /^https:\/\/fonts\.(gstatic|googleapis)\.com\//.test(r.url)));
+    // a web font the page's own stylesheet asks for the first time a glyph style is drawn is a plain GET for a file the site itself serves (W26: no third-party font host), carrying nothing of the visitor's
+    const quiet = requests.filter(r => r.t >= quietFrom && !r.url.startsWith("data:") && !r.url.startsWith("blob:") && !(r.method === "GET" && /\/assets\/fonts\/[^/]+\.woff2$/.test(r.url)));
     assert.strictEqual(quiet.length, 0, "requests during use: " + quiet.map(r => r.method + " " + r.url).join(", "));
     const writes = requests.filter(r => r.method !== "GET"); assert.strictEqual(writes.length, 0, "non-GET requests: " + writes.map(r => r.method + " " + r.url).join(", "));
     return `${requests.length} requests in total, the page start-up and public font files only; nothing else, no POST or PUT`;
